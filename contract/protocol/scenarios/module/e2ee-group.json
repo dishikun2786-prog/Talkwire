@@ -1,0 +1,31 @@
+{
+  "name": "module/e2ee-group",
+  "description": "Group end-to-end encryption: only the owner can turn it on, it cannot be turned off, plain pub is refused afterwards, sender-key payloads fan out to members, members of the same encrypted group may fetch each other's bundles without being friends, and membership changes tell the rest to rotate keys.",
+  "redlines": ["R17"],
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"], ["A", "C"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "secret", "members": ["${uid:B}", "${uid:C}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "c", "msg": {"action": "e2e_publish_bundle", "reqId": "pc", "e2eBundle": {"registrationId": 33, "identityKey": "SUtD", "signedPreKeyId": 1, "signedPreKey": "U1BLQw", "signedPreKeySignature": "U0lHQw", "kyberPreKeyId": 1, "kyberPreKey": "S1BLQw", "kyberPreKeySignature": "S1NJR0M"}}, "awaitMatch": {"type": "e2e_publish_bundle_result", "reqId": "pc"}},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_fetch_bundle", "reqId": "f1", "user": "${uid:C}"}, "awaitMatch": {"type": "e2e_bundle", "reqId": "f1"}, "note": "B and C are not friends and the group is not encrypted yet"},
+    {"do": "send", "conn": "a", "msg": {"action": "e2e_send", "topic": "${grp}", "e2eKind": "sender_key", "content": "U0tE"}, "note": "group not encrypted yet"},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_set_group_encrypted", "reqId": "e1", "topic": "${grp}"}, "awaitMatch": {"type": "e2e_set_group_encrypted_result", "reqId": "e1"}, "note": "not the owner"},
+    {"do": "send", "conn": "a", "msg": {"action": "e2e_set_group_encrypted", "reqId": "e2", "topic": "${grp}"}, "awaitMatch": {"type": "e2e_set_group_encrypted_result", "reqId": "e2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "e2e_set_group_encrypted", "reqId": "e3", "topic": "${grp}"}, "awaitMatch": {"type": "e2e_set_group_encrypted_result", "reqId": "e3"}, "note": "again: idempotent"},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_fetch_bundle", "reqId": "f2", "user": "${uid:C}"}, "awaitMatch": {"type": "e2e_bundle", "reqId": "f2"}, "note": "now allowed: same encrypted group"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "plain", "contentType": "text/plain", "clientMsgId": "a-plain"}, "note": "plain pub refused"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_groups"}},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_send", "topic": "${grp}", "e2eKind": "sender_key", "e2eMsgType": 7, "content": "U0tEQg"}},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_send", "topic": "${grp}", "e2eKind": "msg", "e2eMsgType": 7, "content": "R0NJUEhFUg"}},
+    {"do": "send", "conn": "b", "msg": {"action": "e2e_group_clear", "topic": "${grp}"}, "note": "B is a plain member"},
+    {"do": "send", "conn": "a", "msg": {"action": "e2e_group_clear", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:C}"}, "note": "remaining members are told to rotate"},
+    {"do": "send", "conn": "b", "msg": {"action": "leave_grp", "topic": "${grp}"}}
+  ]
+}

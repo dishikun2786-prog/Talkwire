@@ -1,0 +1,287 @@
+{
+  "scenario": "core/recall-p2p",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "one",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s5",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "one",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "two",
+        "contentType": "text/plain",
+        "clientMsgId": "a-2"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s6",
+            "seq": 2,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-2",
+            "content": "two",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 2,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "note": "A recalls its own message, addressing the peer by uid",
+      "sent": {
+        "action": "del",
+        "topic": "${uid:B}",
+        "seq": 1
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "del",
+            "code": 200,
+            "id": "s7",
+            "seq": 1,
+            "topic": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "recalled",
+            "from": "${uid:A}",
+            "seq": 1,
+            "topic": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "b",
+      "note": "B cannot recall A's message",
+      "sent": {
+        "action": "del",
+        "topic": "${uid:A}",
+        "seq": 2
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "del",
+            "code": 404,
+            "id": "s8",
+            "reason": "message not found or not yours"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "b",
+      "note": "seq 1 is gone from history",
+      "sent": {
+        "action": "get",
+        "topic": "${uid:A}",
+        "limit": 10
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s9",
+            "messages": [
+              {
+                "content": "two",
+                "contentType": "text/plain",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 2,
+                "topic": "${p2p:A,B}",
+                "ts": "<time>"
+              }
+            ],
+            "topic": "${uid:A}"
+          },
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:A}",
+            "what": "on"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "note": "the next message gets seq 3, not a reused 1",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "three",
+        "contentType": "text/plain",
+        "clientMsgId": "a-3"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s10",
+            "seq": 3,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-3",
+            "content": "three",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 3,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "note": "recall addressed by the canonical p2p topic",
+      "sent": {
+        "action": "del",
+        "topic": "${p2p:A,B}",
+        "seq": 2
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "del",
+            "code": 200,
+            "id": "s11",
+            "seq": 2,
+            "topic": "${p2p:A,B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "recalled",
+            "from": "${uid:A}",
+            "seq": 2,
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      }
+    }
+  ]
+}

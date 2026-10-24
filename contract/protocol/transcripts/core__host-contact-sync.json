@@ -1,0 +1,273 @@
+{
+  "scenario": "core/host-contact-sync",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "note": "not friends in the host yet",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "sub",
+            "code": 401,
+            "id": "s5",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "friends"
+    },
+    {
+      "index": 7,
+      "do": "host",
+      "frames": {
+        "a": [
+          {
+            "action": "contact_sync",
+            "from": "${uid:B}",
+            "what": "accepted"
+          }
+        ],
+        "b": [
+          {
+            "action": "contact_sync",
+            "from": "${uid:A}",
+            "what": "accepted"
+          }
+        ]
+      },
+      "hostResponse": {
+        "body": {
+          "topic": "${p2p:A,B}",
+          "uidA": "${uid:A}",
+          "uidB": "${uid:B}"
+        },
+        "status": 200
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s8",
+            "topic": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "now friends",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s9",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "now friends",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "friends"
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "note": "membership exists, so no friendship re-check (R20)",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "unfriended, host not told yet",
+        "contentType": "text/plain",
+        "clientMsgId": "a-2"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s11",
+            "seq": 2,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-2",
+            "content": "unfriended, host not told yet",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 2,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "host",
+      "frames": {
+        "a": [
+          {
+            "action": "contact_sync",
+            "from": "${uid:B}",
+            "what": "removed"
+          }
+        ],
+        "b": [
+          {
+            "action": "contact_sync",
+            "from": "${uid:A}",
+            "what": "removed"
+          }
+        ]
+      },
+      "hostResponse": {
+        "body": {
+          "topic": "${p2p:A,B}",
+          "uidA": "${uid:A}",
+          "uidB": "${uid:B}"
+        },
+        "status": 200
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "after removed",
+        "contentType": "text/plain",
+        "clientMsgId": "a-3"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 401,
+            "id": "s13",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

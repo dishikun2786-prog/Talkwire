@@ -1,0 +1,25 @@
+{
+  "name": "core/group-offline-events",
+  "description": "Group changes made while a member is offline are queued (create/invite, kick, disband, join review only; role changes and renames are not) and delivered after the member's next login. A queued grp_sync whose group no longer has the member is dropped silently. Only acked events stop being replayed.",
+  "redlines": ["R8"],
+  "users": ["A", "C"],
+  "host": {"friends": [["A", "C"]]},
+  "steps": [
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C", "note": "C must have logged in once before it can be added to a group"},
+    {"do": "close", "conn": "c"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "kept", "members": ["${uid:C}"]}, "capture": {"kept": "topic"}, "note": "queues event 1: grp_sync for kept"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "gone", "members": ["${uid:C}"]}, "capture": {"gone": "topic"}, "note": "queues event 2: grp_sync for gone"},
+    {"do": "send", "conn": "a", "msg": {"action": "set_member_role", "topic": "${kept}", "user": "${uid:C}", "memberRole": "admin"}, "note": "not queued"},
+    {"do": "send", "conn": "a", "msg": {"action": "update_grp", "topic": "${kept}", "name": "kept renamed"}, "note": "not queued"},
+    {"do": "send", "conn": "a", "msg": {"action": "disband_grp", "topic": "${gone}"}, "note": "queues event 3: grp_disband for gone; event 2 is now stale"},
+    {"do": "connect", "conn": "c2"},
+    {"do": "login", "conn": "c2", "user": "C", "note": "expect grp_sync(kept, eventId 1) and grp_disband(gone, eventId 3); event 2 is dropped"},
+    {"do": "send", "conn": "c2", "msg": {"action": "ack_group_event", "eventId": 1, "topic": "${kept}"}, "await": "none"},
+    {"do": "close", "conn": "c2"},
+    {"do": "connect", "conn": "c3"},
+    {"do": "login", "conn": "c3", "user": "C", "note": "only the un-acked grp_disband (eventId 3) is replayed"}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "core/history-paging",
+  "description": "History paging backwards (beforeSeq) and forwards (afterSeq), and an out-of-range limit falling back to the configured page size.",
+  "redlines": ["R6", "R9"],
+  "users": ["A"],
+  "settleMs": 120,
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "log", "members": []}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m1", "contentType": "text/plain", "clientMsgId": "m1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m2", "contentType": "text/plain", "clientMsgId": "m2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m3", "contentType": "text/plain", "clientMsgId": "m3"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m4", "contentType": "text/plain", "clientMsgId": "m4"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m5", "contentType": "text/plain", "clientMsgId": "m5"}},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${grp}", "limit": 2}},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${grp}", "beforeSeq": 3, "limit": 2}},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${grp}", "afterSeq": 3, "limit": 10}},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${grp}", "limit": 100000}}
+  ]
+}

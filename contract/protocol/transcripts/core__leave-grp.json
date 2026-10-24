@@ -1,0 +1,449 @@
+{
+  "scenario": "core/leave-grp",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "leavers",
+        "members": [
+          "${uid:B}",
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "leavers",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "leavers",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "leavers",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "note": "owner with other members",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave_grp",
+            "code": 409,
+            "id": "s10",
+            "reason": "群主需先转让群主身份或解散群聊，才能退出群聊"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "d",
+      "note": "D was never a member",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:D}",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:D}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:D}",
+            "topic": "${grp}"
+          }
+        ],
+        "d": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s11",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s12",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "b",
+      "note": "B is no longer a member",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get_members",
+            "code": 401,
+            "id": "s13",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s14",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:C}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "solo",
+        "members": []
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s15",
+            "name": "solo",
+            "topic": "${solo}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "note": "owner is the last member: leaving disbands",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${solo}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s16",
+            "topic": "${solo}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_groups"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_groups",
+            "code": 200,
+            "groups": [
+              {
+                "members": 2,
+                "name": "leavers",
+                "owner": "${uid:A}",
+                "topic": "${grp}"
+              }
+            ],
+            "id": "s17"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "hi",
+        "contentType": "text/plain",
+        "clientMsgId": "a-p2p"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s18",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-p2p",
+            "content": "hi",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "a",
+      "note": "leave_grp against a p2p topic",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${p2p:A,B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s19",
+            "topic": "${p2p:A,B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "a",
+      "note": "is A still a member of the p2p topic?",
+      "sent": {
+        "action": "get",
+        "topic": "${p2p:A,B}",
+        "limit": 10
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get",
+            "code": 401,
+            "id": "s20",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    }
+  ]
+}

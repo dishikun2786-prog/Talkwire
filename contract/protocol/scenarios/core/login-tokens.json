@@ -1,0 +1,22 @@
+{
+  "name": "core/login-tokens",
+  "description": "Which tokens the server accepts at login. Records the reference behaviour: refresh, agent and admin tokens are accepted (to be rejected by ImKit under R18).",
+  "redlines": ["R18"],
+  "users": ["B", "C", "D", "E", "F", "G", "H"],
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B", "claims": {"type": "refresh"}},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C", "claims": {"type": "agent", "deviceId": "dev-1"}},
+    {"do": "connect", "conn": "d"},
+    {"do": "login", "conn": "d", "user": "D", "claims": {"role": "superadmin"}},
+    {"do": "connect", "conn": "e"},
+    {"do": "login", "conn": "e", "user": "E", "claims": {"exp": "past"}},
+    {"do": "connect", "conn": "f"},
+    {"do": "login", "conn": "f", "user": "F", "token": "not-a-jwt"},
+    {"do": "connect", "conn": "g"},
+    {"do": "login", "conn": "g", "user": "G", "claims": {"sub": null}},
+    {"do": "connect", "conn": "h"},
+    {"do": "login", "conn": "h", "user": "H", "claims": {"type": null, "role": null}}
+  ]
+}

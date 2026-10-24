@@ -1,0 +1,17 @@
+{
+  "name": "core/errors",
+  "description": "Requests before login, an unknown action, a blank group name and a malformed frame; error replies carry the request id.",
+  "redlines": ["R2"],
+  "users": ["A"],
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "grp_nonexistent0"}, "note": "not logged in yet"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_groups"}, "note": "not logged in yet"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "no_such_action"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "grp_nonexistent0"}, "note": "logged in, not a member"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "   "}, "note": "blank group name"},
+    {"do": "raw", "conn": "a", "raw": "{not json", "note": "malformed frame"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_groups"}, "note": "connection still usable after a malformed frame?"}
+  ]
+}

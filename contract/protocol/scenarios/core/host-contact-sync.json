@@ -1,0 +1,21 @@
+{
+  "name": "core/host-contact-sync",
+  "description": "The host tells the server two users became friends and later stopped being friends; direct chat follows the host's view only through contact-sync.",
+  "redlines": ["R20"],
+  "users": ["A", "B"],
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${uid:B}"}, "note": "not friends in the host yet"},
+    {"do": "friends", "friends": ["A", "B", "on"]},
+    {"do": "host", "call": "contact-sync", "body": {"appUserIdA": "${user:A}", "appUserIdB": "${user:B}", "event": "accepted"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${uid:B}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "now friends", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "friends", "friends": ["A", "B", "off"]},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "unfriended, host not told yet", "contentType": "text/plain", "clientMsgId": "a-2"}, "note": "membership exists, so no friendship re-check (R20)"},
+    {"do": "host", "call": "contact-sync", "body": {"appUserIdA": "${user:A}", "appUserIdB": "${user:B}", "event": "removed"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "after removed", "contentType": "text/plain", "clientMsgId": "a-3"}}
+  ]
+}

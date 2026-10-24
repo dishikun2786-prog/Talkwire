@@ -1,0 +1,39 @@
+# ImKit
+
+ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 实时服务端、一个宿主（业务后端）接入 SDK，以及 Android、iOS、Web 三端客户端 SDK。业务项目只需实现少量宿主接口（身份、好友关系、资料、推送、媒体），就能得到单聊、群聊、媒体消息、已读、撤回、在线状态与离线推送。
+
+> 名称、Go 模块路径、Android 包名（`io.imkit`）、iOS 模块名（`ImKit`）与 npm 包名（`@imkit/*`）都是占位符，定名后统一替换。Go 模块在代码里暂写作 `example.com/imkit/...`（计划里的 `github.com/<org>/imkit` 不是合法的 Go 路径）。
+
+## 当前状态
+
+**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1** 已开工：1.1 把原版服务端原样搬进了 `server/`，与原版逐帧一致，还没有做任何重构。客户端代码尚未开始。完整计划见 `docs/plan.md`。
+
+## 目录
+
+| 目录 | 内容 | 状态 |
+| --- | --- | --- |
+| `contract/protocol/` | 线协议：JSON Schema、黄金对话 | 建设中 |
+| `contract/redlines/` | 红线对照表：每条红线对应的已录用例与计划用例 | 建设中 |
+| `contract/host-api/` | 宿主 ↔ IM 的 OpenAPI 3 | 未开始 |
+| `tools/conformance/` | 原版服务（参照）、假宿主、一致性测试台、客户端回放服务器 | 建设中 |
+| `docs/` | 计划、架构决策记录、协议规范、清单 | 建设中 |
+| `server/` | Go 服务端 | Phase 1：1.1 已完成（原样搬入） |
+| `host-sdk-node/` | Node 宿主 SDK | Phase 2 |
+| `android/`、`web/`、`ios/` | 三端 SDK | Phase 3–6 |
+| `admin-kit/`、`examples/` | 后台组件、业务示例 | Phase 7–8 |
+
+## 开发工具
+
+- Go 1.26.4 及以上（本机验证用的是 1.27.0）。
+- 文本文件一律 LF（见 `.gitattributes`）。Git for Windows 默认 `core.autocrlf=true`，不加这条，Go 源码检出后是 CRLF，哈希对不上冻结的源码，gofmt 也会报整份文件。
+- 竞态检测用 `tools/race.sh`，参数原样传给 `go test -race`（默认 `./...`）：
+
+  ```bash
+  cd tools/conformance && bash ../race.sh
+  ```
+
+  竞态检测需要 cgo 和 C 编译器。Windows 上用私有的 MinGW-w64 GCC（WinLibs GCC 16.2.0，默认在 `F:\Program Files\tools\winlibs\mingw64`，可用 `IMKIT_MINGW` 指向别处），只在这一条命令里打开 cgo，不改系统或用户 PATH：gcc 一旦出现在 PATH 上，本机其他 Go 构建都会悄悄改用 cgo。脚本里还绕过了 Windows 上的两个问题（GCC 装在带空格的目录下链接失败；地址随机化让 ThreadSanitizer 启动失败），原因写在脚本开头。Linux 和 macOS 直接用系统编译器。
+
+## 许可证
+
+核心以 Apache-2.0 发布（见 `LICENSE`）。链接 libsignal 的 E2EE 客户端模块将单独发布并采用 AGPLv3；它们不会出现在核心产物的依赖树里。

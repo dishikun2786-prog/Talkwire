@@ -1,0 +1,623 @@
+{
+  "scenario": "module/e2ee-group",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "secret",
+        "members": [
+          "${uid:B}",
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s7",
+            "name": "secret",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "secret",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "secret",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "c",
+      "sent": {
+        "action": "e2e_publish_bundle",
+        "reqId": "pc",
+        "e2eBundle": {
+          "registrationId": 33,
+          "identityKey": "SUtD",
+          "signedPreKeyId": 1,
+          "signedPreKey": "U1BLQw",
+          "signedPreKeySignature": "U0lHQw",
+          "kyberPreKeyId": 1,
+          "kyberPreKey": "S1BLQw",
+          "kyberPreKeySignature": "S1NJR0M"
+        }
+      },
+      "frames": {
+        "c": [
+          {
+            "ok": true,
+            "reqId": "pc",
+            "type": "e2e_publish_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "b",
+      "note": "B and C are not friends and the group is not encrypted yet",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f1",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "b": [
+          {
+            "found": false,
+            "reqId": "f1",
+            "type": "e2e_bundle",
+            "user": "${uid:C}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "note": "group not encrypted yet",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${grp}",
+        "e2eKind": "sender_key",
+        "content": "U0tE"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_send",
+            "code": 409,
+            "id": "s10",
+            "reason": "group_not_encrypted"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "b",
+      "note": "not the owner",
+      "sent": {
+        "action": "e2e_set_group_encrypted",
+        "reqId": "e1",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "ok": false,
+            "reason": "not_owner",
+            "reqId": "e1",
+            "type": "e2e_set_group_encrypted_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "e2e_set_group_encrypted",
+        "reqId": "e2",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          },
+          {
+            "ok": true,
+            "reqId": "e2",
+            "type": "e2e_set_group_encrypted_result"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "note": "again: idempotent",
+      "sent": {
+        "action": "e2e_set_group_encrypted",
+        "reqId": "e3",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          },
+          {
+            "ok": true,
+            "reqId": "e3",
+            "type": "e2e_set_group_encrypted_result"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "owner_enabled",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "now allowed: same encrypted group",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f2",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "b": [
+          {
+            "deviceId": 1,
+            "found": true,
+            "identityKey": "SUtD",
+            "kyberPreKey": "S1BLQw",
+            "kyberPreKeyId": 1,
+            "kyberPreKeySignature": "S1NJR0M",
+            "registrationId": 33,
+            "reqId": "f2",
+            "signedPreKey": "U1BLQw",
+            "signedPreKeyId": 1,
+            "signedPreKeySignature": "U0lHQw",
+            "type": "e2e_bundle",
+            "user": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "note": "plain pub refused",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "plain",
+        "contentType": "text/plain",
+        "clientMsgId": "a-plain"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 409,
+            "id": "s15",
+            "reason": "group_encrypted"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_groups"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_groups",
+            "code": 200,
+            "groups": [
+              {
+                "encrypted": true,
+                "members": 3,
+                "name": "secret",
+                "owner": "${uid:A}",
+                "topic": "${grp}"
+              }
+            ],
+            "id": "s16"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${grp}",
+        "e2eKind": "sender_key",
+        "e2eMsgType": 7,
+        "content": "U0tEQg"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_deliver",
+            "content": "U0tEQg",
+            "e2eKind": "sender_key",
+            "e2eMsgType": 7,
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_send",
+            "code": 200,
+            "id": "s17",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "e2e_deliver",
+            "content": "U0tEQg",
+            "e2eKind": "sender_key",
+            "e2eMsgType": 7,
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${grp}",
+        "e2eKind": "msg",
+        "e2eMsgType": 7,
+        "content": "R0NJUEhFUg"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_deliver",
+            "content": "R0NJUEhFUg",
+            "e2eKind": "msg",
+            "e2eMsgType": 7,
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_send",
+            "code": 200,
+            "id": "s18",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "e2e_deliver",
+            "content": "R0NJUEhFUg",
+            "e2eKind": "msg",
+            "e2eMsgType": 7,
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "b",
+      "note": "B is a plain member",
+      "sent": {
+        "action": "e2e_group_clear",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "e2e_group_clear",
+            "code": 401,
+            "id": "s19",
+            "reason": "只有群主或管理员可以执行此操作"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "e2e_group_clear",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_group_clear",
+            "code": 200,
+            "id": "s20",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_group_cleared",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "e2e_group_cleared",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 21,
+      "do": "send",
+      "conn": "a",
+      "note": "remaining members are told to rotate",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "member_removed",
+            "topic": "${grp}"
+          },
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "kick",
+            "code": 200,
+            "id": "s21",
+            "topic": "${grp}",
+            "user": "${uid:C}"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:A}",
+            "reason": "member_removed",
+            "topic": "${grp}"
+          },
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_disband",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 22,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_set_group_encrypted",
+            "e2eGroupEncrypted": true,
+            "from": "${uid:B}",
+            "reason": "member_left",
+            "topic": "${grp}"
+          },
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s22",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "core/clear-media",
+  "description": "Media reclamation. Recalling a message reclaims its file unless another message still references it. Clearing a group is for the owner or an admin; it physically deletes every message for every member and reclaims the files that are left. Reclamation shows up as delete-media calls to the host.",
+  "redlines": ["R6", "R21"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "settleMs": 500,
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "media", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "", "contentType": "image/png", "fileUrl": "https://media.example/u1.png", "fileName": "u1.png", "clientMsgId": "m1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "", "contentType": "image/png", "fileUrl": "https://media.example/u2.png", "fileName": "u2.png", "clientMsgId": "m2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "", "contentType": "image/png", "fileUrl": "https://media.example/u2.png", "fileName": "u2.png", "clientMsgId": "m3"}, "note": "a second message with the same file"},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${grp}", "seq": 1}, "note": "u1 is no longer referenced: delete-media"},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${grp}", "seq": 2}, "note": "u2 is still referenced by seq 3: no delete-media"},
+    {"do": "send", "conn": "b", "msg": {"action": "del_topic", "topic": "${grp}"}, "note": "a plain member cannot clear a group"},
+    {"do": "send", "conn": "a", "msg": {"action": "del_topic", "topic": "${grp}"}, "note": "clears for everyone; u2 is reclaimed"},
+    {"do": "send", "conn": "b", "msg": {"action": "get", "topic": "${grp}", "limit": 20}, "note": "B's history is empty too"}
+  ]
+}

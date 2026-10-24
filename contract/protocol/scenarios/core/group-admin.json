@@ -1,0 +1,27 @@
+{
+  "name": "core/group-admin",
+  "description": "Roles: owner promotes an admin; the admin can kick a member but not the owner; owner role cannot be assigned; ownership transfer; leaving; disbanding.",
+  "redlines": ["R5"],
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"], ["A", "C"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "admins", "members": ["${uid:B}", "${uid:C}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "set_member_role", "topic": "${grp}", "user": "${uid:B}", "memberRole": "admin"}},
+    {"do": "send", "conn": "a", "msg": {"action": "set_member_role", "topic": "${grp}", "user": "${uid:C}", "memberRole": "owner"}, "note": "owner cannot be assigned"},
+    {"do": "send", "conn": "b", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:A}"}, "note": "admin cannot kick the owner"},
+    {"do": "send", "conn": "c", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:B}"}, "note": "member cannot kick"},
+    {"do": "send", "conn": "b", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:C}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "update_grp", "topic": "${grp}", "name": "renamed"}},
+    {"do": "send", "conn": "a", "msg": {"action": "transfer_owner", "topic": "${grp}", "user": "${uid:B}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "leave_grp", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "get_members", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "disband_grp", "topic": "${grp}"}}
+  ]
+}

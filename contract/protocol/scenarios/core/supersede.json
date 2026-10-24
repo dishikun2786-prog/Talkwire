@@ -1,0 +1,22 @@
+{
+  "name": "core/supersede",
+  "description": "A second connection for the same user supersedes the first while a friend watches. The friend must not see the user go offline, and the new connection's own subscriptions must survive the old connection's cleanup: group data and 1:1 data reach the new connection.",
+  "redlines": ["R3"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a1"},
+    {"do": "login", "conn": "a1", "user": "A"},
+    {"do": "send", "conn": "a1", "msg": {"action": "create_grp", "name": "watch", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${uid:A}"}, "note": "B watches A's presence"},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "connect", "conn": "a2"},
+    {"do": "login", "conn": "a2", "user": "A", "note": "supersedes a1; B must not be told A went offline", "optional": [{"conn": "a1", "action": "login", "code": 401}]},
+    {"do": "send", "conn": "a2", "msg": {"action": "sub", "topic": "${grp}"}, "note": "a1's cleanup must not remove this subscription"},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${grp}", "content": "to the group", "contentType": "text/plain", "clientMsgId": "b-1"}, "note": "reaches a2"},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${uid:A}", "content": "direct", "contentType": "text/plain", "clientMsgId": "b-2"}, "note": "reaches a2"},
+    {"do": "send", "conn": "b", "msg": {"action": "pres", "topics": ["${uid:A}"]}, "note": "A is still online"}
+  ]
+}

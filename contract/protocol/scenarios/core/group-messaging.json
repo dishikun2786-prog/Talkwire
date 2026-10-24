@@ -1,0 +1,24 @@
+{
+  "name": "core/group-messaging",
+  "description": "Owner creates a group with a friend, both subscribe, messages flow both ways, duplicate clientMsgId is idempotent, read and typing notes fan out.",
+  "redlines": ["R1", "R2"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B", "note": "B must have logged in once before it can be added"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "team", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "hello", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "hello", "contentType": "text/plain", "clientMsgId": "a-1"}, "note": "same clientMsgId: original seq, no second broadcast (R1)"},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${grp}", "content": "hi back", "contentType": "text/plain", "clientMsgId": "b-1"}},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${grp}", "what": "read", "seq": 2}, "await": "none"},
+    {"do": "send", "conn": "a", "msg": {"action": "note", "topic": "${grp}", "what": "kp"}, "await": "none"},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${grp}", "limit": 20}},
+    {"do": "send", "conn": "a", "msg": {"action": "get_groups"}},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}}
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "scenario": "core/login-tokens",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "e"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "e",
+      "frames": {
+        "e": [
+          {
+            "action": "login",
+            "code": 401,
+            "id": "s8",
+            "reason": "invalid token"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "connect",
+      "conn": "f"
+    },
+    {
+      "index": 10,
+      "do": "login",
+      "conn": "f",
+      "frames": {
+        "f": [
+          {
+            "action": "login",
+            "code": 401,
+            "id": "s10",
+            "reason": "invalid token"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "connect",
+      "conn": "g"
+    },
+    {
+      "index": 12,
+      "do": "login",
+      "conn": "g",
+      "frames": {
+        "g": [
+          {
+            "action": "login",
+            "code": 401,
+            "id": "s12",
+            "reason": "invalid token"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "connect",
+      "conn": "h"
+    },
+    {
+      "index": 14,
+      "do": "login",
+      "conn": "h",
+      "frames": {
+        "h": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:H}"
+          }
+        ]
+      }
+    }
+  ]
+}

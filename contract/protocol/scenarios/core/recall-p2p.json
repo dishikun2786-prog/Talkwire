@@ -1,0 +1,20 @@
+{
+  "name": "core/recall-p2p",
+  "description": "Recalling a 1:1 message. Checks which topic the peer sees on the recalled push, and that a recalled message disappears from history while the seq stays used.",
+  "redlines": ["R6"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "one", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "two", "contentType": "text/plain", "clientMsgId": "a-2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${uid:B}", "seq": 1}, "note": "A recalls its own message, addressing the peer by uid"},
+    {"do": "send", "conn": "b", "msg": {"action": "del", "topic": "${uid:A}", "seq": 2}, "note": "B cannot recall A's message"},
+    {"do": "send", "conn": "b", "msg": {"action": "get", "topic": "${uid:A}", "limit": 10}, "note": "seq 1 is gone from history"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "three", "contentType": "text/plain", "clientMsgId": "a-3"}, "note": "the next message gets seq 3, not a reused 1"},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${p2p:A,B}", "seq": 2}, "note": "recall addressed by the canonical p2p topic"}
+  ]
+}

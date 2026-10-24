@@ -1,0 +1,327 @@
+// Package redlines checks the red-line matrix (contract/redlines/redlines.json)
+// against the scenarios it cites, and renders it as Markdown.
+//
+// A red line is a rule the framework must not break. The matrix ties each one
+// to recorded golden-transcript steps (what the reference server does today)
+// and to planned automated tests (task in the plan, platform, test name). The
+// checks keep the two from drifting apart: cited steps must still exist and
+// still be the same action, scenario tags and matrix entries must agree, and
+// every platform a red line applies to must have at least one case.
+package redlines
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+
+	"example.com/imkit/tools/conformance/harness"
+)
+
+// Matrix is the whole registry file.
+type Matrix struct {
+	About      string            `json:"about"`
+	Platforms  map[string]string `json:"platforms"`
+	Layers     map[string]string `json:"layers"`
+	References map[string]string `json:"references"`
+	Tasks      map[string]string `json:"tasks"`
+	Redlines   []Redline         `json:"redlines"`
+}
+
+// Redline is one rule and the cases that cover it.
+type Redline struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Platforms []string  `json:"platforms"`
+	Reference string    `json:"reference"`
+	Note      string    `json:"note,omitempty"`
+	NoGolden  string    `json:"noGolden,omitempty"`
+	Golden    []Golden  `json:"golden"`
+	Planned   []Planned `json:"planned"`
+}
+
+// Golden cites recorded steps of one scenario. Each step is "N:verb", where
+// verb is the request's action for a send step and the step kind otherwise.
+type Golden struct {
+	Scenario string   `json:"scenario"`
+	Steps    []string `json:"steps"`
+	Checks   string   `json:"checks"`
+}
+
+// Planned is an automated test still to be written.
+type Planned struct {
+	Task     string `json:"task"`
+	Layer    string `json:"layer"`
+	Platform string `json:"platform"`
+	Name     string `json:"name"`
+	Scenario string `json:"scenario,omitempty"`
+	Checks   string `json:"checks"`
+}
+
+// Load reads the registry, rejecting unknown fields.
+func Load(path string) (*Matrix, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var m Matrix
+	if err := dec.Decode(&m); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &m, nil
+}
+
+var idPattern = regexp.MustCompile(`^([RC])([1-9][0-9]*)$`)
+
+func isClient(id string) bool { return strings.HasPrefix(id, "C") }
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// Check returns every problem found; an empty result means the matrix is
+// consistent with the scenarios.
+func Check(m *Matrix, scenarios []*harness.Scenario) []string {
+	var problems []string
+	add := func(format string, a ...any) { problems = append(problems, fmt.Sprintf(format, a...)) }
+
+	byName := map[string]*harness.Scenario{}
+	for _, sc := range scenarios {
+		byName[sc.Name] = sc
+	}
+
+	// Ids: R1, R2, ... then C1, C2, ..., each run starting at 1 with no gaps.
+	next := map[string]int{"R": 1, "C": 1}
+	seenClient := false
+	byID := map[string]*Redline{}
+	for i := range m.Redlines {
+		rl := &m.Redlines[i]
+		match := idPattern.FindStringSubmatch(rl.ID)
+		if match == nil {
+			add("%q: id must be R<n> or C<n>", rl.ID)
+			continue
+		}
+		n, _ := strconv.Atoi(match[2])
+		if match[1] == "C" {
+			seenClient = true
+		} else if seenClient {
+			add("%s: server red lines (R) must come before client red lines (C)", rl.ID)
+		}
+		if n != next[match[1]] {
+			add("%s: expected %s%d here (ids are numbered without gaps)", rl.ID, match[1], next[match[1]])
+		}
+		next[match[1]] = n + 1
+		if byID[rl.ID] != nil {
+			add("%s: duplicate id", rl.ID)
+		}
+		byID[rl.ID] = rl
+	}
+
+	usedTasks := map[string]bool{}
+	for i := range m.Redlines {
+		rl := &m.Redlines[i]
+		checkRedline(m, rl, byName, usedTasks, add)
+	}
+
+	// Scenario tags and golden citations must agree in both directions.
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		for _, tag := range byName[name].Redlines {
+			rl := byID[tag]
+			if rl == nil {
+				add("scenario %s: tag %s is not in the matrix", name, tag)
+				continue
+			}
+			cited := false
+			for _, g := range rl.Golden {
+				if g.Scenario == name {
+					cited = true
+				}
+			}
+			if !cited {
+				add("scenario %s: tagged %s, but %s cites no step of it", name, tag, tag)
+			}
+		}
+	}
+
+	tasks := make([]string, 0, len(m.Tasks))
+	for t := range m.Tasks {
+		tasks = append(tasks, t)
+	}
+	sort.Strings(tasks)
+	for _, t := range tasks {
+		if !usedTasks[t] {
+			add("task %s is listed but no planned case uses it", t)
+		}
+	}
+	return problems
+}
+
+func checkRedline(m *Matrix, rl *Redline, byName map[string]*harness.Scenario, usedTasks map[string]bool, add func(string, ...any)) {
+	id := rl.ID
+	if strings.TrimSpace(rl.Title) == "" {
+		add("%s: title is empty", id)
+	}
+	if len(rl.Platforms) == 0 {
+		add("%s: no platforms", id)
+	}
+	seenPlatform := map[string]bool{}
+	for _, p := range rl.Platforms {
+		if _, ok := m.Platforms[p]; !ok {
+			add("%s: unknown platform %q", id, p)
+		}
+		if seenPlatform[p] {
+			add("%s: platform %q listed twice", id, p)
+		}
+		seenPlatform[p] = true
+	}
+	if _, ok := m.References[rl.Reference]; !ok {
+		add("%s: unknown reference status %q", id, rl.Reference)
+	}
+	if isClient(id) != (rl.Reference == "n/a") {
+		add("%s: reference must be n/a exactly for client red lines", id)
+	}
+
+	server := contains(rl.Platforms, "server")
+	switch {
+	case len(rl.Golden) > 0 && !server:
+		add("%s: golden cases only apply to red lines on the server", id)
+	case len(rl.Golden) > 0 && rl.NoGolden != "":
+		add("%s: has golden cases, so noGolden must be empty", id)
+	case len(rl.Golden) == 0 && server && strings.TrimSpace(rl.NoGolden) == "":
+		add("%s: a server red line with no golden case must say why (noGolden)", id)
+	case !server && rl.NoGolden != "":
+		add("%s: noGolden only applies to red lines on the server", id)
+	}
+
+	covered := map[string]bool{}
+	for _, g := range rl.Golden {
+		covered["server"] = true
+		checkGolden(id, g, byName, add)
+	}
+	seenCase := map[string]bool{}
+	strict := false
+	for _, p := range rl.Planned {
+		where := fmt.Sprintf("%s: planned %s", id, p.Name)
+		if _, ok := m.Tasks[p.Task]; !ok {
+			add("%s: unknown task %q", where, p.Task)
+		}
+		usedTasks[p.Task] = true
+		if _, ok := m.Layers[p.Layer]; !ok {
+			add("%s: unknown layer %q", where, p.Layer)
+		}
+		if p.Layer == "strict" {
+			strict = true
+		}
+		if !contains(rl.Platforms, p.Platform) {
+			add("%s: platform %q is not one of the red line's platforms", where, p.Platform)
+		}
+		covered[p.Platform] = true
+		if !strings.Contains(p.Name, id+"_") {
+			add("%s: test name must carry the red line id (%s_...)", where, id)
+		}
+		if strings.TrimSpace(p.Checks) == "" {
+			add("%s: checks is empty", where)
+		}
+		if p.Scenario != "" && byName[p.Scenario] == nil {
+			add("%s: no scenario %q", where, p.Scenario)
+		}
+		key := p.Platform + "|" + p.Name
+		if seenCase[key] {
+			add("%s: %s case listed twice", where, p.Platform)
+		}
+		seenCase[key] = true
+	}
+	for _, p := range rl.Platforms {
+		if !covered[p] {
+			add("%s: no case for platform %s", id, p)
+		}
+	}
+	if rl.Reference == "violates" && !strict {
+		add("%s: the reference server violates it, so a strict case is required", id)
+	}
+}
+
+func checkGolden(id string, g Golden, byName map[string]*harness.Scenario, add func(string, ...any)) {
+	where := fmt.Sprintf("%s: golden %s", id, g.Scenario)
+	sc := byName[g.Scenario]
+	if sc == nil {
+		add("%s: no such scenario", where)
+		return
+	}
+	if !contains(sc.Redlines, id) {
+		add("%s: scenario is not tagged %s", where, id)
+	}
+	if len(g.Steps) == 0 {
+		add("%s: no steps", where)
+	}
+	if strings.TrimSpace(g.Checks) == "" {
+		add("%s: checks is empty", where)
+	}
+	last := 0
+	for _, ref := range g.Steps {
+		n, verb, ok := parseStepRef(ref)
+		if !ok {
+			add("%s: step %q is not N:verb", where, ref)
+			continue
+		}
+		if n <= last {
+			add("%s: steps must be in increasing order (%q)", where, ref)
+		}
+		last = n
+		if n < 1 || n > len(sc.Steps) {
+			add("%s: step %d does not exist (%d steps)", where, n, len(sc.Steps))
+			continue
+		}
+		if got := stepVerb(sc.Steps[n-1]); got != verb {
+			add("%s: step %d is %q now, not %q", where, n, got, verb)
+		}
+	}
+}
+
+func parseStepRef(ref string) (int, string, bool) {
+	num, verb, found := strings.Cut(ref, ":")
+	n, err := strconv.Atoi(num)
+	if !found || err != nil || verb == "" {
+		return 0, "", false
+	}
+	return n, verb, true
+}
+
+// stepVerb is the request's action for a send step, the step kind otherwise.
+func stepVerb(st harness.Step) string {
+	if st.Do == "send" {
+		var msg struct {
+			Action string `json:"action"`
+		}
+		_ = json.Unmarshal(st.Msg, &msg)
+		return msg.Action
+	}
+	return st.Do
+}
+
+// StepNumbers returns the step numbers of a golden citation.
+func (g Golden) StepNumbers() []int {
+	out := make([]int, 0, len(g.Steps))
+	for _, ref := range g.Steps {
+		if n, _, ok := parseStepRef(ref); ok {
+			out = append(out, n)
+		}
+	}
+	return out
+}

@@ -1,0 +1,25 @@
+{
+  "name": "core/presence",
+  "description": "Presence pushes and the pres query: snapshot by one uid, by a list, and by '*'; self and non-uid entries are dropped; transitions are pushed only to users sharing a topic. C is not A's friend and shares no topic with A.",
+  "redlines": ["R4", "R19", "R22"],
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${uid:B}"}, "note": "creates the p2p topic; a presence frame follows the ack"},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topic": "${uid:B}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topics": ["${uid:B}", "${uid:C}", "${uid:A}", "${uid:B}", "grp_notauser", ""]}, "note": "C is a stranger to A"},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topic": "*"}, "note": "every peer A shares a topic with"},
+    {"do": "send", "conn": "a", "msg": {"action": "pres"}, "note": "neither topic nor topics"},
+    {"do": "close", "conn": "c", "note": "A shares no topic with C: no push"},
+    {"do": "close", "conn": "b", "note": "A shares the p2p topic with B: off push"},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topics": ["${uid:B}", "${uid:C}"]}, "note": "both offline now, with lastSeenAt"},
+    {"do": "connect", "conn": "b2"},
+    {"do": "login", "conn": "b2", "user": "B", "note": "on push to A"}
+  ]
+}

@@ -1,0 +1,450 @@
+{
+  "scenario": "core/forward",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "source",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s5",
+            "name": "source",
+            "topic": "${src}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "source",
+            "topic": "${src}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "target",
+        "members": []
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s6",
+            "name": "target",
+            "topic": "${dst}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${src}",
+        "content": "first",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s7",
+            "seq": 1,
+            "topic": "${src}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "first",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "source",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${src}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${src}",
+        "content": "second",
+        "contentType": "text/plain",
+        "clientMsgId": "a-2"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s8",
+            "seq": 2,
+            "topic": "${src}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-2",
+            "content": "second",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "source",
+            "senderKind": "user",
+            "seq": 2,
+            "topic": "${src}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "forward_bundle",
+        "reqId": "r1",
+        "sourceTopic": "${src}",
+        "sourceMsgIds": [
+          1,
+          2
+        ],
+        "targetTopic": "${dst}"
+      },
+      "frames": {
+        "a": [
+          {
+            "insertedSeqs": [
+              1,
+              2
+            ],
+            "ok": true,
+            "reqId": "r1",
+            "type": "forward_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get",
+        "topic": "${dst}",
+        "limit": 10
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s10",
+            "messages": [
+              {
+                "content": "first",
+                "contentType": "text/plain",
+                "forwardFromMsgId": 1,
+                "forwardFromTopic": "${src}",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 1,
+                "topic": "${dst}",
+                "ts": "<time>"
+              },
+              {
+                "content": "second",
+                "contentType": "text/plain",
+                "forwardFromMsgId": 2,
+                "forwardFromTopic": "${src}",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 2,
+                "topic": "${dst}",
+                "ts": "<time>"
+              }
+            ],
+            "topic": "${dst}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "b",
+      "note": "B is not a member of the target",
+      "sent": {
+        "action": "forward_bundle",
+        "reqId": "r2",
+        "sourceTopic": "${src}",
+        "sourceMsgIds": [
+          1
+        ],
+        "targetTopic": "${dst}"
+      },
+      "frames": {
+        "b": [
+          {
+            "ok": false,
+            "reason": "not_member",
+            "reqId": "r2",
+            "type": "forward_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "a",
+      "note": "missing source message",
+      "sent": {
+        "action": "forward_bundle",
+        "reqId": "r3",
+        "sourceTopic": "${src}",
+        "sourceMsgIds": [
+          99
+        ],
+        "targetTopic": "${dst}"
+      },
+      "frames": {
+        "a": [
+          {
+            "ok": false,
+            "reason": "source_not_found",
+            "reqId": "r3",
+            "type": "forward_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "note": "creates the p2p topic",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "hi",
+        "contentType": "text/plain",
+        "clientMsgId": "a-p2p"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s13",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-p2p",
+            "content": "hi",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "a",
+      "note": "targets must be canonical topic names: a peer uid is topic_not_found, unlike pub",
+      "sent": {
+        "action": "forward_broadcast",
+        "reqId": "r4",
+        "sourceTopic": "${src}",
+        "sourceMsgId": 1,
+        "targetTopics": [
+          "${dst}",
+          "${uid:B}",
+          "${p2p:A,B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "reqId": "r4",
+            "results": [
+              {
+                "ok": true,
+                "seq": 3,
+                "topic": "${dst}"
+              },
+              {
+                "ok": false,
+                "reason": "topic_not_found",
+                "topic": "${uid:B}"
+              },
+              {
+                "ok": true,
+                "seq": 2,
+                "topic": "${p2p:A,B}"
+              }
+            ],
+            "type": "forward_broadcast_result"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "content": "first",
+            "contentType": "text/plain",
+            "forwardFromMsgId": 1,
+            "forwardFromTopic": "${src}",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 2,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "note": "same reqId again: the cached result is returned, nothing is forwarded twice",
+      "sent": {
+        "action": "forward_broadcast",
+        "reqId": "r4",
+        "sourceTopic": "${src}",
+        "sourceMsgId": 1,
+        "targetTopics": [
+          "${dst}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "reqId": "r4",
+            "results": [
+              {
+                "ok": true,
+                "seq": 3,
+                "topic": "${dst}"
+              },
+              {
+                "ok": false,
+                "reason": "topic_not_found",
+                "topic": "${uid:B}"
+              },
+              {
+                "ok": true,
+                "seq": 2,
+                "topic": "${p2p:A,B}"
+              }
+            ],
+            "type": "forward_broadcast_result"
+          }
+        ]
+      }
+    }
+  ]
+}

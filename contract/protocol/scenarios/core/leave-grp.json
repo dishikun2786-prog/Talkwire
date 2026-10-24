@@ -1,0 +1,28 @@
+{
+  "name": "core/leave-grp",
+  "description": "Leaving a group: an owner with other members is refused; a member leaves and the rest get grp_sync; an owner who is the last member disbands by leaving. Also probes leave_grp from a non-member and against a p2p topic, which the code does not guard.",
+  "users": ["A", "B", "C", "D"],
+  "host": {"friends": [["A", "B"], ["A", "C"]]},
+  "steps": [
+    {"do": "connect", "conn": "d"},
+    {"do": "login", "conn": "d", "user": "D"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "leavers", "members": ["${uid:B}", "${uid:C}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "leave_grp", "topic": "${grp}"}, "note": "owner with other members"},
+    {"do": "send", "conn": "d", "msg": {"action": "leave_grp", "topic": "${grp}"}, "note": "D was never a member"},
+    {"do": "send", "conn": "b", "msg": {"action": "leave_grp", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "get_members", "topic": "${grp}"}, "note": "B is no longer a member"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "solo", "members": []}, "capture": {"solo": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "leave_grp", "topic": "${solo}"}, "note": "owner is the last member: leaving disbands"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_groups"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "hi", "contentType": "text/plain", "clientMsgId": "a-p2p"}},
+    {"do": "send", "conn": "a", "msg": {"action": "leave_grp", "topic": "${p2p:A,B}"}, "note": "leave_grp against a p2p topic"},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${p2p:A,B}", "limit": 10}, "note": "is A still a member of the p2p topic?"}
+  ]
+}

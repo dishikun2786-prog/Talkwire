@@ -1,0 +1,24 @@
+{
+  "name": "core/p2p",
+  "description": "Direct chat between friends addressed by the peer uid, presence on subscribe, history, and a non-friend being refused.",
+  "redlines": ["R4", "R19", "R20"],
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"]], "profiles": {"A": {"displayName": "Alice", "avatarUrl": ""}}},
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${uid:B}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${uid:A}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "hey", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "b", "msg": {"action": "get", "topic": "${uid:A}", "limit": 10}},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topic": "*"}},
+    {"do": "send", "conn": "c", "msg": {"action": "sub", "topic": "${uid:A}"}, "note": "not friends"},
+    {"do": "send", "conn": "c", "msg": {"action": "pub", "topic": "${uid:A}", "content": "spam", "contentType": "text/plain", "clientMsgId": "c-1"}, "note": "not friends"},
+    {"do": "close", "conn": "b"},
+    {"do": "send", "conn": "a", "msg": {"action": "pres", "topic": "${uid:B}"}}
+  ]
+}

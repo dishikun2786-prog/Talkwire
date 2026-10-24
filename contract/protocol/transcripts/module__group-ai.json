@@ -1,0 +1,595 @@
+{
+  "scenario": "module/group-ai",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "ask",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s7",
+            "name": "ask",
+            "topic": "${g1}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "ask",
+            "topic": "${g1}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "quota",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s8",
+            "name": "quota",
+            "topic": "${g2}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "quota",
+            "topic": "${g2}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "b",
+      "note": "defaults",
+      "sent": {
+        "action": "get_group_ai_settings",
+        "reqId": "q1",
+        "topic": "${g1}"
+      },
+      "frames": {
+        "b": [
+          {
+            "aiCooldownSec": 5,
+            "aiDailyQuota": 50,
+            "aiDocIds": [],
+            "aiKbIds": [],
+            "aiQaEnabled": false,
+            "reqId": "q1",
+            "topic": "${g1}",
+            "type": "group_ai_settings"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "c",
+      "note": "non-member gets the same default shape",
+      "sent": {
+        "action": "get_group_ai_settings",
+        "reqId": "q2",
+        "topic": "${g1}"
+      },
+      "frames": {
+        "c": [
+          {
+            "aiCooldownSec": 5,
+            "aiDailyQuota": 50,
+            "aiDocIds": [],
+            "aiKbIds": [],
+            "aiQaEnabled": false,
+            "reqId": "q2",
+            "topic": "${g1}",
+            "type": "group_ai_settings"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "b",
+      "note": "not the owner",
+      "sent": {
+        "action": "update_group_ai_settings",
+        "reqId": "u1",
+        "topic": "${g1}",
+        "aiQaEnabled": true
+      },
+      "frames": {
+        "b": [
+          {
+            "ok": false,
+            "reason": "not_owner",
+            "reqId": "u1",
+            "type": "update_group_ai_settings_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "update_group_ai_settings",
+        "reqId": "u2",
+        "topic": "${g1}",
+        "aiQaEnabled": true,
+        "aiKbIds": [
+          "kb-1"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "ok": true,
+            "reqId": "u2",
+            "type": "update_group_ai_settings_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_group_ai_settings",
+        "reqId": "q3",
+        "topic": "${g1}"
+      },
+      "frames": {
+        "a": [
+          {
+            "aiCooldownSec": 5,
+            "aiDailyQuota": 50,
+            "aiDocIds": [],
+            "aiKbIds": [
+              "kb-1"
+            ],
+            "aiQaEnabled": true,
+            "reqId": "q3",
+            "topic": "${g1}",
+            "type": "group_ai_settings"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "ai_typing, then the reply",
+      "sent": {
+        "action": "pub",
+        "topic": "${g1}",
+        "content": "@小桃子 what is this",
+        "contentType": "text/plain",
+        "clientMsgId": "b-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "data",
+            "clientMsgId": "b-1",
+            "content": "@小桃子 what is this",
+            "contentType": "text/plain",
+            "from": "${uid:B}",
+            "name": "ask",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${g1}",
+            "ts": "<time>"
+          },
+          {
+            "action": "data",
+            "content": "fake answer",
+            "contentType": "text",
+            "from": "assistant_xiaotaozi",
+            "name": "ask",
+            "senderKind": "ai_assistant",
+            "seq": 2,
+            "topic": "${g1}",
+            "ts": "<time>"
+          },
+          {
+            "topic": "${g1}",
+            "type": "ai_typing"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "content": "fake answer",
+            "contentType": "text",
+            "from": "assistant_xiaotaozi",
+            "name": "ask",
+            "senderKind": "ai_assistant",
+            "seq": 2,
+            "topic": "${g1}",
+            "ts": "<time>"
+          },
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s14",
+            "seq": 1,
+            "topic": "${g1}",
+            "ts": "<time>"
+          },
+          {
+            "topic": "${g1}",
+            "type": "ai_typing"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "askerImUid": "${uid:B}",
+            "docIds": [],
+            "groupOwnerAppUserId": "${user:A}",
+            "groupTopic": "${g1}",
+            "kbIds": [
+              "kb-1"
+            ],
+            "question": "@小桃子 what is this"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/group-ai-qa",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "b",
+      "note": "inside the cooldown: no AI",
+      "sent": {
+        "action": "pub",
+        "topic": "${g1}",
+        "content": "@小桃子 and again",
+        "contentType": "text/plain",
+        "clientMsgId": "b-2"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "data",
+            "clientMsgId": "b-2",
+            "content": "@小桃子 and again",
+            "contentType": "text/plain",
+            "from": "${uid:B}",
+            "name": "ask",
+            "senderKind": "user",
+            "seq": 3,
+            "topic": "${g1}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s15",
+            "seq": 3,
+            "topic": "${g1}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "note": "not a mention",
+      "sent": {
+        "action": "pub",
+        "topic": "${g1}",
+        "content": "@小桃子的粉丝群",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s16",
+            "seq": 4,
+            "topic": "${g1}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "@小桃子的粉丝群",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "ask",
+            "senderKind": "user",
+            "seq": 4,
+            "topic": "${g1}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "a",
+      "note": "the reply is stored with senderKind ai_assistant",
+      "sent": {
+        "action": "get",
+        "topic": "${g1}",
+        "limit": 10
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s17",
+            "messages": [
+              {
+                "content": "@小桃子 what is this",
+                "contentType": "text/plain",
+                "from": "${uid:B}",
+                "senderKind": "user",
+                "seq": 1,
+                "topic": "${g1}",
+                "ts": "<time>"
+              },
+              {
+                "content": "fake answer",
+                "contentType": "text",
+                "from": "assistant_xiaotaozi",
+                "senderKind": "ai_assistant",
+                "seq": 2,
+                "topic": "${g1}",
+                "ts": "<time>"
+              },
+              {
+                "content": "@小桃子 and again",
+                "contentType": "text/plain",
+                "from": "${uid:B}",
+                "senderKind": "user",
+                "seq": 3,
+                "topic": "${g1}",
+                "ts": "<time>"
+              },
+              {
+                "content": "@小桃子的粉丝群",
+                "contentType": "text/plain",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 4,
+                "topic": "${g1}",
+                "ts": "<time>"
+              }
+            ],
+            "topic": "${g1}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "update_group_ai_settings",
+        "reqId": "u3",
+        "topic": "${g2}",
+        "aiQaEnabled": true
+      },
+      "frames": {
+        "a": [
+          {
+            "ok": true,
+            "reqId": "u3",
+            "type": "update_group_ai_settings_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "b",
+      "note": "the host refuses: fallback text",
+      "sent": {
+        "action": "pub",
+        "topic": "${g2}",
+        "content": "@小桃子 quota please",
+        "contentType": "text/plain",
+        "clientMsgId": "b-3"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "data",
+            "clientMsgId": "b-3",
+            "content": "@小桃子 quota please",
+            "contentType": "text/plain",
+            "from": "${uid:B}",
+            "name": "quota",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${g2}",
+            "ts": "<time>"
+          },
+          {
+            "action": "data",
+            "content": "本群今日的小桃子问答次数已用完，请明天再试",
+            "contentType": "text",
+            "from": "assistant_xiaotaozi",
+            "name": "quota",
+            "senderKind": "ai_assistant",
+            "seq": 2,
+            "topic": "${g2}",
+            "ts": "<time>"
+          },
+          {
+            "topic": "${g2}",
+            "type": "ai_typing"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "content": "本群今日的小桃子问答次数已用完，请明天再试",
+            "contentType": "text",
+            "from": "assistant_xiaotaozi",
+            "name": "quota",
+            "senderKind": "ai_assistant",
+            "seq": 2,
+            "topic": "${g2}",
+            "ts": "<time>"
+          },
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s19",
+            "seq": 1,
+            "topic": "${g2}",
+            "ts": "<time>"
+          },
+          {
+            "topic": "${g2}",
+            "type": "ai_typing"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "askerImUid": "${uid:B}",
+            "docIds": [],
+            "groupOwnerAppUserId": "${user:A}",
+            "groupTopic": "${g2}",
+            "kbIds": [],
+            "question": "@小桃子 quota please"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/group-ai-qa",
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

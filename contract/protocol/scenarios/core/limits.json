@@ -1,0 +1,15 @@
+{
+  "name": "core/limits",
+  "description": "Message length limit (default 20000 characters) and the 256 KB frame limit, which closes the connection.",
+  "redlines": ["R9", "R10"],
+  "users": ["A"],
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "big", "members": []}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "${pad:20000}", "contentType": "text/plain", "clientMsgId": "ok-20000"}, "note": "exactly at the limit"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "${pad:20001}", "contentType": "text/plain", "clientMsgId": "over-20001"}, "note": "one over the limit"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "${pad:31}", "members": []}, "note": "group name over the length limit"},
+    {"do": "raw", "conn": "a", "raw": "{\"action\":\"pub\",\"content\":\"${pad:300000}\"}", "note": "frame over 256 KB: the server closes the connection"}
+  ]
+}

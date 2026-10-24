@@ -1,0 +1,504 @@
+{
+  "scenario": "core/leave",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "x"
+    },
+    {
+      "index": 2,
+      "do": "send",
+      "conn": "x",
+      "note": "not logged in: no reply at all",
+      "sent": {
+        "action": "leave",
+        "topic": "grp_missing"
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "subs",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "subs",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "subs",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "sub",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s10",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "note": "B is subscribed",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "before",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s11",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "before",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "subs",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "leave",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "leave",
+            "code": 200,
+            "id": "s12",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "note": "B left: no data frame",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "after",
+        "contentType": "text/plain",
+        "clientMsgId": "a-2"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s13",
+            "seq": 2,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "again, not subscribed",
+      "sent": {
+        "action": "leave",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "leave",
+            "code": 200,
+            "id": "s14",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "b",
+      "note": "still a member: history works",
+      "sent": {
+        "action": "get",
+        "topic": "${grp}",
+        "afterSeq": 1,
+        "limit": 10
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s15",
+            "messages": [
+              {
+                "content": "after",
+                "contentType": "text/plain",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 2,
+                "topic": "${grp}",
+                "ts": "<time>"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "b",
+      "note": "no topic: no reply at all",
+      "sent": {
+        "action": "leave"
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "b",
+      "note": "no membership check",
+      "sent": {
+        "action": "leave",
+        "topic": "grp_missing"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "leave",
+            "code": 200,
+            "id": "s17",
+            "topic": "grp_missing"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s18",
+            "topic": "${uid:C}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "a",
+      "note": "by the peer's uid",
+      "sent": {
+        "action": "leave",
+        "topic": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave",
+            "code": 200,
+            "id": "s19",
+            "topic": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "close",
+      "conn": "c",
+      "note": "does A still get C's presence?",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 21,
+      "do": "connect",
+      "conn": "c2"
+    },
+    {
+      "index": 22,
+      "do": "login",
+      "conn": "c2",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "on"
+          }
+        ],
+        "c2": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 23,
+      "do": "send",
+      "conn": "a",
+      "note": "by the canonical p2p topic",
+      "sent": {
+        "action": "leave",
+        "topic": "${p2p:A,C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave",
+            "code": 200,
+            "id": "s23",
+            "topic": "${p2p:A,C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 24,
+      "do": "close",
+      "conn": "c2",
+      "note": "does A still get C's presence?"
+    },
+    {
+      "index": 25,
+      "do": "connect",
+      "conn": "c3"
+    },
+    {
+      "index": 26,
+      "do": "login",
+      "conn": "c3",
+      "frames": {
+        "c3": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 27,
+      "do": "send",
+      "conn": "c3",
+      "note": "a message from C reaches A and subscribes A again",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:A}",
+        "content": "hi",
+        "contentType": "text/plain",
+        "clientMsgId": "c-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "data",
+            "clientMsgId": "c-1",
+            "content": "hi",
+            "contentType": "text/plain",
+            "from": "${uid:C}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:C}",
+            "ts": "<time>"
+          }
+        ],
+        "c3": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s27",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 28,
+      "do": "close",
+      "conn": "c3",
+      "note": "presence again?",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "off"
+          }
+        ]
+      }
+    }
+  ]
+}

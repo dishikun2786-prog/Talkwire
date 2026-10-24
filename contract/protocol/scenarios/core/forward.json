@@ -1,0 +1,23 @@
+{
+  "name": "core/forward",
+  "description": "Forwarding a bundle of messages into another group and broadcasting one message to several targets; results are correlated by reqId, not id.",
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "source", "members": ["${uid:B}"]}, "capture": {"src": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "target", "members": []}, "capture": {"dst": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${src}", "content": "first", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${src}", "content": "second", "contentType": "text/plain", "clientMsgId": "a-2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "forward_bundle", "reqId": "r1", "sourceTopic": "${src}", "sourceMsgIds": [1, 2], "targetTopic": "${dst}"}, "awaitMatch": {"type": "forward_bundle_result", "reqId": "r1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${dst}", "limit": 10}},
+    {"do": "send", "conn": "b", "msg": {"action": "forward_bundle", "reqId": "r2", "sourceTopic": "${src}", "sourceMsgIds": [1], "targetTopic": "${dst}"}, "awaitMatch": {"type": "forward_bundle_result", "reqId": "r2"}, "note": "B is not a member of the target"},
+    {"do": "send", "conn": "a", "msg": {"action": "forward_bundle", "reqId": "r3", "sourceTopic": "${src}", "sourceMsgIds": [99], "targetTopic": "${dst}"}, "awaitMatch": {"type": "forward_bundle_result", "reqId": "r3"}, "note": "missing source message"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "hi", "contentType": "text/plain", "clientMsgId": "a-p2p"}, "note": "creates the p2p topic"},
+    {"do": "send", "conn": "a", "msg": {"action": "forward_broadcast", "reqId": "r4", "sourceTopic": "${src}", "sourceMsgId": 1, "targetTopics": ["${dst}", "${uid:B}", "${p2p:A,B}"]}, "awaitMatch": {"type": "forward_broadcast_result", "reqId": "r4"}, "note": "targets must be canonical topic names: a peer uid is topic_not_found, unlike pub"},
+    {"do": "send", "conn": "a", "msg": {"action": "forward_broadcast", "reqId": "r4", "sourceTopic": "${src}", "sourceMsgId": 1, "targetTopics": ["${dst}"]}, "awaitMatch": {"type": "forward_broadcast_result", "reqId": "r4"}, "note": "same reqId again: the cached result is returned, nothing is forwarded twice"}
+  ]
+}

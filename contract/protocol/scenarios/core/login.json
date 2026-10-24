@@ -1,0 +1,14 @@
+{
+  "name": "core/login",
+  "description": "Successful login, a second login on the same connection, and a session superseded by a new connection for the same user.",
+  "redlines": ["R2", "R3", "R10", "R19"],
+  "users": ["A"],
+  "steps": [
+    {"do": "connect", "conn": "a1"},
+    {"do": "login", "conn": "a1", "user": "A", "note": "success reply carries no id on the reference server (R19)"},
+    {"do": "login", "conn": "a1", "user": "A", "note": "second login on one connection is rejected"},
+    {"do": "connect", "conn": "a2"},
+    {"do": "login", "conn": "a2", "user": "A", "note": "same user from a new connection supersedes a1. The reference server queues a 401 notice for a1 and closes it right away, so the notice arrives only some of the time (hub.go Run register branch); ImKit should flush it before closing.", "optional": [{"conn": "a1", "action": "login", "code": 401}]},
+    {"do": "send", "conn": "a2", "msg": {"action": "pres", "topic": "*"}, "note": "snapshot reply carries no id on the reference server"}
+  ]
+}

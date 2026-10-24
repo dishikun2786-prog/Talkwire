@@ -1,0 +1,13 @@
+{
+  "name": "core/push-token",
+  "description": "Registering and unregistering a push token. Note that reg_token reuses the login 'token' field for the push token.",
+  "users": ["A"],
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "reg_token", "token": "push-token-1"}, "await": "none"},
+    {"do": "send", "conn": "a", "msg": {"action": "reg_token", "token": "push-token-1"}, "await": "none", "note": "same token twice"},
+    {"do": "send", "conn": "a", "msg": {"action": "reg_token"}, "await": "none", "note": "missing token"},
+    {"do": "send", "conn": "a", "msg": {"action": "unreg_token", "token": "push-token-1"}, "await": "none"}
+  ]
+}

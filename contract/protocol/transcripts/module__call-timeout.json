@@ -1,0 +1,343 @@
+{
+  "scenario": "module/call-timeout",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "call_invite",
+        "topic": "${uid:B}",
+        "callType": "voice"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "call_invite",
+            "callSessionId": "${cs1}",
+            "code": 200,
+            "id": "s5",
+            "topic": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "callSessionId": "${cs1}",
+            "callType": "voice",
+            "ringTimeoutSeconds": 1,
+            "type": "call_ring"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs1}",
+            "callType": "voice",
+            "calleeAppUserId": "${user:B}",
+            "callerAppUserId": "${user:A}"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/create",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/profile",
+          "query": {
+            "sender": "${user:A}",
+            "viewer": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "wait",
+      "note": "ring timeout fires",
+      "frames": {
+        "a": [
+          {
+            "callSessionId": "${cs1}",
+            "reason": "no_answer",
+            "type": "call_ended"
+          }
+        ],
+        "b": [
+          {
+            "callSessionId": "${cs1}",
+            "reason": "no_answer",
+            "type": "call_ended"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs1}",
+            "reason": "no_answer"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/settle",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "b",
+      "note": "too late",
+      "sent": {
+        "action": "call_accept",
+        "callSessionId": "${cs1}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "call_accept",
+            "code": 404,
+            "id": "s7",
+            "reason": "通话不存在或已结束"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "call_invite",
+        "topic": "${uid:B}",
+        "callType": "video"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "call_invite",
+            "callSessionId": "${cs2}",
+            "code": 200,
+            "id": "s8",
+            "topic": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "callSessionId": "${cs2}",
+            "callType": "video",
+            "ringTimeoutSeconds": 1,
+            "type": "call_ring"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs2}",
+            "callType": "video",
+            "calleeAppUserId": "${user:B}",
+            "callerAppUserId": "${user:A}"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/create",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "call_accept",
+        "callSessionId": "${cs2}",
+        "acceptAsVoice": true
+      },
+      "frames": {
+        "a": [
+          {
+            "appId": "fake-app",
+            "callSessionId": "${cs2}",
+            "channelId": "fake-channel",
+            "denoiseEnabled": true,
+            "rtcToken": "fake-rtc-caller",
+            "type": "call_answered",
+            "videoQuality": "sd"
+          }
+        ],
+        "b": [
+          {
+            "action": "call_accept",
+            "appId": "fake-app",
+            "callSessionId": "${cs2}",
+            "channelId": "fake-channel",
+            "code": 200,
+            "denoiseEnabled": true,
+            "id": "s9",
+            "rtcToken": "fake-rtc-callee",
+            "videoQuality": "sd"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs2}",
+            "effectiveType": "voice"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/answer",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "b",
+      "note": "the callee asks for video",
+      "sent": {
+        "action": "call_upgrade",
+        "callSessionId": "${cs2}",
+        "toType": "video"
+      },
+      "frames": {
+        "a": [
+          {
+            "callSessionId": "${cs2}",
+            "toType": "video",
+            "type": "call_upgrade_request"
+          }
+        ],
+        "b": [
+          {
+            "action": "call_upgrade",
+            "callSessionId": "${cs2}",
+            "code": 200,
+            "id": "s10"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "call_upgrade_accept",
+        "callSessionId": "${cs2}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "call_upgrade_accept",
+            "callSessionId": "${cs2}",
+            "code": 200,
+            "id": "s11"
+          },
+          {
+            "callSessionId": "${cs2}",
+            "type": "call_upgraded",
+            "videoQuality": "hd"
+          }
+        ],
+        "b": [
+          {
+            "callSessionId": "${cs2}",
+            "type": "call_upgraded",
+            "videoQuality": "hd"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs2}",
+            "toType": "video"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/upgrade",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "call_hangup",
+        "callSessionId": "${cs2}"
+      },
+      "frames": {
+        "a": [
+          {
+            "callSessionId": "${cs2}",
+            "reason": "user_hangup",
+            "type": "call_ended"
+          }
+        ],
+        "b": [
+          {
+            "action": "call_hangup",
+            "callSessionId": "${cs2}",
+            "code": 200,
+            "id": "s12"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "body": {
+            "callSessionId": "${cs2}",
+            "reason": "user_hangup"
+          },
+          "method": "POST",
+          "path": "/api/v1/internal/im/calls/settle",
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

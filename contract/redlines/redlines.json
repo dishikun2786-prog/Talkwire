@@ -1,0 +1,489 @@
+{
+  "about": "ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄金对话步骤和计划中的自动化用例。matrix.md 由本文件生成，校验与生成命令见 tools/conformance/README.md。",
+  "platforms": {
+    "server": "服务端",
+    "host": "宿主",
+    "android": "Android",
+    "web": "Web",
+    "ios": "iOS"
+  },
+  "layers": {
+    "unit": "单测",
+    "concurrency": "并发压力",
+    "sql-scan": "SQL 扫描",
+    "contract": "契约测试",
+    "strict": "strict 档一致性",
+    "replay": "回放",
+    "replay-fault": "回放 + 故障注入",
+    "ui": "UI 测试",
+    "device": "真机"
+  },
+  "references": {
+    "holds": "符合",
+    "partial": "部分符合",
+    "violates": "违反",
+    "unobserved": "未观测",
+    "n/a": "不适用"
+  },
+  "tasks": {
+    "1.4": "推送接口",
+    "1.7": "只加不改的协议改进",
+    "1.8": "安全修复",
+    "1.9": "已知缺口修复",
+    "1.10": "工程化",
+    "1.11": "并发压力用例",
+    "2.1": "宿主契约与契约测试",
+    "2.2": "Node 插件",
+    "2.3": "App 接口",
+    "2.4": "媒体",
+    "2.5": "后台",
+    "3.4": "Android 请求关联",
+    "3.5": "Android 存储",
+    "3.7": "Android 拆仓储",
+    "3.8": "Android 通知",
+    "3.9": "Android 媒体",
+    "3.10": "Android 回放用例",
+    "4.1": "Android 组件",
+    "4.2": "Android 主题与文案",
+    "4.3": "Android 消息类型注册表",
+    "4.5": "Android sample-app",
+    "5.2": "Web 客户端",
+    "5.4": "Web 存储",
+    "5.8": "Web 回放用例",
+    "5.9": "Web React 组件",
+    "6.1": "iOS 核心",
+    "6.3": "iOS 存储",
+    "6.6": "iOS 回放用例",
+    "6.7": "iOS UI 组件",
+    "7.1": "E2EE 模块",
+    "7.2": "通话服务端"
+  },
+  "redlines": [
+    {
+      "id": "R1",
+      "title": "clientMsgId 幂等，重复提交返回原 seq、不再广播",
+      "platforms": ["server"],
+      "reference": "holds",
+      "golden": [
+        {"scenario": "core/group-messaging", "steps": ["8:pub", "9:pub"], "checks": "同一 clientMsgId 第二次提交返回原 seq 与时间戳，B 只收到一条 data"}
+      ],
+      "planned": [
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR1_ConcurrentDuplicatePublish", "checks": "同一 clientMsgId 并发提交，只落一条消息、只广播一次"}
+      ]
+    },
+    {
+      "id": "R2",
+      "title": "应答回填 id（含新增的登录与在线快照）",
+      "platforms": ["server"],
+      "reference": "partial",
+      "note": "普通应答（含错误应答、未知 action）都带回 id；登录与在线快照的成功应答不带，见 R19。无法解析的帧没有可回填的 id。",
+      "golden": [
+        {"scenario": "core/errors", "steps": ["2:sub", "3:get_groups", "5:no_such_action", "6:sub", "7:create_grp", "9:get_groups"], "checks": "未登录、未知 action、非成员、参数错误的错误应答和成功应答都带回请求 id"},
+        {"scenario": "core/group-messaging", "steps": ["6:sub", "8:pub"], "checks": "订阅与发布的成功应答带回请求 id"},
+        {"scenario": "core/login", "steps": ["3:login"], "checks": "登录失败的应答带回 id（成功应答不带，见 R19）"}
+      ],
+      "planned": []
+    },
+    {
+      "id": "R3",
+      "title": "被顶替的连接不清新连接的订阅、不广播下线；不在持锁时断开连接",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "被顶替时旁观者会再收到一次上线推送（core/supersede 第 9 步），不是下线。",
+      "golden": [
+        {"scenario": "core/supersede", "steps": ["9:login", "10:sub", "11:pub", "12:pub", "13:pres"], "checks": "顶替时旁观的好友没收到下线；新连接的群订阅在旧连接清理后仍在，群消息和单聊消息都送到新连接；在线查询仍为在线"},
+        {"scenario": "core/login", "steps": ["5:login"], "checks": "同一用户从新连接登录，旧连接被关闭"}
+      ],
+      "planned": [
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR3_SupersedeStorm", "checks": "同一用户反复建连互相顶替：新连接订阅不丢、旁观者不收到下线、不出现持锁断开导致的死锁"}
+      ]
+    },
+    {
+      "id": "R4",
+      "title": "在线状态串行化、版本号单调、批量查询",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "黄金对话把 presRev 归一化成 <rev>，看不出是否单调；单调性只能靠并发压力用例。",
+      "golden": [
+        {"scenario": "core/presence", "steps": ["8:pres", "9:pres", "10:pres", "12:close", "13:close", "14:pres", "16:login"], "checks": "按单个 uid、按列表、按 * 批量查询；上下线只推给共享会话的人"},
+        {"scenario": "core/p2p", "steps": ["7:sub", "14:close", "15:pres"], "checks": "订阅单聊时补发对端在线状态；对端下线后推送并可查询"}
+      ],
+      "planned": [
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR4_PresenceRevMonotonic", "checks": "多连接并发上下线，同一用户的 presRev 严格递增，最终状态与真实连接一致"}
+      ]
+    },
+    {
+      "id": "R5",
+      "title": "群成员写入不降级、不能改群主角色、踢人 4 道守卫",
+      "platforms": ["server"],
+      "reference": "holds",
+      "golden": [
+        {"scenario": "core/group-guards", "steps": ["12:kick", "13:kick", "14:kick", "15:kick", "16:kick", "17:invite", "18:get_members", "19:kick"], "checks": "不能踢自己、普通成员不能踢、谁都不能踢群主、只有群主能踢管理员、踢非成员被拒；重复邀请管理员后角色不变"},
+        {"scenario": "core/group-admin", "steps": ["9:set_member_role", "10:kick", "11:kick"], "checks": "不能把群主角色指派给别人；管理员不能踢群主；普通成员不能踢人"}
+      ],
+      "planned": [
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR5_MemberWritesNeverDowngrade", "checks": "存储层写成员行遇到已有行不改角色；改角色的语句碰不到群主行"}
+      ]
+    },
+    {
+      "id": "R6",
+      "title": "撤回是软删，所有读消息的查询都过滤；历史条数只在一处归一化",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "参考服务撤回视频时只回收主文件、不回收缩略图，由 1.9 修复。",
+      "golden": [
+        {"scenario": "core/recall", "steps": ["9:del", "10:del", "11:del", "12:get"], "checks": "只有发送者能撤回、不能重复撤回；撤回后历史里没有这条"},
+        {"scenario": "core/recall-p2p", "steps": ["7:del", "8:del", "9:get", "10:pub", "11:del"], "checks": "单聊撤回；被撤回的 seq 仍占用，下一条不复用"},
+        {"scenario": "core/history-paging", "steps": ["9:get", "10:get", "11:get", "12:get"], "checks": "向前、向后分页；超范围的 limit 回落到配置的页大小"},
+        {"scenario": "core/clear-media", "steps": ["11:del", "12:del"], "checks": "撤回后文件不再被引用才回收，仍被其他消息引用则不回收"}
+      ],
+      "planned": [
+        {"task": "1.10", "layer": "sql-scan", "platform": "server", "name": "TestR6_MessageReadsFilterRecalled", "checks": "扫描存储层所有读 im_messages 的查询，必须过滤已撤回的行，例外要写明原因"},
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR6_HistoryLimitNormalizedOnce", "checks": "历史条数只在一个函数里归一化，存储层不再另行截断"},
+        {"task": "1.9", "layer": "unit", "platform": "server", "name": "TestR6_RecallReclaimsVideoThumbnail", "checks": "撤回视频时主文件和缩略图都回收"}
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "清空：水位 + 离线补投 + ack + 30 天清理，对离线成员生效",
+      "platforms": ["server", "android", "web", "ios"],
+      "reference": "holds",
+      "note": "30 天清理是计时行为，黄金对话看不到。",
+      "golden": [
+        {"scenario": "core/clear-offline", "steps": ["8:del_topic", "9:get", "11:login", "12:ack_topic_cleared", "15:login"], "checks": "清空返回新水位；离线成员下次登录收到 topic_cleared，ack 后再登录不再收到"}
+      ],
+      "planned": [
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR7_PendingClearsExpireAfter30Days", "checks": "注入时钟，未 ack 的清空墓碑 30 天后清理"},
+        {"task": "3.10", "layer": "replay", "platform": "android", "name": "R7_ClearOfflineReplay", "scenario": "core/clear-offline", "checks": "离线一方上线收到 topic_cleared 后清本地缓存并回 ack，再次登录不重复处理"},
+        {"task": "5.8", "layer": "replay", "platform": "web", "name": "R7_ClearOfflineReplay", "scenario": "core/clear-offline", "checks": "同上"},
+        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "R7_ClearOfflineReplay", "scenario": "core/clear-offline", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "R8",
+      "title": "群事件离线队列同理",
+      "platforms": ["server"],
+      "reference": "holds",
+      "golden": [
+        {"scenario": "core/group-offline-events", "steps": ["6:create_grp", "7:create_grp", "8:set_member_role", "9:update_grp", "10:disband_grp", "12:login", "13:ack_group_event", "16:login"], "checks": "离线期间的建群、解散入队，改角色和改名不入队；已失效的事件丢弃；ack 过的不再补投"},
+        {"scenario": "core/invite", "steps": ["19:invite", "24:login"], "checks": "邀请离线成员时入队，下次登录收到带 eventId 的 grp_sync"}
+      ],
+      "planned": [
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR8_GroupEventsExpireAfter30Days", "checks": "注入时钟，未 ack 的群事件 30 天后清理"}
+      ]
+    },
+    {
+      "id": "R9",
+      "title": "可配项默认值等于原写死值（如消息上限 20000）",
+      "platforms": ["server"],
+      "reference": "holds",
+      "golden": [
+        {"scenario": "core/limits", "steps": ["4:pub", "5:pub", "6:create_grp"], "checks": "消息 20000 字通过、20001 字拒绝；群名超过 30 字拒绝"},
+        {"scenario": "core/rate-limit", "steps": ["23:pub", "24:pub"], "checks": "10 秒内第 21 条发布返回 429"},
+        {"scenario": "core/history-paging", "steps": ["12:get"], "checks": "超范围的 limit 回落到默认页大小"}
+      ],
+      "planned": [
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR9_DefaultsEqualOriginalValues", "checks": "每个可配项的默认值逐项等于源基线的写死值"}
+      ]
+    },
+    {
+      "id": "R10",
+      "title": "限流、连接上限、帧上限、队列满即断开（E2EE 走降级）、重复登录拒绝",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "连接上限与发送队列满两项只在压力下出现，黄金对话里没有。",
+      "golden": [
+        {"scenario": "core/rate-limit", "steps": ["24:pub"], "checks": "超过发送限流返回 429"},
+        {"scenario": "core/limits", "steps": ["7:raw"], "checks": "超过 256 KB 的帧，服务端关闭连接"},
+        {"scenario": "core/login", "steps": ["3:login"], "checks": "同一连接第二次登录被拒绝"}
+      ],
+      "planned": [
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR10_ConnectionCap", "checks": "连接数达到上限后新连接被拒绝，已有连接不受影响"},
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR10_SendQueueFullDisconnects", "checks": "慢消费者的发送队列满时断开该连接，不阻塞其他人"},
+        {"task": "7.1", "layer": "unit", "platform": "server", "name": "TestR10_E2EEQueueFullFallsBackToOffline", "checks": "E2EE 信封遇到发送队列满时转入离线队列，不断开连接"}
+      ]
+    },
+    {
+      "id": "R11",
+      "title": "心跳间隔 0.45 × 超时",
+      "platforms": ["server"],
+      "reference": "unobserved",
+      "noGolden": "心跳是计时行为，黄金对话按同步点比对帧集合，看不到间隔。",
+      "golden": [],
+      "planned": [
+        {"task": "1.10", "layer": "unit", "platform": "server", "name": "TestR11_PingIntervalIs045OfTimeout", "checks": "ping 间隔等于 0.45 × 读超时，配置改动时同步变化"}
+      ]
+    },
+    {
+      "id": "R12",
+      "title": "推送只发数据载荷；加密消息不带预览；备注按方向",
+      "platforms": ["server", "host"],
+      "reference": "unobserved",
+      "noGolden": "参考服务没有推送凭据，录不到推送载荷；core/push-token 只录了推送令牌的登记与注销。",
+      "golden": [],
+      "planned": [
+        {"task": "1.4", "layer": "unit", "platform": "server", "name": "TestR12_PushPayloadIsDataOnly", "checks": "假推送通道收到的 FCM、APNs、Web Push 载荷都只有数据字段"},
+        {"task": "1.4", "layer": "unit", "platform": "server", "name": "TestR12_EncryptedMessageHasNoPreview", "checks": "加密消息的推送不带正文预览和发信人"},
+        {"task": "2.2", "layer": "contract", "platform": "host", "name": "TestR12_ProfileAliasByDirection", "checks": "profile 端点按 viewer→sender 方向取备注，双账号互设备注互不影响"}
+      ]
+    },
+    {
+      "id": "R13",
+      "title": "内部接口鉴权；后台清空二次确认加审计",
+      "platforms": ["server", "host"],
+      "reference": "unobserved",
+      "noGolden": "测试台只会带合法的内部令牌调用，拒绝路径要靠契约测试。",
+      "golden": [],
+      "planned": [
+        {"task": "2.1", "layer": "contract", "platform": "server", "name": "TestR13_InternalEndpointsRejectBadTokens", "checks": "IM 的内部接口拒绝缺失、过期、角色不对的内部令牌"},
+        {"task": "2.1", "layer": "contract", "platform": "host", "name": "TestR13_HostEndpointsRejectBadTokens", "checks": "宿主的内部接口同样拒绝不合法的内部令牌"},
+        {"task": "2.5", "layer": "contract", "platform": "host", "name": "TestR13_AdminClearNeedsConfirmAndAudit", "checks": "后台清空需超级管理员二次确认；审计只记元数据，不含正文与媒体地址"}
+      ]
+    },
+    {
+      "id": "R14",
+      "title": "群成员不能互看资料；加好友需一次性令牌",
+      "platforms": ["host"],
+      "reference": "unobserved",
+      "note": "IM 侧的 get_members 本来就不下发昵称（core/group-guards 第 18 步），资料只能经宿主取。",
+      "golden": [],
+      "planned": [
+        {"task": "2.3", "layer": "contract", "platform": "host", "name": "TestR14_GroupMembersCannotViewProfiles", "checks": "只因同在一个群的用户查不到对方资料"},
+        {"task": "2.3", "layer": "contract", "platform": "host", "name": "TestR14_AddContactRequiresOneTimeToken", "checks": "加好友必须带搜索得到的一次性令牌，令牌用过或过期即失效"}
+      ]
+    },
+    {
+      "id": "R15",
+      "title": "媒体带 Content-Length；删前查引用；私密媒体不进 CDN",
+      "platforms": ["host"],
+      "reference": "unobserved",
+      "note": "IM 侧在请求宿主删除前先数引用，录在 core/clear-media 第 11、12 步（归 R6、R21）。",
+      "golden": [],
+      "planned": [
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_MediaResponsesCarryContentLength", "checks": "媒体下载响应都带 Content-Length"},
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_DeleteChecksReferences", "checks": "删除媒体前查引用计数，仍被引用则不删"},
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_PrivateMediaBypassesCDN", "checks": "私密媒体的地址不指向 CDN"}
+      ]
+    },
+    {
+      "id": "R16",
+      "title": "通话状态用比较后替换；断线宽限；计时器显式停；用宿主用户 id",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "断线宽限期结束通话、宿主主动结束通话两条路径参考服务还没录。",
+      "golden": [
+        {"scenario": "module/call", "steps": ["11:call_invite", "13:call_accept", "14:call_accept", "19:call_upgrade", "21:call_hangup", "25:call_reject", "27:call_accept"], "checks": "已接听再接 409、已是视频再升级 409、已结束再挂 404、局外人拒接 404、不存在的会话 404；calls/create 回调里是宿主用户 id"},
+        {"scenario": "module/call-timeout", "steps": ["6:wait", "7:call_accept"], "checks": "振铃计时器到点结束通话并通知双方，超时后接听返回 404"}
+      ],
+      "planned": [
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR16_CallStateCASUnderRace", "checks": "接听、挂断、断线同时发生，状态只推进一次、宿主只结算一次"},
+        {"task": "7.2", "layer": "unit", "platform": "server", "name": "TestR16_DisconnectGraceEndsCall", "checks": "注入时钟，断线超过 10 秒宽限期结束通话，宽限内重连则保留"},
+        {"task": "7.2", "layer": "unit", "platform": "server", "name": "TestR16_TimersStoppedOnEveryPath", "checks": "每条非超时的结束路径都停掉振铃与宽限计时器"}
+      ]
+    },
+    {
+      "id": "R17",
+      "title": "E2EE 只存转不透明信封；补投；本机身份初始化互斥",
+      "platforms": ["server", "android", "ios"],
+      "reference": "holds",
+      "note": "v1 的 Web 不做 E2EE。",
+      "golden": [
+        {"scenario": "module/e2ee-p2p", "steps": ["16:e2e_send", "20:e2e_send", "22:login", "25:login"], "checks": "密文原样转发；对方离线时入队、上线补投，投递后删除不再重发"},
+        {"scenario": "module/e2ee-group", "steps": ["17:e2e_send", "18:e2e_send"], "checks": "群内 sender key 与消息信封原样扇出给其他成员"}
+      ],
+      "planned": [
+        {"task": "7.1", "layer": "unit", "platform": "android", "name": "R17_IdentityInitIsMutuallyExclusive", "checks": "并发初始化本机身份只生成一套密钥"},
+        {"task": "7.1", "layer": "unit", "platform": "ios", "name": "R17_IdentityInitIsMutuallyExclusive", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "R18",
+      "title": "用户令牌只接受 type=access，刷新、代理、管理员令牌一律拒绝",
+      "platforms": ["server"],
+      "reference": "violates",
+      "note": "参考服务接受刷新、设备代理、超级管理员令牌，也接受不带 type 的令牌（core/login-tokens 第 2、4、6、14 步）。",
+      "golden": [
+        {"scenario": "core/login-tokens", "steps": ["2:login", "4:login", "6:login", "8:login", "10:login", "12:login", "14:login"], "checks": "记录参考服务的现状：哪些令牌能登录，过期、非 JWT、缺 sub 的被拒"}
+      ],
+      "planned": [
+        {"task": "1.8", "layer": "strict", "platform": "server", "name": "TestR18_OnlyAccessTokensLogIn", "checks": "strict 档下除 type=access 外的令牌一律 401；迁移期兼容开关默认关闭"}
+      ]
+    },
+    {
+      "id": "R19",
+      "title": "登录与在线快照应答带 id；客户端只对旧服务端按 action 关联这两种",
+      "platforms": ["server", "android", "web", "ios"],
+      "reference": "violates",
+      "golden": [
+        {"scenario": "core/login", "steps": ["2:login", "6:pres"], "checks": "参考服务的登录成功应答与在线快照应答不带 id"},
+        {"scenario": "core/p2p", "steps": ["11:pres"], "checks": "按 * 查询的快照应答不带 id"},
+        {"scenario": "core/presence", "steps": ["10:pres"], "checks": "按 * 查询的快照应答不带 id"}
+      ],
+      "planned": [
+        {"task": "1.7", "layer": "strict", "platform": "server", "name": "TestR19_LoginAndSnapshotRepliesCarryId", "checks": "登录与在线快照应答带回请求 id（只加不改）"},
+        {"task": "3.4", "layer": "replay", "platform": "android", "name": "R19_CorrelateLegacyRepliesByAction", "scenario": "core/login", "checks": "对旧服务端只对登录与在线快照按 action 关联，其余严格按 id"},
+        {"task": "5.2", "layer": "replay", "platform": "web", "name": "R19_CorrelateLegacyRepliesByAction", "scenario": "core/login", "checks": "同上"},
+        {"task": "6.1", "layer": "replay", "platform": "ios", "name": "R19_CorrelateLegacyRepliesByAction", "scenario": "core/login", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "R20",
+      "title": "好友关系在单聊首次建立时校验；解除好友经 contact_sync 收回",
+      "platforms": ["server"],
+      "reference": "holds",
+      "golden": [
+        {"scenario": "core/host-contact-sync", "steps": ["5:sub", "7:host", "8:sub", "11:pub", "12:host", "13:pub"], "checks": "宿主推 contact_sync 后单聊可用；宿主单方面解除好友不影响已建立的单聊，推 removed 后才收回"},
+        {"scenario": "core/p2p", "steps": ["12:sub", "13:pub"], "checks": "非好友订阅、发布单聊被拒"}
+      ],
+      "planned": []
+    },
+    {
+      "id": "R21",
+      "title": "清空是全员物理删除并回收媒体",
+      "platforms": ["server"],
+      "reference": "holds",
+      "note": "清空返回的 deletedMessages 把已撤回的墓碑行也算在内（core/clear-media 第 14 步为 3）。",
+      "golden": [
+        {"scenario": "core/clear-offline", "steps": ["8:del_topic", "9:get"], "checks": "单聊清空后拉历史为空并带水位"},
+        {"scenario": "core/clear-media", "steps": ["13:del_topic", "14:del_topic", "15:get"], "checks": "群的清空只限群主或管理员；清空回收剩下的文件；另一成员的历史也为空"}
+      ],
+      "planned": []
+    },
+    {
+      "id": "R22",
+      "title": "在线状态查询只返回与查询者共享会话的用户（参考服务可查任意用户）",
+      "platforms": ["server"],
+      "reference": "violates",
+      "note": "参考服务按 uid 查询时会返回陌生人的在线状态和最后在线时间（core/presence 第 9、14 步）。",
+      "golden": [
+        {"scenario": "core/presence", "steps": ["9:pres", "14:pres"], "checks": "记录现状：陌生人 C 的在线状态与 lastSeenAt 也被返回"}
+      ],
+      "planned": [
+        {"task": "1.8", "layer": "strict", "platform": "server", "name": "TestR22_PresenceOnlyForSharedTopics", "checks": "strict 档下不共享会话的 uid 从结果里去掉"}
+      ]
+    },
+    {
+      "id": "C1",
+      "title": "重连抖动、建连前清身份、连接串行化、登录确认前不算已连接、世代号",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "回放在第 9 步注入断线：重连带抖动、建连前清空身份、先登录再发请求、旧连接的迟到应答被世代号丢弃"},
+        {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"},
+        {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C2",
+      "title": "回执超时但连接仍在时保持“发送中”、不自动重发；媒体按 URL 对账",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "回放丢弃第 8 步的帧：消息停在发送中，不自动重发（重发会被回放判为脚本外请求）"},
+        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C2_MediaReconciledByUrl", "scenario": "core/clear-media", "checks": "媒体消息按 fileUrl 与回显对账"},
+        {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "同上"},
+        {"task": "5.8", "layer": "replay", "platform": "web", "name": "C2_MediaReconciledByUrl", "scenario": "core/clear-media", "checks": "同上"},
+        {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "同上"},
+        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C2_MediaReconciledByUrl", "scenario": "core/clear-media", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C3",
+      "title": "离线补拉取本地连续段末尾并检测空洞",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "重连后从本地连续段末尾按 afterSeq 补拉；被撤回的 seq 不算空洞（参见 core/recall-p2p）"},
+        {"task": "5.8", "layer": "replay", "platform": "web", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "同上"},
+        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C4",
+      "title": "缓存归属：换账号清空全部缓存表",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.5", "layer": "unit", "platform": "android", "name": "C4_SwitchingAccountClearsAllCaches", "checks": "换账号时清空全部缓存表，同账号重登保留"},
+        {"task": "5.4", "layer": "unit", "platform": "web", "name": "C4_SwitchingAccountClearsAllCaches", "checks": "同上"},
+        {"task": "6.3", "layer": "unit", "platform": "ios", "name": "C4_SwitchingAccountClearsAllCaches", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C5",
+      "title": "在线三态加过期时间，只有一个真相源",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.7", "layer": "unit", "platform": "android", "name": "C5_PresenceTriStateWithExpiry", "checks": "在线、离线、未知三态，过期后回到未知；会话列表与聊天页读同一个来源"},
+        {"task": "5.2", "layer": "unit", "platform": "web", "name": "C5_PresenceTriStateWithExpiry", "checks": "同上"},
+        {"task": "6.1", "layer": "unit", "platform": "ios", "name": "C5_PresenceTriStateWithExpiry", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C6",
+      "title": "通知抑制条件、渠道静音由 App 播声、来电通知时序与取消",
+      "platforms": ["android"],
+      "reference": "n/a",
+      "note": "iOS、Web 的通知规则另列。",
+      "golden": [],
+      "planned": [
+        {"task": "3.8", "layer": "unit", "platform": "android", "name": "C6_NotificationDecision", "checks": "正在看该会话且 App 在前台时不发通知；渠道静音、由 App 播放提示音；来电通知在所有结束路径上取消"},
+        {"task": "4.5", "layer": "device", "platform": "android", "name": "C6_DeviceSoundAndCallTiming", "checks": "真机上提示音实际响起；来电先发全屏通知再起麦克风前台服务"}
+      ]
+    },
+    {
+      "id": "C7",
+      "title": "媒体缓存；语音气泡随时长变宽；占位符用类型字段",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.9", "layer": "unit", "platform": "android", "name": "C7_MediaCacheHitsSecondPlay", "checks": "语音、视频第二次播放走本地缓存"},
+        {"task": "4.3", "layer": "ui", "platform": "android", "name": "C7_BubblesFromContentType", "checks": "气泡按内容类型渲染，不靠占位文字；语音气泡宽度随时长变化"},
+        {"task": "5.9", "layer": "ui", "platform": "web", "name": "C7_BubblesFromContentType", "checks": "同上"},
+        {"task": "6.7", "layer": "ui", "platform": "ios", "name": "C7_BubblesFromContentType", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C8",
+      "title": "按住说话单手势；弹层语言跟随",
+      "platforms": ["android"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "4.1", "layer": "ui", "platform": "android", "name": "C8_HoldToTalkSingleGesture", "checks": "按下、移动、抬起是一个手势，手指移动不会提前发送"},
+        {"task": "4.2", "layer": "ui", "platform": "android", "name": "C8_SheetsFollowAppLocale", "checks": "底部弹层的文案跟随 App 内选择的语言"},
+        {"task": "4.5", "layer": "device", "platform": "android", "name": "C8_DeviceHoldToTalk", "checks": "真机上按住说话、上滑取消"}
+      ]
+    },
+    {
+      "id": "C9",
+      "title": "本人群角色从名册取、群同步推送触发刷新、失败回落普通成员",
+      "platforms": ["android", "web", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
+        {"task": "5.8", "layer": "replay", "platform": "web", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "同上"},
+        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "同上"}
+      ]
+    },
+    {
+      "id": "C10",
+      "title": "E2EE 失败原因分类",
+      "platforms": ["android", "ios"],
+      "reference": "n/a",
+      "golden": [],
+      "planned": [
+        {"task": "7.1", "layer": "unit", "platform": "android", "name": "C10_E2EEFailureReasons", "checks": "失败原因按类区分（如对方未发布密钥），界面不显示笼统的稍后重试"},
+        {"task": "7.1", "layer": "unit", "platform": "ios", "name": "C10_E2EEFailureReasons", "checks": "同上"}
+      ]
+    }
+  ]
+}

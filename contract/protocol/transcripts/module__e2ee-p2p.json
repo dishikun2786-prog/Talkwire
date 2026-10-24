@@ -1,0 +1,631 @@
+{
+  "scenario": "module/e2ee-p2p",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "e2e_publish_bundle",
+        "reqId": "p1",
+        "e2eBundle": {
+          "registrationId": 11,
+          "identityKey": "SUtB",
+          "signedPreKeyId": 1,
+          "signedPreKey": "U1BLQQ",
+          "signedPreKeySignature": "U0lHQQ",
+          "kyberPreKeyId": 1,
+          "kyberPreKey": "S1BLQQ",
+          "kyberPreKeySignature": "S1NJR0E",
+          "oneTimePreKeys": [
+            {
+              "keyId": 101,
+              "preKey": "T1RQMTAx"
+            },
+            {
+              "keyId": 102,
+              "preKey": "T1RQMTAy"
+            }
+          ]
+        }
+      },
+      "frames": {
+        "a": [
+          {
+            "ok": true,
+            "reqId": "p1",
+            "type": "e2e_publish_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "note": "identityKey missing",
+      "sent": {
+        "action": "e2e_publish_bundle",
+        "reqId": "p2",
+        "e2eBundle": {
+          "registrationId": 11,
+          "signedPreKeyId": 1,
+          "signedPreKey": "U1BLQQ",
+          "signedPreKeySignature": "U0lHQQ",
+          "kyberPreKeyId": 1,
+          "kyberPreKey": "S1BLQQ",
+          "kyberPreKeySignature": "S1NJR0E"
+        }
+      },
+      "frames": {
+        "a": [
+          {
+            "ok": false,
+            "reason": "bad_request",
+            "reqId": "p2",
+            "type": "e2e_publish_bundle_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "e2e_otpk_count",
+        "reqId": "n1"
+      },
+      "frames": {
+        "a": [
+          {
+            "count": 2,
+            "reqId": "n1",
+            "type": "e2e_otpk_count_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "b",
+      "note": "consumes one-time prekey 101",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f1",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "deviceId": 1,
+            "found": true,
+            "identityKey": "SUtB",
+            "kyberPreKey": "S1BLQQ",
+            "kyberPreKeyId": 1,
+            "kyberPreKeySignature": "S1NJR0E",
+            "oneTimePreKey": "T1RQMTAx",
+            "oneTimePreKeyId": 101,
+            "registrationId": 11,
+            "reqId": "f1",
+            "signedPreKey": "U1BLQQ",
+            "signedPreKeyId": 1,
+            "signedPreKeySignature": "U0lHQQ",
+            "type": "e2e_bundle",
+            "user": "${uid:A}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "b",
+      "note": "consumes 102",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f2",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "deviceId": 1,
+            "found": true,
+            "identityKey": "SUtB",
+            "kyberPreKey": "S1BLQQ",
+            "kyberPreKeyId": 1,
+            "kyberPreKeySignature": "S1NJR0E",
+            "oneTimePreKey": "T1RQMTAy",
+            "oneTimePreKeyId": 102,
+            "registrationId": 11,
+            "reqId": "f2",
+            "signedPreKey": "U1BLQQ",
+            "signedPreKeyId": 1,
+            "signedPreKeySignature": "U0lHQQ",
+            "type": "e2e_bundle",
+            "user": "${uid:A}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "note": "pool empty: no one-time prekey",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f3",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "deviceId": 1,
+            "found": true,
+            "identityKey": "SUtB",
+            "kyberPreKey": "S1BLQQ",
+            "kyberPreKeyId": 1,
+            "kyberPreKeySignature": "S1NJR0E",
+            "registrationId": 11,
+            "reqId": "f3",
+            "signedPreKey": "U1BLQQ",
+            "signedPreKeyId": 1,
+            "signedPreKeySignature": "U0lHQQ",
+            "type": "e2e_bundle",
+            "user": "${uid:A}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "e2e_otpk_count",
+        "reqId": "n2"
+      },
+      "frames": {
+        "a": [
+          {
+            "count": 0,
+            "reqId": "n2",
+            "type": "e2e_otpk_count_result"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "c",
+      "note": "C is a stranger to A",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f4",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "c": [
+          {
+            "found": false,
+            "reqId": "f4",
+            "type": "e2e_bundle",
+            "user": "${uid:A}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:C}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "note": "B never published",
+      "sent": {
+        "action": "e2e_fetch_bundle",
+        "reqId": "f5",
+        "user": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "found": false,
+            "reqId": "f5",
+            "type": "e2e_bundle",
+            "user": "${uid:B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "b",
+      "note": "A is online: delivered live",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:A}",
+        "e2eKind": "msg",
+        "e2eMsgType": 3,
+        "content": "Q0lQSEVSMQ"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "e2e_deliver",
+            "content": "Q0lQSEVSMQ",
+            "e2eKind": "msg",
+            "e2eMsgType": 3,
+            "from": "${uid:B}",
+            "topic": "${p2p:A,B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_send",
+            "code": 200,
+            "id": "s16",
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "c",
+      "note": "stranger",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${p2p:A,C}",
+        "user": "${uid:A}",
+        "e2eKind": "msg",
+        "e2eMsgType": 3,
+        "content": "Q0lQSEVSWA"
+      },
+      "frames": {
+        "c": [
+          {
+            "action": "e2e_send",
+            "code": 401,
+            "id": "s17",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:C}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "b",
+      "note": "msg kind without content",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:A}",
+        "e2eKind": "msg",
+        "e2eMsgType": 2
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "e2e_send",
+            "code": 400,
+            "id": "s18",
+            "reason": "bad request"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "close",
+      "conn": "a"
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "b",
+      "note": "A is offline: queued",
+      "sent": {
+        "action": "e2e_send",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:A}",
+        "e2eKind": "msg",
+        "e2eMsgType": 2,
+        "content": "Q0lQSEVSMg"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "e2e_send",
+            "code": 200,
+            "id": "s20",
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "do": "connect",
+      "conn": "a2"
+    },
+    {
+      "index": 22,
+      "do": "login",
+      "conn": "a2",
+      "note": "the queued envelope is delivered",
+      "frames": {
+        "a2": [
+          {
+            "action": "e2e_deliver",
+            "content": "Q0lQSEVSMg",
+            "e2eKind": "msg",
+            "e2eMsgType": 2,
+            "from": "${uid:B}",
+            "topic": "${p2p:A,B}",
+            "ts": "<time>"
+          },
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 23,
+      "do": "close",
+      "conn": "a2"
+    },
+    {
+      "index": 24,
+      "do": "connect",
+      "conn": "a3"
+    },
+    {
+      "index": 25,
+      "do": "login",
+      "conn": "a3",
+      "note": "delivered envelopes are deleted: nothing again",
+      "frames": {
+        "a3": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 26,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "e2e_clear",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "a3": [
+          {
+            "action": "e2e_cleared",
+            "from": "${uid:B}",
+            "topic": "${p2p:A,B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_clear",
+            "code": 200,
+            "id": "s26",
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 27,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "e2e_terminate",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "a3": [
+          {
+            "action": "e2e_terminated",
+            "from": "${uid:B}",
+            "topic": "${p2p:A,B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "e2e_terminate",
+            "code": 200,
+            "id": "s27",
+            "topic": "${p2p:A,B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

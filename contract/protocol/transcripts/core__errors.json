@@ -1,0 +1,155 @@
+{
+  "scenario": "core/errors",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "send",
+      "conn": "a",
+      "note": "not logged in yet",
+      "sent": {
+        "action": "sub",
+        "topic": "grp_nonexistent0"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "sub",
+            "code": 401,
+            "id": "s2",
+            "reason": "not authenticated"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "send",
+      "conn": "a",
+      "note": "not logged in yet",
+      "sent": {
+        "action": "get_groups"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_groups",
+            "code": 401,
+            "id": "s3",
+            "reason": "not authenticated"
+          }
+        ]
+      }
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "no_such_action"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "no_such_action",
+            "code": 400,
+            "id": "s5",
+            "reason": "unknown action: no_such_action"
+          }
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "note": "logged in, not a member",
+      "sent": {
+        "action": "sub",
+        "topic": "grp_nonexistent0"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "sub",
+            "code": 401,
+            "id": "s6",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "note": "blank group name",
+      "sent": {
+        "action": "create_grp",
+        "name": "   "
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 400,
+            "id": "s7",
+            "reason": "group name required"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "raw",
+      "conn": "a",
+      "note": "malformed frame",
+      "frames": {
+        "a": [
+          {
+            "action": "error",
+            "code": 400,
+            "reason": "invalid JSON: invalid character 'n' looking for beginning of object key string"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "note": "connection still usable after a malformed frame?",
+      "sent": {
+        "action": "get_groups"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_groups",
+            "code": 200,
+            "id": "s9"
+          }
+        ]
+      }
+    }
+  ]
+}

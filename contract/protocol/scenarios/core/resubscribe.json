@@ -1,0 +1,22 @@
+{
+  "name": "core/resubscribe",
+  "description": "Subscriptions belong to a connection and are not restored on login. After reconnecting, a group member gets no live data for the group until it subscribes again; a 1:1 peer is subscribed implicitly when the sender publishes. Missed messages are recovered with get afterSeq.",
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "resub", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}, "note": "B is online, so the server subscribes it"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "g1", "contentType": "text/plain", "clientMsgId": "g1"}},
+    {"do": "close", "conn": "b"},
+    {"do": "connect", "conn": "b2"},
+    {"do": "login", "conn": "b2", "user": "B"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "g2", "contentType": "text/plain", "clientMsgId": "g2"}, "note": "B is online but not subscribed: no data frame"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "p1", "contentType": "text/plain", "clientMsgId": "p1"}, "note": "1:1: publishing subscribes the online peer"},
+    {"do": "send", "conn": "b2", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "g3", "contentType": "text/plain", "clientMsgId": "g3"}},
+    {"do": "send", "conn": "b2", "msg": {"action": "get", "topic": "${grp}", "afterSeq": 1, "limit": 10}, "note": "recovers g2 (and g3)"}
+  ]
+}

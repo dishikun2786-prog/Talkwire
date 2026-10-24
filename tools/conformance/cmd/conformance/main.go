@@ -1,0 +1,256 @@
+// Command conformance records and checks protocol transcripts.
+//
+//	conformance record -bin oracle/bin/im-oracle.exe -out ../../contract/protocol/transcripts
+//	conformance check  -bin <server> -golden ../../contract/protocol/transcripts
+//	conformance repeat -bin oracle/bin/im-oracle.exe -n 3
+//
+// Every scenario runs against a freshly started server on an empty database,
+// so ids the server allocates are reproducible.
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"example.com/imkit/tools/conformance/fakehost"
+	"example.com/imkit/tools/conformance/harness"
+)
+
+// The secret only signs tokens for throwaway test databases.
+const testSecret = "imkit-conformance-secret-not-for-production-0123456789"
+
+type options struct {
+	bin       string
+	scenarios string
+	db        harness.DB
+	port      int
+	hostPort  int
+	only      string
+	source    string
+	logDir    string
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		usage()
+	}
+	cmd := os.Args[1]
+	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
+	var o options
+	fs.StringVar(&o.bin, "bin", "oracle/bin/im-oracle.exe", "server binary under test")
+	fs.StringVar(&o.scenarios, "scenarios", "../../contract/protocol/scenarios", "scenario directory")
+	fs.StringVar(&o.db.Host, "pghost", "127.0.0.1", "PostgreSQL host")
+	fs.IntVar(&o.db.Port, "pgport", 55432, "PostgreSQL port")
+	fs.StringVar(&o.db.User, "pguser", "postgres", "PostgreSQL user")
+	fs.StringVar(&o.db.Name, "db", "imkit_oracle", "throwaway database (its public schema is dropped)")
+	fs.IntVar(&o.port, "port", 16062, "port for the server under test")
+	fs.IntVar(&o.hostPort, "hostport", 17001, "port for the fake host")
+	fs.StringVar(&o.only, "only", "", "run only scenarios whose name contains this")
+	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
+	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
+	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
+	golden := fs.String("golden", "../../contract/protocol/transcripts", "check: golden directory")
+	n := fs.Int("n", 3, "repeat: number of runs")
+	schemaDir := fs.String("schema", "../../contract/protocol/schema", "coverage: protocol schemas")
+	negative := fs.String("negative", "../schema/negative-cases.json", "coverage: steps that send invalid requests on purpose")
+	_ = fs.Parse(os.Args[2:])
+
+	scenarios, err := harness.LoadScenarios(o.scenarios)
+	must(err)
+	if o.only != "" {
+		var kept []*harness.Scenario
+		for _, sc := range scenarios {
+			if strings.Contains(sc.Name, o.only) {
+				kept = append(kept, sc)
+			}
+		}
+		scenarios = kept
+	}
+	if cmd == "coverage" {
+		os.Exit(coverage(scenarios, *golden, *schemaDir, *negative))
+	}
+	must(os.MkdirAll(o.logDir, 0o755))
+	host := fakehost.New(testSecret)
+	stopHost := serveHost(host, o.hostPort)
+	defer stopHost()
+
+	switch cmd {
+	case "record":
+		must(os.MkdirAll(*out, 0o755))
+		for _, sc := range scenarios {
+			tr, err := runOne(o, host, sc)
+			must(err)
+			path := filepath.Join(*out, fileName(sc.Name))
+			must(tr.Write(path))
+			fmt.Printf("RECORDED %-40s %d steps -> %s\n", sc.Name, len(tr.Steps), path)
+		}
+	case "check":
+		failed := 0
+		for _, sc := range scenarios {
+			want, err := harness.ReadTranscript(filepath.Join(*golden, fileName(sc.Name)))
+			if err != nil {
+				fmt.Printf("MISSING  %-40s %v\n", sc.Name, err)
+				failed++
+				continue
+			}
+			got, err := runOne(o, host, sc)
+			must(err)
+			if diffs := harness.Compare(want, got); len(diffs) > 0 {
+				failed++
+				fmt.Printf("FAIL     %-40s %d difference(s)\n", sc.Name, len(diffs))
+				for _, d := range diffs {
+					fmt.Println("  " + d.String())
+				}
+				continue
+			}
+			fmt.Printf("PASS     %s\n", sc.Name)
+		}
+		fmt.Printf("SUMMARY  %d scenario(s), %d failed\n", len(scenarios), failed)
+		if failed > 0 {
+			os.Exit(1)
+		}
+	case "repeat":
+		failed := 0
+		for _, sc := range scenarios {
+			var first *harness.Transcript
+			ok := true
+			for i := 0; i < *n; i++ {
+				tr, err := runOne(o, host, sc)
+				must(err)
+				if first == nil {
+					first = tr
+					continue
+				}
+				if diffs := harness.Compare(first, tr); len(diffs) > 0 {
+					ok = false
+					fmt.Printf("UNSTABLE %-40s run %d differs from run 1\n", sc.Name, i+1)
+					for _, d := range diffs {
+						fmt.Println("  " + d.String())
+					}
+					break
+				}
+			}
+			if ok {
+				fmt.Printf("STABLE   %-40s %d runs identical\n", sc.Name, *n)
+			} else {
+				failed++
+			}
+		}
+		fmt.Printf("SUMMARY  %d scenario(s), %d unstable\n", len(scenarios), failed)
+		if failed > 0 {
+			os.Exit(1)
+		}
+	default:
+		usage()
+	}
+}
+
+func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Transcript, error) {
+	if err := o.db.Reset(); err != nil {
+		return nil, fmt.Errorf("reset db: %w", err)
+	}
+	host.Reset()
+	for _, f := range sc.Host.Friends {
+		host.SetFriends(harness.AppUserID(f[0]), harness.AppUserID(f[1]), true)
+	}
+	for u, p := range sc.Host.Profiles {
+		host.SetProfile(harness.AppUserID(u), p)
+	}
+	if len(sc.Host.RuntimeConfig) > 0 {
+		host.SetRuntimeConfig(json.RawMessage(sc.Host.RuntimeConfig))
+	}
+	srv, err := harness.StartServer(harness.ServerConfig{
+		Bin:     o.bin,
+		Port:    o.port,
+		DB:      o.db,
+		Secret:  testSecret,
+		HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort),
+		LogPath: filepath.Join(o.logDir, fileName(sc.Name)+".log"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer srv.Stop()
+	tr, err := harness.Run(sc, harness.Env{
+		WSURL:    srv.WSURL(),
+		HTTPBase: srv.HTTPBase(),
+		Secret:   testSecret,
+		Host:     host,
+		Source:   o.source,
+	})
+	if err != nil {
+		return nil, err
+	}
+	tr.Normalize(sc)
+	return tr, nil
+}
+
+func serveHost(h *fakehost.Host, port int) func() {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	must(err)
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
+	go func() { _ = srv.Serve(ln) }()
+	return func() { _ = srv.Close() }
+}
+
+func fileName(name string) string {
+	return strings.ReplaceAll(name, "/", "__") + ".json"
+}
+
+func must(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(2)
+	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: conformance record|check|repeat|coverage [flags]")
+	os.Exit(2)
+}
+
+// coverage reports, for every frame name in the protocol schemas, how many
+// golden steps or frames use it. It needs no server. Exit status 1 when a name
+// has no golden case or the goldens use a name the schemas do not define.
+func coverage(scenarios []*harness.Scenario, golden, schemaDir, negative string) int {
+	v, err := harness.LoadVocabulary(schemaDir)
+	must(err)
+	skip, err := harness.LoadStepSet(negative)
+	must(err)
+	trs := map[string]*harness.Transcript{}
+	for _, sc := range scenarios {
+		tr, err := harness.ReadTranscript(filepath.Join(golden, fileName(sc.Name)))
+		must(err)
+		trs[sc.Name] = tr
+	}
+	missing := 0
+	for _, u := range harness.Coverage(v, scenarios, trs, skip) {
+		where := strings.Join(u.Where, ", ")
+		if len(u.Where) > 3 {
+			where = strings.Join(u.Where[:3], ", ") + fmt.Sprintf(" and %d more", len(u.Where)-3)
+		}
+		status := "OK  "
+		if u.Count == 0 {
+			status = "NONE"
+			missing++
+		}
+		fmt.Printf("%s %-6s %-32s %4d  %s\n", status, u.Side, u.Name, u.Count, where)
+	}
+	unlisted := harness.Unlisted(v, scenarios, trs, skip)
+	for _, name := range unlisted {
+		fmt.Printf("UNDEFINED %s (used by the goldens, not in the schemas)\n", name)
+	}
+	fmt.Printf("SUMMARY  %d client actions, %d server frame names, %d without a golden case, %d undefined\n",
+		len(v.Client), len(v.Server), missing, len(unlisted))
+	if missing > 0 || len(unlisted) > 0 {
+		return 1
+	}
+	return 0
+}

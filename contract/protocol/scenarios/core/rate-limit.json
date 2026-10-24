@@ -1,0 +1,33 @@
+{
+  "name": "core/rate-limit",
+  "description": "The 21st publish inside 10 seconds is rejected with 429 (default publishRateLimitPer10s = 20).",
+  "redlines": ["R9", "R10"],
+  "users": ["A"],
+  "settleMs": 40,
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "flood", "members": []}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "1", "contentType": "text/plain", "clientMsgId": "f1"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "2", "contentType": "text/plain", "clientMsgId": "f2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "3", "contentType": "text/plain", "clientMsgId": "f3"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "4", "contentType": "text/plain", "clientMsgId": "f4"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "5", "contentType": "text/plain", "clientMsgId": "f5"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "6", "contentType": "text/plain", "clientMsgId": "f6"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "7", "contentType": "text/plain", "clientMsgId": "f7"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "8", "contentType": "text/plain", "clientMsgId": "f8"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "9", "contentType": "text/plain", "clientMsgId": "f9"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "10", "contentType": "text/plain", "clientMsgId": "f10"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "11", "contentType": "text/plain", "clientMsgId": "f11"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "12", "contentType": "text/plain", "clientMsgId": "f12"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "13", "contentType": "text/plain", "clientMsgId": "f13"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "14", "contentType": "text/plain", "clientMsgId": "f14"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "15", "contentType": "text/plain", "clientMsgId": "f15"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "16", "contentType": "text/plain", "clientMsgId": "f16"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "17", "contentType": "text/plain", "clientMsgId": "f17"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "18", "contentType": "text/plain", "clientMsgId": "f18"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "19", "contentType": "text/plain", "clientMsgId": "f19"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "20", "contentType": "text/plain", "clientMsgId": "f20"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "21", "contentType": "text/plain", "clientMsgId": "f21"}, "note": "over the limit"}
+  ]
+}

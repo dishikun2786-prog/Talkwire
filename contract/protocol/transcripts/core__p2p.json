@@ -1,0 +1,332 @@
+{
+  "scenario": "core/p2p",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s7",
+            "topic": "${uid:B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:A}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s8",
+            "topic": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "hey",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s9",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "hey",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "get",
+        "topic": "${uid:A}",
+        "limit": 10
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s10",
+            "messages": [
+              {
+                "content": "hey",
+                "contentType": "text/plain",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 1,
+                "topic": "${p2p:A,B}",
+                "ts": "<time>"
+              }
+            ],
+            "topic": "${uid:A}"
+          },
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:A}",
+            "what": "on"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pres",
+        "topic": "*"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "states": [
+              {
+                "online": true,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "c",
+      "note": "not friends",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:A}"
+      },
+      "frames": {
+        "c": [
+          {
+            "action": "sub",
+            "code": 401,
+            "id": "s12",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:C}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "c",
+      "note": "not friends",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:A}",
+        "content": "spam",
+        "contentType": "text/plain",
+        "clientMsgId": "c-1"
+      },
+      "frames": {
+        "c": [
+          {
+            "action": "pub",
+            "code": 401,
+            "id": "s13",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:C}",
+            "b": "${user:A}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "do": "close",
+      "conn": "b",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pres",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "states": [
+              {
+                "lastSeenAt": "<time>",
+                "online": false,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    }
+  ]
+}

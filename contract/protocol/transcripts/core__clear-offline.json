@@ -1,0 +1,275 @@
+{
+  "scenario": "core/clear-offline",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s5",
+            "topic": "${uid:B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "secret",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s6",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "secret",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "close",
+      "conn": "b",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "note": "clears for both members",
+      "sent": {
+        "action": "del_topic",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "del_topic",
+            "clearBeforeSeq": 1,
+            "clearVersion": 1,
+            "code": 200,
+            "deletedMessages": 1,
+            "id": "s8",
+            "topic": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get",
+        "topic": "${uid:B}",
+        "limit": 20
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get",
+            "clearBeforeSeq": 1,
+            "clearVersion": 1,
+            "code": 200,
+            "id": "s9",
+            "topic": "${uid:B}"
+          },
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "connect",
+      "conn": "b2"
+    },
+    {
+      "index": 11,
+      "do": "login",
+      "conn": "b2",
+      "note": "pending clear delivered after login",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          }
+        ],
+        "b2": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          },
+          {
+            "action": "topic_cleared",
+            "clearBeforeSeq": 1,
+            "clearVersion": 1,
+            "from": "${uid:A}",
+            "id": "1",
+            "topic": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b2",
+      "note": "the id field carries the pending-clear row id",
+      "sent": {
+        "action": "ack_topic_cleared",
+        "id": "1"
+      }
+    },
+    {
+      "index": 13,
+      "do": "close",
+      "conn": "b2",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "connect",
+      "conn": "b3"
+    },
+    {
+      "index": 15,
+      "do": "login",
+      "conn": "b3",
+      "note": "acked clear is not delivered again",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          }
+        ],
+        "b3": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    }
+  ]
+}

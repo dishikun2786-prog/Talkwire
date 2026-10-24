@@ -1,0 +1,413 @@
+{
+  "scenario": "core/notes",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "notes",
+        "members": [
+          "${uid:B}",
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "notes",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "notes",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "notes",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "m1",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s10",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "m1",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "notes",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "c": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "m1",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "notes",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "note",
+        "topic": "${grp}",
+        "what": "kp"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "what": "kp"
+          }
+        ],
+        "c": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "topic": "${grp}",
+            "what": "kp"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "note",
+        "topic": "${grp}",
+        "what": "read",
+        "seq": 1
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "seq": 1,
+            "topic": "${grp}",
+            "what": "read"
+          }
+        ],
+        "c": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "seq": 1,
+            "topic": "${grp}",
+            "what": "read"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "c",
+      "note": "readCursors carries B's cursor",
+      "sent": {
+        "action": "get",
+        "topic": "${grp}",
+        "limit": 10
+      },
+      "frames": {
+        "c": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s13",
+            "messages": [
+              {
+                "content": "m1",
+                "contentType": "text/plain",
+                "from": "${uid:A}",
+                "senderKind": "user",
+                "seq": 1,
+                "topic": "${grp}",
+                "ts": "<time>"
+              }
+            ],
+            "readCursors": [
+              {
+                "seq": 1,
+                "uid": "${uid:B}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "missing 'what': silently ignored",
+      "sent": {
+        "action": "note",
+        "topic": "${grp}"
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "d",
+      "note": "non-member",
+      "sent": {
+        "action": "note",
+        "topic": "${grp}",
+        "what": "kp"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "note",
+            "code": 401,
+            "id": "s15",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${uid:B}",
+        "content": "p1",
+        "contentType": "text/plain",
+        "clientMsgId": "a-p1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s16",
+            "seq": 1,
+            "topic": "${uid:B}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-p1",
+            "content": "p1",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "ts": "<time>"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "b",
+      "note": "which topic does A see on a p2p note?",
+      "sent": {
+        "action": "note",
+        "topic": "${uid:A}",
+        "what": "kp"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "topic": "${uid:A}",
+            "what": "kp"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "note",
+        "topic": "${uid:A}",
+        "what": "read",
+        "seq": 1
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "info",
+            "from": "${uid:B}",
+            "seq": 1,
+            "topic": "${uid:A}",
+            "what": "read"
+          }
+        ]
+      }
+    }
+  ]
+}

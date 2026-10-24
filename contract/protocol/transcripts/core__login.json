@@ -1,0 +1,84 @@
+{
+  "scenario": "core/login",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a1"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a1",
+      "note": "success reply carries no id on the reference server (R19)",
+      "frames": {
+        "a1": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "login",
+      "conn": "a1",
+      "note": "second login on one connection is rejected",
+      "frames": {
+        "a1": [
+          {
+            "action": "login",
+            "code": 400,
+            "id": "s3",
+            "reason": "already logged in"
+          }
+        ]
+      }
+    },
+    {
+      "index": 4,
+      "do": "connect",
+      "conn": "a2"
+    },
+    {
+      "index": 5,
+      "do": "login",
+      "conn": "a2",
+      "note": "same user from a new connection supersedes a1. The reference server queues a 401 notice for a1 and closes it right away, so the notice arrives only some of the time (hub.go Run register branch); ImKit should flush it before closing.",
+      "frames": {
+        "a2": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      },
+      "closed": [
+        "a1"
+      ]
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a2",
+      "note": "snapshot reply carries no id on the reference server",
+      "sent": {
+        "action": "pres",
+        "topic": "*"
+      },
+      "frames": {
+        "a2": [
+          {
+            "action": "pres",
+            "code": 200,
+            "what": "snapshot"
+          }
+        ]
+      }
+    }
+  ]
+}

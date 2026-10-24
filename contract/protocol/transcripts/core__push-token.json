@@ -1,0 +1,62 @@
+{
+  "scenario": "core/push-token",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "reg_token",
+        "token": "push-token-1"
+      }
+    },
+    {
+      "index": 4,
+      "do": "send",
+      "conn": "a",
+      "note": "same token twice",
+      "sent": {
+        "action": "reg_token",
+        "token": "push-token-1"
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "note": "missing token",
+      "sent": {
+        "action": "reg_token"
+      }
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "unreg_token",
+        "token": "push-token-1"
+      }
+    }
+  ]
+}

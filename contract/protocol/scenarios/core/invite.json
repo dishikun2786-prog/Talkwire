@@ -1,0 +1,33 @@
+{
+  "name": "core/invite",
+  "description": "Inviting into a group: an online invitee is subscribed and told at once; an offline invitee gets a queued grp_sync at the next login. Any member may invite, but the inviter must be the invitee's friend; a non-member cannot invite; only group topics take invites. D exists but is offline; E is B's friend only; F belongs to no group.",
+  "redlines": ["R8"],
+  "users": ["A", "B", "C", "D", "E", "F"],
+  "host": {"friends": [["A", "B"], ["A", "C"], ["A", "D"], ["B", "E"]]},
+  "steps": [
+    {"do": "connect", "conn": "d"},
+    {"do": "login", "conn": "d", "user": "D"},
+    {"do": "close", "conn": "d", "note": "D must have logged in once before it can be invited"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "e"},
+    {"do": "login", "conn": "e", "user": "E"},
+    {"do": "connect", "conn": "f"},
+    {"do": "login", "conn": "f", "user": "F"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "inv", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:C}"}, "note": "C is online: subscribed and told"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "welcome", "contentType": "text/plain", "clientMsgId": "a-1"}, "note": "reaches C without a sub"},
+    {"do": "send", "conn": "a", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:E}"}, "note": "A and E are not friends"},
+    {"do": "send", "conn": "b", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:E}"}, "note": "any member may invite their own friend"},
+    {"do": "send", "conn": "a", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:D}"}, "note": "D is offline: queued"},
+    {"do": "send", "conn": "f", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:A}"}, "note": "F is not a member"},
+    {"do": "send", "conn": "a", "msg": {"action": "invite", "topic": "${p2p:A,B}", "user": "${uid:C}"}, "note": "only group topics take invites"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}},
+    {"do": "connect", "conn": "d2"},
+    {"do": "login", "conn": "d2", "user": "D", "note": "the queued grp_sync arrives"}
+  ]
+}

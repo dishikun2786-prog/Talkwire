@@ -1,0 +1,511 @@
+{
+  "scenario": "core/group-guards",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "guards",
+        "members": [
+          "${uid:B}",
+          "${uid:C}",
+          "${uid:D}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "guards",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "guards",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "guards",
+            "topic": "${grp}"
+          }
+        ],
+        "d": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "guards",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:D}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${grp}",
+        "user": "${uid:B}",
+        "memberRole": "admin"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "set_member_role",
+            "code": 200,
+            "id": "s10",
+            "memberRole": "admin",
+            "topic": "${grp}",
+            "user": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "d": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${grp}",
+        "user": "${uid:C}",
+        "memberRole": "admin"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "set_member_role",
+            "code": 200,
+            "id": "s11",
+            "memberRole": "admin",
+            "topic": "${grp}",
+            "user": "${uid:C}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "d": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "a",
+      "note": "guard 1: the owner cannot kick itself",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "kick",
+            "code": 400,
+            "id": "s12",
+            "reason": "cannot kick yourself"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "d",
+      "note": "guard 2: a plain member cannot kick",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "kick",
+            "code": 401,
+            "id": "s13",
+            "reason": "只有群主或管理员可以执行此操作"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "guard 3: nobody can kick the owner",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "kick",
+            "code": 401,
+            "id": "s14",
+            "reason": "cannot remove the group owner"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "b",
+      "note": "guard 4: an admin cannot kick another admin",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "kick",
+            "code": 401,
+            "id": "s15",
+            "reason": "only group owner can remove an administrator"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "b",
+      "note": "target is not a member",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:E}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "kick",
+            "code": 400,
+            "id": "s16",
+            "reason": "target is not a group member"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "d",
+      "note": "re-inviting an admin is a no-op",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:B}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "invite",
+            "code": 200,
+            "id": "s17",
+            "topic": "${grp}",
+            "user": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "a",
+      "note": "B is still an admin",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s18",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "admin",
+                "uid": "${uid:B}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "admin",
+                "uid": "${uid:C}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:D}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "a",
+      "note": "only the owner can kick an admin",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "kick",
+            "code": 200,
+            "id": "s19",
+            "topic": "${grp}",
+            "user": "${uid:C}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_disband",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "d": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s20",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "admin",
+                "uid": "${uid:B}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:D}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    }
+  ]
+}

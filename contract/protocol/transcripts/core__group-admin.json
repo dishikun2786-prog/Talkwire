@@ -1,0 +1,438 @@
+{
+  "scenario": "core/group-admin",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "admins",
+        "members": [
+          "${uid:B}",
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s7",
+            "name": "admins",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "admins",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "admins",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${grp}",
+        "user": "${uid:B}",
+        "memberRole": "admin"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "set_member_role",
+            "code": 200,
+            "id": "s8",
+            "memberRole": "admin",
+            "topic": "${grp}",
+            "user": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "note": "owner cannot be assigned",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${grp}",
+        "user": "${uid:C}",
+        "memberRole": "owner"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "set_member_role",
+            "code": 400,
+            "id": "s9",
+            "reason": "invalid member role"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "b",
+      "note": "admin cannot kick the owner",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "kick",
+            "code": 401,
+            "id": "s10",
+            "reason": "cannot remove the group owner"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "c",
+      "note": "member cannot kick",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:B}"
+      },
+      "frames": {
+        "c": [
+          {
+            "action": "kick",
+            "code": 401,
+            "id": "s11",
+            "reason": "只有群主或管理员可以执行此操作"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "kick",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "kick",
+            "code": 200,
+            "id": "s12",
+            "topic": "${grp}",
+            "user": "${uid:C}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_disband",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s13",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "admin",
+                "uid": "${uid:B}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "update_grp",
+        "topic": "${grp}",
+        "name": "renamed"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "update_grp",
+            "code": 200,
+            "id": "s14",
+            "name": "renamed",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "renamed",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "transfer_owner",
+        "topic": "${grp}",
+        "user": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "transfer_owner",
+            "code": 200,
+            "id": "s15",
+            "topic": "${grp}",
+            "user": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "leave_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "leave_grp",
+            "code": 200,
+            "id": "s16",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s17",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:B}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "disband_grp",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "disband_grp",
+            "code": 200,
+            "id": "s18",
+            "topic": "${grp}"
+          },
+          {
+            "action": "grp_disband",
+            "from": "${uid:B}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    }
+  ]
+}

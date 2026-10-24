@@ -1,0 +1,124 @@
+{
+  "scenario": "core/limits",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "big",
+        "members": []
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s3",
+            "name": "big",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 4,
+      "do": "send",
+      "conn": "a",
+      "note": "exactly at the limit",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "${pad:20000}",
+        "contentType": "text/plain",
+        "clientMsgId": "ok-20000"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s4",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "note": "one over the limit",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "${pad:20001}",
+        "contentType": "text/plain",
+        "clientMsgId": "over-20001"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 400,
+            "id": "s5",
+            "reason": "message too long"
+          }
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "note": "group name over the length limit",
+      "sent": {
+        "action": "create_grp",
+        "name": "${pad:31}",
+        "members": []
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 400,
+            "id": "s6",
+            "reason": "群名称过长"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "raw",
+      "conn": "a",
+      "note": "frame over 256 KB: the server closes the connection",
+      "closed": [
+        "a"
+      ]
+    }
+  ]
+}

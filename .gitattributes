@@ -1,0 +1,9 @@
+# Text files are stored and checked out with LF on every platform. Go sources
+# then hash the same as the frozen source commit (tools/conformance/oracle),
+# and gofmt sees the same bytes the compiler does. Without this, Git for
+# Windows' default core.autocrlf=true checks files out with CRLF.
+* text=auto eol=lf
+
+# Windows batch files need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,28 @@
+{
+  "name": "module/group-ai",
+  "description": "Group AI: settings are owner-only; a mention of @小桃子 makes everyone see ai_typing and then an ai_assistant reply; a second mention inside the cooldown is dropped silently; '@小桃子的…' does not trigger; a host refusal becomes a fallback reply. C is not a member.",
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"]]},
+  "settleMs": 500,
+  "steps": [
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "ask", "members": ["${uid:B}"]}, "capture": {"g1": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "quota", "members": ["${uid:B}"]}, "capture": {"g2": "topic"}},
+    {"do": "send", "conn": "b", "msg": {"action": "get_group_ai_settings", "reqId": "q1", "topic": "${g1}"}, "awaitMatch": {"type": "group_ai_settings", "reqId": "q1"}, "note": "defaults"},
+    {"do": "send", "conn": "c", "msg": {"action": "get_group_ai_settings", "reqId": "q2", "topic": "${g1}"}, "awaitMatch": {"type": "group_ai_settings", "reqId": "q2"}, "note": "non-member gets the same default shape"},
+    {"do": "send", "conn": "b", "msg": {"action": "update_group_ai_settings", "reqId": "u1", "topic": "${g1}", "aiQaEnabled": true}, "awaitMatch": {"type": "update_group_ai_settings_result", "reqId": "u1"}, "note": "not the owner"},
+    {"do": "send", "conn": "a", "msg": {"action": "update_group_ai_settings", "reqId": "u2", "topic": "${g1}", "aiQaEnabled": true, "aiKbIds": ["kb-1"]}, "awaitMatch": {"type": "update_group_ai_settings_result", "reqId": "u2"}},
+    {"do": "send", "conn": "a", "msg": {"action": "get_group_ai_settings", "reqId": "q3", "topic": "${g1}"}, "awaitMatch": {"type": "group_ai_settings", "reqId": "q3"}},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${g1}", "content": "@小桃子 what is this", "contentType": "text/plain", "clientMsgId": "b-1"}, "note": "ai_typing, then the reply"},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${g1}", "content": "@小桃子 and again", "contentType": "text/plain", "clientMsgId": "b-2"}, "note": "inside the cooldown: no AI"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${g1}", "content": "@小桃子的粉丝群", "contentType": "text/plain", "clientMsgId": "a-1"}, "note": "not a mention"},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${g1}", "limit": 10}, "note": "the reply is stored with senderKind ai_assistant"},
+    {"do": "send", "conn": "a", "msg": {"action": "update_group_ai_settings", "reqId": "u3", "topic": "${g2}", "aiQaEnabled": true}, "awaitMatch": {"type": "update_group_ai_settings_result", "reqId": "u3"}},
+    {"do": "send", "conn": "b", "msg": {"action": "pub", "topic": "${g2}", "content": "@小桃子 quota please", "contentType": "text/plain", "clientMsgId": "b-3"}, "note": "the host refuses: fallback text"}
+  ]
+}

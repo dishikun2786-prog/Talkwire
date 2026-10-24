@@ -1,0 +1,9 @@
+{
+  "core/errors": [5],
+  "core/group-admin": [9],
+  "core/leave": [16],
+  "core/notes": [14],
+  "core/push-token": [5],
+  "module/call": [10],
+  "module/e2ee-p2p": [8]
+}

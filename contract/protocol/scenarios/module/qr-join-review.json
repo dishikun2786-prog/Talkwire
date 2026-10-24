@@ -1,0 +1,30 @@
+{
+  "name": "module/qr-join-review",
+  "description": "Rejecting a scan-to-join request, and reviewing across groups. A plain member cannot review; a rejection tells the requester and adds nobody; the requester may ask again. A manager of another group (A owns g1 only) sends a review naming g1 with g2's request id: the reply is 400, and the transcript shows what happened to the request anyway.",
+  "users": ["A", "O", "M", "E"],
+  "host": {"friends": [["O", "M"]]},
+  "steps": [
+    {"do": "connect", "conn": "e"},
+    {"do": "login", "conn": "e", "user": "E"},
+    {"do": "connect", "conn": "m"},
+    {"do": "login", "conn": "m", "user": "M"},
+    {"do": "connect", "conn": "o"},
+    {"do": "login", "conn": "o", "user": "O"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "g1", "members": []}, "capture": {"g1": "topic"}},
+    {"do": "send", "conn": "o", "msg": {"action": "create_grp", "name": "g2", "members": ["${uid:M}"]}, "capture": {"g2": "topic"}},
+    {"do": "send", "conn": "o", "msg": {"action": "update_group_join_settings", "topic": "${g2}", "requireApproval": true}},
+    {"do": "send", "conn": "o", "msg": {"action": "group_qr_token", "topic": "${g2}"}, "capture": {"qr": "qrToken"}},
+    {"do": "send", "conn": "e", "msg": {"action": "group_join", "qrToken": "${qr}", "joinMessage": "first try"}, "note": "request 1"},
+    {"do": "send", "conn": "m", "msg": {"action": "group_join_review", "topic": "${g2}", "joinRequestId": 1, "approve": false}, "note": "a plain member cannot review"},
+    {"do": "send", "conn": "o", "msg": {"action": "group_join_review", "topic": "${g2}", "joinRequestId": 1, "approve": false}, "note": "rejected: the requester is told, nobody joins"},
+    {"do": "send", "conn": "e", "msg": {"action": "get_members", "topic": "${g2}"}, "note": "E is not a member"},
+    {"do": "send", "conn": "o", "msg": {"action": "group_join_requests_list", "topic": "${g2}"}, "note": "nothing pending"},
+    {"do": "send", "conn": "e", "msg": {"action": "group_join", "qrToken": "${qr}", "joinMessage": "second try"}, "note": "request 2: asking again after a rejection"},
+    {"do": "send", "conn": "a", "msg": {"action": "group_join_review", "topic": "${g1}", "joinRequestId": 2, "approve": true}, "note": "A manages g1, not g2"},
+    {"do": "send", "conn": "o", "msg": {"action": "group_join_requests_list", "topic": "${g2}"}, "note": "is request 2 still pending?"},
+    {"do": "send", "conn": "o", "msg": {"action": "group_join_review", "topic": "${g2}", "joinRequestId": 2, "approve": true}, "note": "can the real owner still review it?"},
+    {"do": "send", "conn": "e", "msg": {"action": "get_members", "topic": "${g2}"}, "note": "did E join?"}
+  ]
+}

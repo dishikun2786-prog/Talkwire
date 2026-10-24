@@ -1,0 +1,662 @@
+{
+  "scenario": "module/qr-join",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "e"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "e",
+      "frames": {
+        "e": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:E}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "scan",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${grp}",
+        "user": "${uid:B}",
+        "memberRole": "admin"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          },
+          {
+            "action": "set_member_role",
+            "code": 200,
+            "id": "s10",
+            "memberRole": "admin",
+            "topic": "${grp}",
+            "user": "${uid:B}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "d",
+      "note": "non-member",
+      "sent": {
+        "action": "group_qr_token",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_qr_token",
+            "code": 401,
+            "id": "s11",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "group_qr_token",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "group_qr_token",
+            "code": 200,
+            "expiresAt": "<time>",
+            "id": "s12",
+            "qrToken": "${qr1}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "b",
+      "note": "same current token",
+      "sent": {
+        "action": "group_qr_token",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "group_qr_token",
+            "code": 200,
+            "expiresAt": "<time>",
+            "id": "s13",
+            "qrToken": "${qr1}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "b",
+      "note": "admin may refresh",
+      "sent": {
+        "action": "group_qr_token",
+        "topic": "${grp}",
+        "refreshQr": true
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "group_qr_token",
+            "code": 200,
+            "expiresAt": "<time>",
+            "id": "s14",
+            "qrToken": "${qr2}",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "d",
+      "note": "old token after refresh",
+      "sent": {
+        "action": "group_qr_resolve",
+        "qrToken": "${qr1}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_qr_resolve",
+            "code": 404,
+            "id": "s15",
+            "reason": "二维码不存在或已过期"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "d",
+      "sent": {
+        "action": "group_qr_resolve",
+        "qrToken": "${qr2}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_qr_resolve",
+            "code": 200,
+            "id": "s16",
+            "memberCount": 2,
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "d",
+      "sent": {
+        "action": "group_qr_resolve",
+        "qrToken": "no-such-token"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_qr_resolve",
+            "code": 404,
+            "id": "s17",
+            "reason": "二维码不存在或已过期"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "d",
+      "note": "no approval needed: joins at once; nobody else is told",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr2}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s18",
+            "joinStatus": "joined",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "d",
+      "note": "already a member",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr2}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s19",
+            "joinStatus": "joined",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "d",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s20",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "admin",
+                "uid": "${uid:B}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:D}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 21,
+      "do": "send",
+      "conn": "e",
+      "note": "non-member",
+      "sent": {
+        "action": "get_group_join_settings",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "get_group_join_settings",
+            "code": 401,
+            "id": "s21",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 22,
+      "do": "send",
+      "conn": "b",
+      "note": "owner only",
+      "sent": {
+        "action": "update_group_join_settings",
+        "topic": "${grp}",
+        "requireApproval": true
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "update_group_join_settings",
+            "code": 401,
+            "id": "s22",
+            "reason": "仅群主可以设置"
+          }
+        ]
+      }
+    },
+    {
+      "index": 23,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "update_group_join_settings",
+        "topic": "${grp}",
+        "requireApproval": true
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "update_group_join_settings",
+            "code": 200,
+            "id": "s23",
+            "requireApproval": true,
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 24,
+      "do": "send",
+      "conn": "d",
+      "sent": {
+        "action": "get_group_join_settings",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "get_group_join_settings",
+            "code": 200,
+            "id": "s24",
+            "requireApproval": true,
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 25,
+      "do": "send",
+      "conn": "e",
+      "note": "managers are told",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr2}",
+        "joinMessage": "please let me in"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "group_join_request",
+            "from": "${uid:E}",
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "group_join_request",
+            "from": "${uid:E}",
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ],
+        "e": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s25",
+            "joinStatus": "pending_approval",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 26,
+      "do": "send",
+      "conn": "e",
+      "note": "duplicate request",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr2}",
+        "joinMessage": "again"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s26",
+            "joinStatus": "pending_approval",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 27,
+      "do": "send",
+      "conn": "d",
+      "note": "plain member",
+      "sent": {
+        "action": "group_join_requests_list",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "d": [
+          {
+            "action": "group_join_requests_list",
+            "code": 401,
+            "id": "s27",
+            "reason": "只有群主或管理员可以执行此操作"
+          }
+        ]
+      }
+    },
+    {
+      "index": 28,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "group_join_requests_list",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "group_join_requests_list",
+            "code": 200,
+            "id": "s28",
+            "joinRequests": [
+              {
+                "createdAt": "<time>",
+                "id": 1,
+                "message": "please let me in",
+                "requesterName": "${uid:E}",
+                "requesterUid": "${uid:E}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/profile",
+          "query": {
+            "sender": "${user:E}",
+            "viewer": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 29,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${grp}",
+        "joinRequestId": 1,
+        "approve": true
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "group_join_review",
+            "code": 200,
+            "id": "s29",
+            "joinStatus": "approved",
+            "topic": "${grp}"
+          }
+        ],
+        "e": [
+          {
+            "action": "group_join_reviewed",
+            "joinStatus": "approved",
+            "name": "scan",
+            "topic": "${grp}"
+          },
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "name": "scan",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 30,
+      "do": "send",
+      "conn": "a",
+      "note": "already handled",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${grp}",
+        "joinRequestId": 1,
+        "approve": false
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "group_join_review",
+            "code": 409,
+            "id": "s30",
+            "reason": "该申请已被处理"
+          }
+        ]
+      }
+    },
+    {
+      "index": 31,
+      "do": "send",
+      "conn": "b",
+      "note": "nothing pending",
+      "sent": {
+        "action": "group_join_requests_list",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "group_join_requests_list",
+            "code": 200,
+            "id": "s31",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    }
+  ]
+}

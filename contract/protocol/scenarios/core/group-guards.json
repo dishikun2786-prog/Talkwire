@@ -1,0 +1,29 @@
+{
+  "name": "core/group-guards",
+  "description": "The four kick guards and the no-downgrade rule: nobody can kick themselves, a plain member cannot kick, nobody can kick the owner, only the owner can kick an admin. Kicking a non-member is refused. Re-inviting an admin leaves the admin role intact. E never joins.",
+  "redlines": ["R5"],
+  "users": ["A", "B", "C", "D", "E"],
+  "host": {"friends": [["A", "B"], ["A", "C"], ["A", "D"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "d"},
+    {"do": "login", "conn": "d", "user": "D"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "guards", "members": ["${uid:B}", "${uid:C}", "${uid:D}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "set_member_role", "topic": "${grp}", "user": "${uid:B}", "memberRole": "admin"}},
+    {"do": "send", "conn": "a", "msg": {"action": "set_member_role", "topic": "${grp}", "user": "${uid:C}", "memberRole": "admin"}},
+    {"do": "send", "conn": "a", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:A}"}, "note": "guard 1: the owner cannot kick itself"},
+    {"do": "send", "conn": "d", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:C}"}, "note": "guard 2: a plain member cannot kick"},
+    {"do": "send", "conn": "b", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:A}"}, "note": "guard 3: nobody can kick the owner"},
+    {"do": "send", "conn": "b", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:C}"}, "note": "guard 4: an admin cannot kick another admin"},
+    {"do": "send", "conn": "b", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:E}"}, "note": "target is not a member"},
+    {"do": "send", "conn": "d", "msg": {"action": "invite", "topic": "${grp}", "user": "${uid:B}"}, "note": "re-inviting an admin is a no-op"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}, "note": "B is still an admin"},
+    {"do": "send", "conn": "a", "msg": {"action": "kick", "topic": "${grp}", "user": "${uid:C}"}, "note": "only the owner can kick an admin"},
+    {"do": "send", "conn": "a", "msg": {"action": "get_members", "topic": "${grp}"}}
+  ]
+}

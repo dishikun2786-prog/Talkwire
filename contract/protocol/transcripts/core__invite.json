@@ -1,0 +1,519 @@
+{
+  "scenario": "core/invite",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "d"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "d",
+      "frames": {
+        "d": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "close",
+      "conn": "d",
+      "note": "D must have logged in once before it can be invited"
+    },
+    {
+      "index": 4,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 5,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "do": "connect",
+      "conn": "e"
+    },
+    {
+      "index": 7,
+      "do": "login",
+      "conn": "e",
+      "frames": {
+        "e": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:E}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "connect",
+      "conn": "f"
+    },
+    {
+      "index": 9,
+      "do": "login",
+      "conn": "f",
+      "frames": {
+        "f": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:F}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 11,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 13,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "inv",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s14",
+            "name": "inv",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "inv",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "a",
+      "note": "C is online: subscribed and told",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "invite",
+            "code": 200,
+            "id": "s15",
+            "topic": "${grp}",
+            "user": "${uid:C}"
+          }
+        ],
+        "c": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "inv",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "a",
+      "note": "reaches C without a sub",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "welcome",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s16",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "welcome",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "inv",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "c": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "welcome",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "inv",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "a",
+      "note": "A and E are not friends",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:E}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "invite",
+            "code": 401,
+            "id": "s17",
+            "reason": "not friends"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:E}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "b",
+      "note": "any member may invite their own friend",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:E}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "invite",
+            "code": 200,
+            "id": "s18",
+            "topic": "${grp}",
+            "user": "${uid:E}"
+          }
+        ],
+        "e": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:B}",
+            "name": "inv",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:B}",
+            "b": "${user:E}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "a",
+      "note": "D is offline: queued",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:D}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "invite",
+            "code": 200,
+            "id": "s19",
+            "topic": "${grp}",
+            "user": "${uid:D}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:D}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "f",
+      "note": "F is not a member",
+      "sent": {
+        "action": "invite",
+        "topic": "${grp}",
+        "user": "${uid:A}"
+      },
+      "frames": {
+        "f": [
+          {
+            "action": "invite",
+            "code": 401,
+            "id": "s20",
+            "reason": "only group members can invite"
+          }
+        ]
+      }
+    },
+    {
+      "index": 21,
+      "do": "send",
+      "conn": "a",
+      "note": "only group topics take invites",
+      "sent": {
+        "action": "invite",
+        "topic": "${p2p:A,B}",
+        "user": "${uid:C}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "invite",
+            "code": 400,
+            "id": "s21",
+            "reason": "only group topics can be invited into"
+          }
+        ]
+      }
+    },
+    {
+      "index": 22,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "get_members",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s22",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:B}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:C}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:D}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:E}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:A}"
+              }
+            ],
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 23,
+      "do": "connect",
+      "conn": "d2"
+    },
+    {
+      "index": 24,
+      "do": "login",
+      "conn": "d2",
+      "note": "the queued grp_sync arrives",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:D}",
+            "what": "on"
+          }
+        ],
+        "b": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:D}",
+            "what": "on"
+          }
+        ],
+        "c": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:D}",
+            "what": "on"
+          }
+        ],
+        "d2": [
+          {
+            "action": "grp_sync",
+            "eventId": 1,
+            "from": "${uid:A}",
+            "name": "inv",
+            "topic": "${grp}"
+          },
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:D}"
+          }
+        ],
+        "e": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:D}",
+            "what": "on"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,253 @@
+{
+  "scenario": "core/recall",
+  "source": "oracle 33e23250",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "code": 200,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "r",
+        "members": [
+          "${uid:B}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s5",
+            "name": "r",
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "name": "r",
+            "topic": "${grp}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "sub",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s6",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "sub",
+        "topic": "${grp}"
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s7",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pub",
+        "topic": "${grp}",
+        "content": "oops",
+        "contentType": "text/plain",
+        "clientMsgId": "a-1"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pub",
+            "code": 200,
+            "id": "s8",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ],
+        "b": [
+          {
+            "action": "data",
+            "clientMsgId": "a-1",
+            "content": "oops",
+            "contentType": "text/plain",
+            "from": "${uid:A}",
+            "name": "r",
+            "senderKind": "user",
+            "seq": 1,
+            "topic": "${grp}",
+            "ts": "<time>"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "b",
+      "note": "not the sender",
+      "sent": {
+        "action": "del",
+        "topic": "${grp}",
+        "seq": 1
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "del",
+            "code": 404,
+            "id": "s9",
+            "reason": "message not found or not yours"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "del",
+        "topic": "${grp}",
+        "seq": 1
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "del",
+            "code": 200,
+            "id": "s10",
+            "seq": 1,
+            "topic": "${grp}"
+          }
+        ],
+        "b": [
+          {
+            "action": "recalled",
+            "from": "${uid:A}",
+            "seq": 1,
+            "topic": "${grp}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "note": "already recalled",
+      "sent": {
+        "action": "del",
+        "topic": "${grp}",
+        "seq": 1
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "del",
+            "code": 404,
+            "id": "s11",
+            "reason": "message not found or not yours"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "b",
+      "sent": {
+        "action": "get",
+        "topic": "${grp}",
+        "limit": 20
+      },
+      "frames": {
+        "b": [
+          {
+            "action": "get",
+            "code": 200,
+            "id": "s12",
+            "topic": "${grp}"
+          }
+        ]
+      }
+    }
+  ]
+}

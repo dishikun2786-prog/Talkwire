@@ -1,0 +1,21 @@
+{
+  "name": "core/recall",
+  "description": "A sender recalls a message; members are told; history no longer returns it; nobody else can recall it.",
+  "redlines": ["R6"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "r", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "oops", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "b", "msg": {"action": "del", "topic": "${grp}", "seq": 1}, "note": "not the sender"},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${grp}", "seq": 1}},
+    {"do": "send", "conn": "a", "msg": {"action": "del", "topic": "${grp}", "seq": 1}, "note": "already recalled"},
+    {"do": "send", "conn": "b", "msg": {"action": "get", "topic": "${grp}", "limit": 20}}
+  ]
+}

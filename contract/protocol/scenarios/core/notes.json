@@ -1,0 +1,26 @@
+{
+  "name": "core/notes",
+  "description": "Typing ('kp') and read ('read') notes are relayed as 'info' frames with no ack. With read receipts enabled, group read cursors are stored and returned by get. D is not a member of the group.",
+  "users": ["A", "B", "C", "D"],
+  "host": {"friends": [["A", "B"], ["A", "C"]], "runtimeConfig": {"readReceiptEnabled": true}},
+  "steps": [
+    {"do": "connect", "conn": "d"},
+    {"do": "login", "conn": "d", "user": "D"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "notes", "members": ["${uid:B}", "${uid:C}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${grp}", "content": "m1", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${grp}", "what": "kp"}, "await": "none"},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${grp}", "what": "read", "seq": 1}, "await": "none"},
+    {"do": "send", "conn": "c", "msg": {"action": "get", "topic": "${grp}", "limit": 10}, "note": "readCursors carries B's cursor"},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${grp}"}, "await": "none", "note": "missing 'what': silently ignored"},
+    {"do": "send", "conn": "d", "msg": {"action": "note", "topic": "${grp}", "what": "kp"}, "note": "non-member"},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "p1", "contentType": "text/plain", "clientMsgId": "a-p1"}},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${uid:A}", "what": "kp"}, "await": "none", "note": "which topic does A see on a p2p note?"},
+    {"do": "send", "conn": "b", "msg": {"action": "note", "topic": "${uid:A}", "what": "read", "seq": 1}, "await": "none"}
+  ]
+}

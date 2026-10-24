@@ -1,0 +1,24 @@
+{
+  "name": "core/clear-offline",
+  "description": "A clears a direct chat while B is offline; B gets the clear on its next login, acks it, and does not get it again.",
+  "redlines": ["R7", "R21"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${uid:B}"}},
+    {"do": "send", "conn": "a", "msg": {"action": "pub", "topic": "${uid:B}", "content": "secret", "contentType": "text/plain", "clientMsgId": "a-1"}},
+    {"do": "close", "conn": "b"},
+    {"do": "send", "conn": "a", "msg": {"action": "del_topic", "topic": "${uid:B}"}, "note": "clears for both members"},
+    {"do": "send", "conn": "a", "msg": {"action": "get", "topic": "${uid:B}", "limit": 20}},
+    {"do": "connect", "conn": "b2"},
+    {"do": "login", "conn": "b2", "user": "B", "note": "pending clear delivered after login"},
+    {"do": "send", "conn": "b2", "msg": {"action": "ack_topic_cleared", "id": "1"}, "await": "none", "note": "the id field carries the pending-clear row id"},
+    {"do": "close", "conn": "b2"},
+    {"do": "connect", "conn": "b3"},
+    {"do": "login", "conn": "b3", "user": "B", "note": "acked clear is not delivered again"}
+  ]
+}

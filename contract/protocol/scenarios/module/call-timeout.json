@@ -1,0 +1,21 @@
+{
+  "name": "module/call-timeout",
+  "description": "An unanswered invite ends with no_answer after the ring timeout (set to 1 second through the host's runtime config). A video invite answered as voice-only, then upgraded.",
+  "redlines": ["R16"],
+  "users": ["A", "B"],
+  "host": {"friends": [["A", "B"]], "runtimeConfig": {"callRingTimeoutSeconds": 1}},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "send", "conn": "a", "msg": {"action": "call_invite", "topic": "${uid:B}", "callType": "voice"}, "capture": {"cs1": "callSessionId"}},
+    {"do": "wait", "ms": 1500, "note": "ring timeout fires"},
+    {"do": "send", "conn": "b", "msg": {"action": "call_accept", "callSessionId": "${cs1}"}, "note": "too late"},
+    {"do": "send", "conn": "a", "msg": {"action": "call_invite", "topic": "${uid:B}", "callType": "video"}, "capture": {"cs2": "callSessionId"}},
+    {"do": "send", "conn": "b", "msg": {"action": "call_accept", "callSessionId": "${cs2}", "acceptAsVoice": true}},
+    {"do": "send", "conn": "b", "msg": {"action": "call_upgrade", "callSessionId": "${cs2}", "toType": "video"}, "note": "the callee asks for video"},
+    {"do": "send", "conn": "a", "msg": {"action": "call_upgrade_accept", "callSessionId": "${cs2}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "call_hangup", "callSessionId": "${cs2}"}}
+  ]
+}
