@@ -48,6 +48,10 @@ public data class ConversationSummary(
     val muted: Boolean,
     val left: Boolean,
     val updatedAt: Long,
+    /** My read position: messages up to this seq are read. */
+    val lastReadSeq: Long = 0,
+    /** Direct chats: how far the peer has read my messages. */
+    val peerReadSeq: Long = 0,
 )
 
 /** What the engine tells the app; protocol-level pushes stay on [io.imkit.core.client.ImClient.events]. */
@@ -63,6 +67,9 @@ public sealed interface ChatEvent {
 
     /** Someone cleared the conversation for everyone. */
     public data class ConversationCleared(val conversation: ConversationId, val by: String) : ChatEvent
+
+    /** The server hinted that a group's name or roster changed; fetch the roster again. */
+    public data class GroupChanged(val conversation: ConversationId) : ChatEvent
 
     /** The host changed a friendship (`contact_sync`). */
     public data class ContactChanged(val what: String, val peerUid: String) : ChatEvent

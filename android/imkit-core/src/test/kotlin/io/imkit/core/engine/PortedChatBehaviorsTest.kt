@@ -157,8 +157,14 @@ class PortedChatBehaviorsTest {
         eventually { runBlocking { store.conversation(withBob)?.lastReadSeq } == 5L }
         assertEquals("the peer's position is the peer's", 3L, store.conversation(withBob)?.peerReadSeq)
 
+        // What the UI reads: the summary for direct chats, the live cursors for groups.
+        eventually { a.conversations.value.firstOrNull { it.id == withBob }?.peerReadSeq == 3L }
+        assertEquals(5L, a.conversations.value.first { it.id == withBob }.lastReadSeq)
+        val cursors = a.readCursors(g)
         server.pushTo(alice, info("read", group, bob, 4))
         eventually { runBlocking { store.readCursors(g) } == mapOf(bob to 4L) }
+        eventually { cursors.value == mapOf(bob to 4L) }
         assertEquals(0L, store.conversation(g)?.peerReadSeq)
+        assertTrue(a.readCursors(withBob).value.isEmpty())
     }
 }

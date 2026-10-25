@@ -27,7 +27,8 @@ dependencies {
     // The -jvm artifacts directly: same classes as the multiplatform
     // coordinates, and the versions the source project already resolves.
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.9.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // api: MediaUploader and the WebSocket transport take an OkHttpClient in their public constructors.
+    api("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.9.0")

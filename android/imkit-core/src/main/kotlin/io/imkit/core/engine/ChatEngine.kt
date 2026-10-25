@@ -113,6 +113,7 @@ public class ChatEngine(
     private class Roster(val members: List<GroupMember>, @Volatile var stale: Boolean)
 
     private val windows = ConcurrentHashMap<ConversationId, Window>()
+    private val cursorFlows = ConcurrentHashMap<ConversationId, MutableStateFlow<Map<String, Long>>>()
     private val locks = ConcurrentHashMap<ConversationId, Mutex>()
     private val rosters = ConcurrentHashMap<String, Roster>()
 
@@ -198,6 +199,18 @@ public class ChatEngine(
         w.size += added
         reloadWindow(conversation)
         return added
+    }
+
+    /**
+     * How far each member has read in a group (uid → seq, without me), kept
+     * current by read notes and history pages. Empty for direct chats: there
+     * the peer's position is [ConversationSummary.peerReadSeq].
+     */
+    public fun readCursors(conversation: ConversationId): StateFlow<Map<String, Long>> {
+        var created = false
+        val flow = cursorFlows.computeIfAbsent(conversation) { created = true; MutableStateFlow(emptyMap()) }
+        if (created) scope.launch { flow.value = store.readCursors(conversation) }
+        return flow.asStateFlow()
     }
 
     /** Who typed in [conversation] within [EngineConfig.typingTtlMs]. */
@@ -583,6 +596,7 @@ public class ChatEngine(
                                 store.putConversation((c ?: StoredConversation(id, updatedAt = config.clock())).copy(title = title, left = false))
                             }
                         }
+                        _events.tryEmit(ChatEvent.GroupChanged(id))
                     }
                     e.eventId?.let { client.ackGroupEvent(it) }
                 }
@@ -717,6 +731,7 @@ public class ChatEngine(
     private suspend fun <T> withConversation(c: ConversationId, block: suspend () -> T): T {
         val r = locks.computeIfAbsent(c) { Mutex() }.withLock { block() }
         reloadWindow(c)
+        cursorFlows[c]?.let { it.value = store.readCursors(c) }
         refreshSummary(c)
         return r
     }
@@ -741,6 +756,8 @@ public class ChatEngine(
                 muted = conv.muted,
                 left = conv.left,
                 updatedAt = conv.updatedAt,
+                lastReadSeq = conv.lastReadSeq,
+                peerReadSeq = conv.peerReadSeq,
             )
         }
         publishSummaries()

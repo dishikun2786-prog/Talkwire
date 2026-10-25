@@ -11,7 +11,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
 - 计划用例 75 个。按平台：服务端 25、宿主 8、Android 20、Web 10、iOS 12。
 - 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 8、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 21/25、Android 13/20。
+- 已写用例（已写/计划）：服务端 21/25、Android 16/20。
 
 图例：
 
@@ -51,8 +51,8 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [C4](#c4) | 缓存归属：换账号清空全部缓存表 | Android、Web、iOS | 不适用 | — | `C4_SwitchingAccountClearsAllCaches`：Android 3.5 已写、Web 5.4、iOS 6.3 |
 | [C5](#c5) | 在线三态加过期时间，只有一个真相源 | Android、Web、iOS | 不适用 | — | `C5_PresenceTriStateWithExpiry`：Android 3.7 已写、Web 5.2、iOS 6.1 |
 | [C6](#c6) | 通知抑制条件、渠道静音由 App 播声、来电通知时序与取消 | Android | 不适用 | — | `C6_NotificationDecision`：Android 3.8 已写<br>`C6_DeviceSoundAndCallTiming`：Android 4.5 |
-| [C7](#c7) | 媒体缓存；语音气泡随时长变宽；占位符用类型字段 | Android、Web、iOS | 不适用 | — | `C7_MediaCacheHitsSecondPlay`：Android 3.9 已写<br>`C7_BubblesFromContentType`：Android 4.3、Web 5.9、iOS 6.7 |
-| [C8](#c8) | 按住说话单手势；弹层语言跟随 | Android | 不适用 | — | `C8_HoldToTalkSingleGesture`：Android 4.1<br>`C8_SheetsFollowAppLocale`：Android 4.2<br>`C8_DeviceHoldToTalk`：Android 4.5 |
+| [C7](#c7) | 媒体缓存；语音气泡随时长变宽；占位符用类型字段 | Android、Web、iOS | 不适用 | — | `C7_MediaCacheHitsSecondPlay`：Android 3.9 已写<br>`C7_BubblesFromContentType`：Android 4.3 已写、Web 5.9、iOS 6.7 |
+| [C8](#c8) | 按住说话单手势；弹层语言跟随 | Android | 不适用 | — | `C8_HoldToTalkSingleGesture`：Android 4.1 已写<br>`C8_SheetsFollowAppLocale`：Android 4.2 已写<br>`C8_DeviceHoldToTalk`：Android 4.5 |
 | [C9](#c9) | 本人群角色从名册取、群同步推送触发刷新、失败回落普通成员 | Android、Web、iOS | 不适用 | — | `C9_RoleFromRoster`：Android 3.10 已写、Web 5.8、iOS 6.6<br>`C9_UnknownRosterMeansMember`：Android 3.10 已写 |
 | [C10](#c10) | E2EE 失败原因分类 | Android、iOS | 不适用 | — | `C10_E2EEFailureReasons`：Android 7.1、iOS 7.1 |
 
@@ -420,7 +420,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C7_MediaCacheHitsSecondPlay`（Android，3.9 Android 媒体，单测，已写）：语音、视频第二次播放走本地缓存
-  - `C7_BubblesFromContentType`（Android，4.3 Android 消息类型注册表，UI 测试）：气泡按内容类型渲染，不靠占位文字；语音气泡宽度随时长变化
+  - `C7_BubblesFromContentType`（Android，4.3 Android 消息类型注册表，UI 测试，已写）：气泡按内容类型渲染，不靠占位文字；语音气泡宽度随时长变化
   - `C7_BubblesFromContentType`（Web，5.9 Web React 组件，UI 测试）：同上
   - `C7_BubblesFromContentType`（iOS，6.7 iOS UI 组件，UI 测试）：同上
 
@@ -431,8 +431,8 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 平台：Android
 - 参照服务：不适用
 - 计划用例：
-  - `C8_HoldToTalkSingleGesture`（Android，4.1 Android 组件，UI 测试）：按下、移动、抬起是一个手势，手指移动不会提前发送
-  - `C8_SheetsFollowAppLocale`（Android，4.2 Android 主题与文案，UI 测试）：底部弹层的文案跟随 App 内选择的语言
+  - `C8_HoldToTalkSingleGesture`（Android，4.1 Android 组件，UI 测试，已写）：按下、移动、抬起是一个手势，手指移动不会提前发送
+  - `C8_SheetsFollowAppLocale`（Android，4.2 Android 主题与文案，UI 测试，已写）：底部弹层的文案跟随 App 内选择的语言
   - `C8_DeviceHoldToTalk`（Android，4.5 Android sample-app，真机）：真机上按住说话、上滑取消
 
 <a id="c9"></a>
