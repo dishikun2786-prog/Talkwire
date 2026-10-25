@@ -134,14 +134,14 @@ type ClientMessage struct {
 // to store and hand out to anyone who asks (see e2e_fetch_bundle). All
 // binary fields are base64-encoded because JSON has no byte-string type.
 type E2ePublishBundlePayload struct {
-	RegistrationId        int                     `json:"registrationId"`
-	IdentityKey            string                 `json:"identityKey"`
-	SignedPreKeyId         int                    `json:"signedPreKeyId"`
-	SignedPreKey           string                 `json:"signedPreKey"`
-	SignedPreKeySignature  string                 `json:"signedPreKeySignature"`
-	KyberPreKeyId          int                    `json:"kyberPreKeyId"`
-	KyberPreKey            string                 `json:"kyberPreKey"`
-	KyberPreKeySignature   string                 `json:"kyberPreKeySignature"`
+	RegistrationId        int    `json:"registrationId"`
+	IdentityKey           string `json:"identityKey"`
+	SignedPreKeyId        int    `json:"signedPreKeyId"`
+	SignedPreKey          string `json:"signedPreKey"`
+	SignedPreKeySignature string `json:"signedPreKeySignature"`
+	KyberPreKeyId         int    `json:"kyberPreKeyId"`
+	KyberPreKey           string `json:"kyberPreKey"`
+	KyberPreKeySignature  string `json:"kyberPreKeySignature"`
 	// OneTimePreKeys replenishes the server's pool of single-use Curve25519
 	// prekeys for this device. Sent as a top-up batch (typically ~100 at a
 	// time) rather than one at a time — X3DH's forward-secrecy benefit over
@@ -725,7 +725,7 @@ const (
 	// incoming push from someone else be mismatched against the sender's
 	// own pending e2e_send if it ever raced one, or (more likely) be
 	// silently dropped by the ack-only correlation path on the client.
-	ActionE2eSend   = "e2e_send"
+	ActionE2eSend    = "e2e_send"
 	ActionE2eDeliver = "e2e_deliver"
 	// ActionE2eTerminate (client->server) is the entire "opt out" mechanism
 	// for 1:1 encryption — see the product decision in the design doc:
@@ -733,8 +733,8 @@ const (
 	// delete-and-start-a-new-plain-conversation. ActionE2eTerminated is the
 	// distinct push name told to the peer, same reasoning as
 	// ActionE2eDeliver above.
-	ActionE2eTerminate   = "e2e_terminate"
-	ActionE2eTerminated  = "e2e_terminated"
+	ActionE2eTerminate  = "e2e_terminate"
+	ActionE2eTerminated = "e2e_terminated"
 	// ActionE2eClear (client->server) is the "empty the message list, keep
 	// the thread" sibling ActionE2eTerminate deliberately does not have on
 	// its own -- terminate always tears down the Double Ratchet session too
@@ -772,10 +772,10 @@ const (
 	ActionE2eSetGroupEncrypted = "e2e_set_group_encrypted"
 
 	// -- E2EE (server->client "type" discriminator) --
-	TypeE2eBundle               = "e2e_bundle"
-	TypeE2ePublishBundleResult  = "e2e_publish_bundle_result"
+	TypeE2eBundle                  = "e2e_bundle"
+	TypeE2ePublishBundleResult     = "e2e_publish_bundle_result"
 	TypeE2eSetGroupEncryptedResult = "e2e_set_group_encrypted_result"
-	TypeE2eOtpkCountResult      = "e2e_otpk_count_result"
+	TypeE2eOtpkCountResult         = "e2e_otpk_count_result"
 
 	// -- Group QR + join approval (client->server actions) --
 	// ActionGroupQrToken mints-or-returns a group's current scan-to-join

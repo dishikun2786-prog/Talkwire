@@ -2763,12 +2763,12 @@ func (s *Store) AreCommonEncryptedGroupMembers(uidA, uidB string) (bool, error) 
 // E2eEnvelope is one queued-for-offline-delivery encrypted payload — see
 // im_e2e_envelopes' table comment for the retention story.
 type E2eEnvelope struct {
-	ID       int64
-	Topic    string
-	FromUID  string
-	Kind     string
-	Payload  string
-	MsgType  int
+	ID      int64
+	Topic   string
+	FromUID string
+	Kind    string
+	Payload string
+	MsgType int
 }
 
 // EnqueueE2eEnvelope persists one encrypted payload for a currently-offline

@@ -2676,7 +2676,6 @@ func (h *Hub) handleUpdateGroupAiSettings(client *Client, msg *ClientMessage) {
 // for groups) and *routing* (deliver live, or queue with a bounded TTL) —
 // never content.
 
-
 // e2ePeerAllowed reports whether client is allowed to establish/use an
 // encrypted 1:1 thread with peerUID — the same "already share a p2p_ topic,
 // or are friends" gate resolveP2PTopic applies to plain 1:1 messaging,
@@ -2868,10 +2867,10 @@ func (h *Hub) handleE2eFetchBundle(client *Client, msg *ClientMessage) {
 	reply := &E2eBundleMessage{
 		Type: TypeE2eBundle, ReqId: msg.ReqID, User: msg.User, Found: true,
 		DeviceId: identity.DeviceID, RegistrationId: identity.RegistrationID,
-		IdentityKey: identity.IdentityKey,
+		IdentityKey:    identity.IdentityKey,
 		SignedPreKeyId: identity.SignedPreKeyID, SignedPreKey: identity.SignedPreKey,
 		SignedPreKeySignature: identity.SignedPreKeySignature,
-		KyberPreKeyId: identity.KyberPreKeyID, KyberPreKey: identity.KyberPreKey,
+		KyberPreKeyId:         identity.KyberPreKeyID, KyberPreKey: identity.KyberPreKey,
 		KyberPreKeySignature: identity.KyberPreKeySignature,
 	}
 	if hasOtpk {
