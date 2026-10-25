@@ -296,6 +296,29 @@ func (h *Hub) leftGroupOnOtherDevices(client *Client, topic string) {
 	}, []string{client.UID()}, client)
 }
 
+// mayLeaveGroup holds the strict profile's checks on leave_grp, which the
+// reference server does not make: the topic must be a group (D2, finding
+// F36: a leave_grp on a one-to-one conversation removed the caller from it)
+// and the caller one of its members (D1, F35: a stranger got 200 and every
+// online member a grp_sync from them). It answers the error itself.
+func (h *Hub) mayLeaveGroup(client *Client, msg *ClientMessage) bool {
+	if !strings.HasPrefix(msg.Topic, "grp_") {
+		client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeBadReq, "only group topics"))
+		return false
+	}
+	member, err := h.store.IsGroupMember(msg.Topic, client.uid)
+	if err != nil {
+		logf("[leave_grp] IsGroupMember failed topic=%s uid=%s: %v", msg.Topic, client.uid, err)
+		client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeInternal, "无法确认群组状态，请重试"))
+		return false
+	}
+	if !member {
+		client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeAuth, "not a member of this conversation"))
+		return false
+	}
+	return true
+}
+
 func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 	if !client.IsAuthenticated() {
 		client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeAuth, "not authenticated"))
@@ -303,6 +326,9 @@ func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 	}
 	if msg.Topic == "" {
 		client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeBadReq, "topic required"))
+		return
+	}
+	if strictProtocol && !h.mayLeaveGroup(client, msg) {
 		return
 	}
 	// Owners can't just walk away and leave the group ownerless — they must

@@ -4,17 +4,16 @@
 
 ## Phase 1 结果（2026-10-25）
 
-1.1–1.12 全部完成，各任务的内容与验证结果见 `server/README.md`。legacy 档 32/32 逐帧一致，strict 档 32/32，表结构比较 5 项通过，竞态检测三轮无报告。
+1.1–1.13 全部完成，各任务的内容与验证结果见 `server/README.md`。1.13 是计划外加的：strict 档修正 D1、D2、D5、D7、D8（原计划 1.7–1.9 没有覆盖它们，2026-10-25 定为另排任务）。legacy 档 32/32 逐帧一致，strict 档 32/32，表结构比较 5 项通过，竞态检测三轮无报告。
 
 待你决定（G1 验收前）：
 
 1. 默认档位：服务端现在默认 legacy；计划要求新项目默认 strict。
-2. strict 档新增字段与偏离的白名单：`-additions strict`（`errCode`、`protocol`、`capabilities`、`vapidKey` 与两种应答的 `id`）和 `contract/protocol/transcripts-strict/` 的两个场景。
+2. strict 档新增字段与偏离的白名单：`-additions strict`（`errCode`、`protocol`、`capabilities`、`vapidKey` 与两种应答的 `id`）和 `contract/protocol/transcripts-strict/` 的六个场景（D3、D4 各一个，1.13 加的 D1/D2、D5、D7、D8 四个）。
 3. 安装 staticcheck（1.10 计划项，本机未装）。
 4. R12 的措辞与 APNs：只发数据载荷的 APNs 推送是静默的后台推送，iOS 会限流、不保证送达，所以 APNs 载荷另带一个只由数据字段组成的 alert；“只发数据载荷”对 APNs 不成立，理由写在 `server/push/r12_test.go`。
-5. D9 只在 strict 档修正（legacy 保持原版的“从不入队”）。
+5. D9 以及 1.13 的 D1、D2、D5、D7、D8 只在 strict 档修正，legacy 保持原版行为。1.13 的几处取舍：D5 对补投的入群申请、审核结果帧也用当前群名（规范只写了 `grp_sync`）；D7 发请求的连接只订阅、不再收 `grp_sync`（应答已说明结果）；D8 对另一个群的申请保持与原版相同的应答（已处理 409、待处理 400），不多泄露信息。
 6. 多端在线的几项设计：字段名 `device`；不带它等于设备 `""`、照旧互相顶替；E2EE 只属于发布密钥的设备，客户端开始带 `device` 后要重新发布密钥包；`answered_elsewhere`；推送令牌按设备、每个服务商一个，不带设备的令牌在设备 `""` 没连上时也推；每个账号最多 10 台设备；不在通话里的设备操作通话得到 404。
-7. strict 档尚未修正 D1、D2、D5、D7、D8（计划的 1.7–1.9 没有覆盖它们），是否另排任务。
 
 ## 已定决策（2026-10-24）
 

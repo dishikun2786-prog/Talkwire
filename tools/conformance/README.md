@@ -45,7 +45,7 @@ go build -o bin/conformance.exe ./cmd/conformance
 | --- | --- |
 | `-env KEY=VALUE` | 给被测服务端加环境变量，可重复，例如 `-env IMKIT_MODULES=none`、`-env IMKIT_PROTOCOL_PROFILE=strict` |
 | `-additions strict` | 比较前从服务端的帧里去掉 strict 档新增的字段（顶层的 `errCode`、`protocol`、`capabilities`、`vapidKey`，以及成功 `login` 与 `pres` 快照应答里的 `id`），并按场景报出去掉了多少处。去掉之后仍须逐帧一致，证明 strict 档只是在原版之上加字段 |
-| `-overlay <目录>` | 目录里有同名黄金对话的场景改用它比较，其余照旧用 `-golden`。strict 档有意偏离原版的场景放在 `contract/protocol/transcripts-strict/` |
+| `-overlay <目录>` | 目录里有同名黄金对话的场景改用它比较，其余照旧用 `-golden`。strict 档有意偏离原版的场景放在 `contract/protocol/transcripts-strict/`（六个，见协议规范第 19 节） |
 | `-standalone` | 不起宿主进程（`IMKIT_HOST_MODE=standalone`），好友、资料、运行配置由场景写成配置文件交给服务端；不比较对宿主的调用。依赖宿主的场景（通话、群 AI）在这种模式下必然失败 |
 
 ImKit 服务端的三种检查：

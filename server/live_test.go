@@ -50,6 +50,8 @@ type liveOptions struct {
 	// connCap, when set, caps the server at this many connections more than
 	// were open when it started.
 	connCap int
+	// modules are the optional modules to install, with their tables.
+	modules []string
 }
 
 func newLiveServer(t *testing.T, opts liveOptions) *liveServer {
@@ -60,7 +62,13 @@ func newLiveServer(t *testing.T, opts liveOptions) *liveServer {
 		t.Fatal(err)
 	}
 	h := NewHub(store, hmacjwt.New(liveSecret), nil, hostImpl)
-	if _, err := installModules(h, hostImpl, nil, true); err != nil {
+	mods, err := installModules(h, hostImpl, opts.modules, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sets, err := mods.migrationSets(); err != nil {
+		t.Fatal(err)
+	} else if err := store.InitTables(sets...); err != nil {
 		t.Fatal(err)
 	}
 	go h.Run()

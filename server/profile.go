@@ -102,6 +102,7 @@ var errCodes = map[string]string{
 
 	"only group topics support member roles": "not_a_group",
 	"only group topics can be invited into":  "not_a_group",
+	"only group topics":                      "not_a_group",
 	"invalid member role":                    "invalid_member_role",
 	"callType must be voice or video":        "invalid_call_type",
 	"cannot kick yourself":                   "cannot_target_self",

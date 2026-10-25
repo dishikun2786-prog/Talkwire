@@ -1,0 +1,342 @@
+{
+  "scenario": "core/group-offline-events",
+  "source": "imkit strict profile (D5)",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "c",
+      "note": "C must have logged in once before it can be added to a group",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s2",
+            "protocol": 1,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "close",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 5,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s5",
+            "protocol": 1,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "do": "send",
+      "conn": "a",
+      "note": "queues event 1: grp_sync for kept",
+      "sent": {
+        "action": "create_grp",
+        "name": "kept",
+        "members": [
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s6",
+            "name": "kept",
+            "topic": "${kept}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "note": "queues event 2: grp_sync for gone",
+      "sent": {
+        "action": "create_grp",
+        "name": "gone",
+        "members": [
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s7",
+            "name": "gone",
+            "topic": "${gone}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:C}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "note": "not queued",
+      "sent": {
+        "action": "set_member_role",
+        "topic": "${kept}",
+        "user": "${uid:C}",
+        "memberRole": "admin"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:A}",
+            "topic": "${kept}"
+          },
+          {
+            "action": "set_member_role",
+            "code": 200,
+            "id": "s8",
+            "memberRole": "admin",
+            "topic": "${kept}",
+            "user": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "note": "not queued",
+      "sent": {
+        "action": "update_grp",
+        "topic": "${kept}",
+        "name": "kept renamed"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "update_grp",
+            "code": 200,
+            "id": "s9",
+            "name": "kept renamed",
+            "topic": "${kept}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "note": "queues event 3: grp_disband for gone; event 2 is now stale",
+      "sent": {
+        "action": "disband_grp",
+        "topic": "${gone}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "disband_grp",
+            "code": 200,
+            "id": "s10",
+            "topic": "${gone}"
+          },
+          {
+            "action": "grp_disband",
+            "from": "${uid:A}",
+            "topic": "${gone}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "connect",
+      "conn": "c2"
+    },
+    {
+      "index": 12,
+      "do": "login",
+      "conn": "c2",
+      "note": "expect grp_sync(kept, eventId 1) and grp_disband(gone, eventId 3); event 2 is dropped",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "on"
+          }
+        ],
+        "c2": [
+          {
+            "action": "grp_disband",
+            "eventId": 3,
+            "from": "${uid:A}",
+            "topic": "${gone}"
+          },
+          {
+            "action": "grp_sync",
+            "eventId": 1,
+            "from": "${uid:A}",
+            "name": "kept renamed",
+            "topic": "${kept}"
+          },
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s12",
+            "protocol": 1,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "c2",
+      "sent": {
+        "action": "ack_group_event",
+        "eventId": 1,
+        "topic": "${kept}"
+      }
+    },
+    {
+      "index": 14,
+      "do": "close",
+      "conn": "c2",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "connect",
+      "conn": "c3"
+    },
+    {
+      "index": 16,
+      "do": "login",
+      "conn": "c3",
+      "note": "only the un-acked grp_disband (eventId 3) is replayed",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:C}",
+            "what": "on"
+          }
+        ],
+        "c3": [
+          {
+            "action": "grp_disband",
+            "eventId": 3,
+            "from": "${uid:A}",
+            "topic": "${gone}"
+          },
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s16",
+            "protocol": 1,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    }
+  ]
+}

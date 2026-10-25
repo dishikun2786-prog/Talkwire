@@ -34,7 +34,7 @@
 ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，目前默认 legacy（新项目是否改为默认 strict 待定）。strict 档相对 legacy 只做两类改动：
 
 - **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）。
-- **修正第 18 节的缺陷**。ImKit 服务端目前修正了 D3、D4、D9；D1、D2、D5、D7、D8 尚未修正，strict 档在这几项上与 legacy 相同。
+- **修正第 18 节的缺陷**。ImKit 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。
 
 多端同时在线（第 6.2 节）不分档位：客户端在 `login` 里带 `device` 才启用，不带时两档都与参考服务一致。
 
@@ -539,7 +539,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 | owner，群里还有别人 | 409 |
 | owner，自己是最后一人 | 200，群被解散 |
 
-legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是否是群（D1、D2，第 18 节）。客户端**禁止**对单聊发 `leave_grp`。
+legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是否是群（D1、D2，第 18 节）。strict 档对不是 `grp_` 的 topic 返回 400 `only group topics`（`errCode` 为 `not_a_group`），对非成员返回 401 `not a member of this conversation`（`not_member`），两种情况都不推送任何帧、不改变成员关系。客户端**禁止**对单聊发 `leave_grp`。
 
 ### 10.6 `update_grp` 改群名【录】
 
@@ -571,7 +571,7 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 
 | 触发 | 补投的帧 |
 | --- | --- |
-| 建群、邀请、入群审核通过 | `grp_sync`（带入队时的群名） |
+| 建群、邀请、扫码入群（仅 strict 档，入群者没连上的设备）、入群审核通过 | `grp_sync`（legacy 档带入队时的群名，strict 档带当前群名，D5） |
 | 被踢、群解散 | `grp_disband` |
 | 有人申请入群（发给管理员），仅 strict 档 | `group_join_request` |
 | 自己的入群申请被处理，仅 strict 档 | `group_join_reviewed`，带 `joinStatus` |
@@ -585,6 +585,8 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 ```
 
 回执无应答。不回执的事件每次登录都会重放。补投的 `grp_sync` 如果对应的群已经不再包含该成员，服务端会在补投前静默丢弃它。
+
+strict 档补投的帧凡带 `name` 的都用补投时的群名；群已不存在或群名读不到时，用入队时的群名（D5）。
 
 事件保留 30 天。
 
@@ -791,7 +793,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 | 情况 | 应答 `joinStatus` | 其他效果 |
 | --- | --- | --- |
 | 已是成员 | `joined` | 无 |
-| 群不需要审核 | `joined` | 直接入群。**不通知任何人**，入群者也**没有被订阅**（F45），所以客户端收到 `joined` 后**必须**自己 `sub` 该群并刷新群列表 |
+| 群不需要审核 | `joined` | 直接入群。legacy 档**不通知任何人**，入群者也**没有被订阅**（D7，F45），所以客户端收到 `joined` 后**必须**自己 `sub` 该群并刷新群列表。strict 档：发请求的连接被订阅；群里其余在线成员收到 `grp_sync`（`from` 为入群者）；入群者的其他设备收到同样的 `grp_sync` 并被订阅，没连上的设备入队（第 10.10 节）。按 legacy 档的做法自己再 `sub` 一次无害 |
 | 群需要审核 | `pending_approval` | 创建申请；在线的管理员收到 `group_join_request`，离线的进入离线队列 |
 | 已有待处理的申请 | `pending_approval` | 不重复通知 |
 
@@ -817,7 +819,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 拒绝时申请人收到 `joinStatus:"rejected"` 的 `group_join_reviewed`，不加入任何人。被拒的人可以用同一个二维码令牌再次申请，得到新的 `joinRequestId`（F56）。
 
-错误：401 `只有群主或管理员可以执行此操作`；申请已被处理时 409 `该申请已被处理`；`joinRequestId` 不属于 `topic` 时 400 `请求与群聊不匹配`。注意这个 400 是在申请状态**已经写入之后**才返回的：申请从待处理列表里消失，真正的群管理员再审核只得到 409，申请人既没入群也没收到通知（已知缺陷 D8，F57）。客户端发审核时必须用申请所属群的 `topic`（取自 `group_join_request` 帧或待处理列表）。
+错误：401 `只有群主或管理员可以执行此操作`；申请已被处理时 409 `该申请已被处理`；`joinRequestId` 不属于 `topic` 时 400 `请求与群聊不匹配`；通过时群不存在 404 `群聊不存在`，人数已满 409 `群成员数量已达上限`。legacy 档的这些检查（除权限外）都在申请状态**已经写入之后**：检查失败时申请从待处理列表里消失，真正的群管理员再审核只得到 409，申请人既没入群也没收到通知（已知缺陷 D8，F57）。strict 档先做完全部检查再写入，状态与成员行在同一个事务里写；任一检查失败，申请保持待处理。对另一个群的申请，两档的应答相同：已处理的 409，待处理的 400。客户端发审核时必须用申请所属群的 `topic`（取自 `group_join_request` 帧或待处理列表）。
 
 ### 14.4 入群设置
 
@@ -931,7 +933,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 参考服务的下列行为是缺陷。legacy 档保留它们，strict 档按“修正后”列实现。客户端按“客户端应对”列处理，就能在两档下都正常工作。
 
-ImKit 服务端（Phase 1）的 strict 档目前修正了 D3、D4、D9；其余各项在两档下都与参考服务相同，表中“strict 档修正后”一列是它们的目标行为。
+ImKit 服务端的 strict 档修正了 D6 以外的全部各项：D3、D4 在任务 1.8，D9 在任务 1.10，D1、D2、D5、D7、D8 在任务 1.13。D6 两档相同。
 
 | 编号 | 缺陷 | strict 档修正后 | 客户端应对 | 出处 |
 | --- | --- | --- | --- | --- |
@@ -939,9 +941,9 @@ ImKit 服务端（Phase 1）的 strict 档目前修正了 D3、D4、D9；其余�
 | D2 | `leave_grp` 对单聊 topic 生效，会把自己移出单聊 | 400 `only group topics` | 禁止对单聊发 `leave_grp`；收到 `topic` 为 `p2p_…` 的 `grp_sync` 时忽略 | F36 |
 | D3 | `pres` 可查询任意 uid | 只返回共享会话的用户 | 不依赖查询陌生人 | F30，红线 R22 |
 | D4 | 登录接受非访问令牌 | 只接受 `type=access` | 只使用访问令牌 | F2，红线 R18 |
-| D5 | 补投的 `grp_sync` 带入队时的旧群名 | 带当前群名 | 以 `get_groups` 的群名为准 | F24 |
+| D5 | 补投的 `grp_sync` 带入队时的旧群名 | 补投的帧带当前群名；群已不存在时用入队时的群名 | 以 `get_groups` 的群名为准 | F24 |
 | D6 | 单聊的 `recalled`、`info` 的 `topic` 照抄请求，可能是接收方自己的 uid | 保持不变（改动会破坏已有客户端），留给协议 v2 | 按第 5.5 节映射 | F29 |
-| D7 | 不需审核的扫码入群既不通知群成员，也不给入群者推 `grp_sync`、不订阅 | 给入群者推 `grp_sync` 并订阅，给其余在线成员推 `grp_sync` | 收到 `joinStatus:"joined"` 后自己 `sub` 该群并刷新群列表 | F45 |
+| D7 | 不需审核的扫码入群既不通知群成员，也不给入群者推 `grp_sync`、不订阅 | 订阅发请求的连接；入群者的其他设备收到 `grp_sync` 并被订阅（没连上的入队）；其余在线成员收到 `from` 为入群者的 `grp_sync`（第 14.2 节） | 收到 `joinStatus:"joined"` 后自己 `sub` 该群并刷新群列表 | F45 |
 | D8 | `group_join_review` 先把申请标为已处理，再检查它是否属于 `topic`、群是否存在、人数是否已满。后几项失败时返回 400/404/409，但申请已被消耗：从待处理列表消失，再审核得到 409，申请人没入群也没收到通知 | 所有检查放在写入之前，写入状态和加成员在同一事务里完成；任一检查失败时申请保持待处理 | 审核时用申请所属群的 `topic`；群满时先腾出名额再通过；遇到这类失败只能让申请人重新申请 | F57 |
 | D9 | 入群申请与审核结果的离线事件从不入队（存储只接受 `grp_sync`、`grp_disband` 两种），不在线的管理员和申请人收不到 | 入队，下次登录补投（第 10.10 节） | 登录后主动拉 `group_join_requests_list`，不依赖补投 | F59 |
 
@@ -968,7 +970,7 @@ strict 档用同一套黄金对话检验：
 conformance check -additions strict -overlay contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict
 ```
 
-`-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`）；有意偏离 legacy 的两个场景（`core/login-tokens`、`core/presence`）改用 `transcripts-strict/` 里另录的版本。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
+`-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`）；有意偏离 legacy 的六个场景改用 `transcripts-strict/` 里另录的版本：`core/login-tokens`（D4）、`core/presence`（D3）、`core/leave-grp`（D1、D2）、`core/group-offline-events`（D5）、`module/qr-join`（D7）、`module/qr-join-review`（D8）。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
 
 多端同时在线没有黄金对话：参考服务没有这项能力。它由 `server/multidevice_test.go` 等用例覆盖（进程内真实服务端加真实 WebSocket）。
 

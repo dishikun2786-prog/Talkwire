@@ -219,6 +219,59 @@ func (s *Store) GetPendingGroupJoinRequests(topic string) ([]GroupJoinRequest, e
 	return out, rows.Err()
 }
 
+// GetGroupJoinRequest returns one join request whatever its status, or
+// (nil, nil) when there is none with that id.
+func (s *Store) GetGroupJoinRequest(id int64) (*GroupJoinRequest, error) {
+	var r GroupJoinRequest
+	err := s.db.QueryRow(`
+		SELECT id, topic, requester_uid, message, status, reviewed_by, created_at
+		FROM im_group_join_requests WHERE id = $1
+	`, id).Scan(&r.ID, &r.Topic, &r.RequesterUID, &r.Message, &r.Status, &r.ReviewedBy, &r.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get group join request: %w", err)
+	}
+	return &r, nil
+}
+
+// ApproveGroupJoinRequest approves one pending request and adds the
+// requester to its group in one transaction, so the request is never marked
+// approved without the member row (D8). Like ReviewGroupJoinRequest it
+// returns (nil, nil) when the request is no longer pending.
+func (s *Store) ApproveGroupJoinRequest(id int64, reviewedBy string) (*GroupJoinRequest, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var r GroupJoinRequest
+	err = tx.QueryRow(`
+		UPDATE im_group_join_requests
+		SET status = $2, reviewed_by = $3, reviewed_at = NOW()
+		WHERE id = $1 AND status = $4
+		RETURNING id, topic, requester_uid, message, status, reviewed_by, created_at
+	`, id, JoinRequestApproved, reviewedBy, JoinRequestPending).Scan(&r.ID, &r.Topic, &r.RequesterUID, &r.Message, &r.Status, &r.ReviewedBy, &r.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("approve group join request: %w", err)
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO im_topic_members (topic, uid, role)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (topic, uid) DO NOTHING
+	`, r.Topic, r.RequesterUID, RoleMember); err != nil {
+		return nil, fmt.Errorf("approve group join request: add member: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("approve group join request: %w", err)
+	}
+	return &r, nil
+}
+
 // ReviewGroupJoinRequest transitions one pending request to approved or
 // rejected. The WHERE status=$4 clause is the concurrency guard: if two
 // admins review the same request at once, only the first UPDATE matches any

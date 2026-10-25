@@ -75,6 +75,21 @@ type pendingGroupEventPush struct {
 // member rows changed no later traffic corrects the local state of a device
 // that was not connected.
 
+// replayedGroupName is the group name a replayed event carries. The reference
+// server replays the name the group had when the event was queued (D5,
+// finding F24): a group renamed meanwhile shows its old name. The strict
+// profile uses the current name, and the queued one only when the group is
+// gone or its name cannot be read.
+func (h *Hub) replayedGroupName(ev PendingGroupEvent) string {
+	if !strictProtocol {
+		return ev.GroupName
+	}
+	if name := h.groupNameCached(ev.Topic); name != "" {
+		return name
+	}
+	return ev.GroupName
+}
+
 // deliverPendingGroupEvents 重放这个 uid 离线期间错过的群事件。与
 // deliverPendingClears 并列，在 handleLogin 末尾以 `go` 启动，慢查询不拖累
 // 登录 ack 本身。
@@ -107,7 +122,7 @@ func (h *Hub) deliverPendingGroupEvents(client *Client) {
 			// 这个群的实时消息他一条都收不到（离线推送又会因为他此刻在线而跳过）。
 			client.Subscribe(ev.Topic)
 			client.SendAny(&pendingGroupEventPush{
-				Action: ActionGrpSync, Topic: ev.Topic, Name: ev.GroupName,
+				Action: ActionGrpSync, Topic: ev.Topic, Name: h.replayedGroupName(ev),
 				From: ev.FromUID, EventId: ev.ID,
 			})
 		case ActionGrpDisband:
@@ -122,7 +137,7 @@ func (h *Hub) deliverPendingGroupEvents(client *Client) {
 			// gate is ensureGroupManager on their next group_join_requests_list
 			// call, not this "go check" nudge.
 			client.SendAny(&pendingGroupEventPush{
-				Action: ActionGroupJoinRequestPush, Topic: ev.Topic, Name: ev.GroupName,
+				Action: ActionGroupJoinRequestPush, Topic: ev.Topic, Name: h.replayedGroupName(ev),
 				From: ev.FromUID, EventId: ev.ID,
 			})
 		case PendingGroupEventJoinApproved, PendingGroupEventJoinRejected:
@@ -131,7 +146,7 @@ func (h *Hub) deliverPendingGroupEvents(client *Client) {
 				status = "rejected"
 			}
 			client.SendAny(&pendingGroupEventPush{
-				Action: ActionGroupJoinReviewed, Topic: ev.Topic, Name: ev.GroupName,
+				Action: ActionGroupJoinReviewed, Topic: ev.Topic, Name: h.replayedGroupName(ev),
 				EventId: ev.ID, JoinStatus: status,
 			})
 		default:

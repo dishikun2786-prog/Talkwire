@@ -179,6 +179,26 @@ func (h *Hub) handleGroupJoin(client *Client, msg *ClientMessage) {
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionGroupJoin, Code: CodeOK, Topic: topic, JoinStatus: "joined"})
 	logf("[Group] %s joined %s via QR (no approval required)", client.uid, topic)
+	if strictProtocol {
+		h.announceQrJoin(client, topic, info.Name)
+	}
+}
+
+// announceQrJoin tells everyone concerned that client joined topic by
+// scanning its code, which the reference server leaves to the clients (D7,
+// finding F45): the group's other online members get a grp_sync from the
+// newcomer, the joining device is subscribed (its reply says it joined), and
+// the newcomer's other devices get the grp_sync of a join, live or queued.
+// The members hear first, so the newcomer's devices, not yet subscribed,
+// get one grp_sync each.
+func (h *Hub) announceQrJoin(client *Client, topic, name string) {
+	h.BroadcastToTopic(topic, &ServerMessage{Action: ActionGrpSync, Topic: topic, Name: name, From: client.uid}, client.uid)
+	client.Subscribe(topic)
+	h.deliverGroupEvent(groupEvent{
+		topic: topic, kind: ActionGrpSync, name: name, from: client.uid,
+		frame:      &ServerMessage{Action: ActionGrpSync, Topic: topic, Name: name, From: client.uid},
+		membership: 1, queue: true,
+	}, []string{client.uid}, client)
 }
 
 // handleGroupJoinRequestsList lists a group's pending scan-to-join requests
@@ -243,6 +263,10 @@ func (h *Hub) handleGroupJoinReview(client *Client, msg *ClientMessage) {
 	if !h.ensureGroupManager(client, msg, ActionGroupJoinReview, msg.Topic) {
 		return
 	}
+	if strictProtocol {
+		h.reviewGroupJoinStrict(client, msg)
+		return
+	}
 	req, err := h.store.ReviewGroupJoinRequest(msg.JoinRequestID, msg.Approve, client.uid)
 	if err != nil {
 		client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeInternal, "处理失败"))
@@ -282,6 +306,73 @@ func (h *Hub) handleGroupJoinReview(client *Client, msg *ClientMessage) {
 			frame:      &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid},
 			membership: 1, queue: true,
 		}, []string{req.RequesterUID}, client)
+	}
+	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionGroupJoinReview, Code: CodeOK, Topic: msg.Topic, JoinStatus: status})
+	h.notifyRequesterOfReview(msg.Topic, req.RequesterUID, status)
+}
+
+// reviewGroupJoinStrict is group_join_review under the strict profile. The
+// reference server marks the request handled first and checks afterwards
+// that it belongs to topic, that the group exists and that it has room (D8,
+// finding F57): when a check fails the request is used up -- gone from the
+// pending list, a later review gets 409, and the applicant neither joins nor
+// hears of it. Here every check comes first, the status and the member row
+// are written in one transaction, and a failed check leaves the request
+// pending. The errors are the reference server's.
+func (h *Hub) reviewGroupJoinStrict(client *Client, msg *ClientMessage) {
+	req, err := h.store.GetGroupJoinRequest(msg.JoinRequestID)
+	if err != nil {
+		client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeInternal, "处理失败"))
+		return
+	}
+	// The same answers as the reference server for a request of another
+	// group: 409 once it is handled, 400 while it is pending; nothing more
+	// is revealed about it.
+	if req == nil || req.Status != JoinRequestPending {
+		client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeConflict, "该申请已被处理"))
+		return
+	}
+	if req.Topic != msg.Topic {
+		client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeBadReq, "请求与群聊不匹配"))
+		return
+	}
+	status := "rejected"
+	if msg.Approve {
+		status = "approved"
+		info, err := h.store.GetGroupInfo(msg.Topic)
+		if err != nil || info == nil {
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeNotFound, "群聊不存在"))
+			return
+		}
+		if info.Members+1 > CurrentRuntimeConfig().MaxMembers {
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeConflict, "群成员数量已达上限"))
+			return
+		}
+		approved, err := h.store.ApproveGroupJoinRequest(req.ID, client.uid)
+		if err != nil {
+			logf("reviewGroupJoinStrict: approve failed: %v", err)
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeInternal, "处理失败"))
+			return
+		}
+		if approved == nil { // another manager reviewed it meanwhile
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeConflict, "该申请已被处理"))
+			return
+		}
+		h.deliverGroupEvent(groupEvent{
+			topic: msg.Topic, kind: ActionGrpSync, name: info.Name, from: client.uid,
+			frame:      &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid},
+			membership: 1, queue: true,
+		}, []string{req.RequesterUID}, client)
+	} else {
+		rejected, err := h.store.ReviewGroupJoinRequest(req.ID, false, client.uid)
+		if err != nil {
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeInternal, "处理失败"))
+			return
+		}
+		if rejected == nil {
+			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeConflict, "该申请已被处理"))
+			return
+		}
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionGroupJoinReview, Code: CodeOK, Topic: msg.Topic, JoinStatus: status})
 	h.notifyRequesterOfReview(msg.Topic, req.RequesterUID, status)

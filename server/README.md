@@ -2,7 +2,7 @@
 
 ImKit 的 Go 实时服务端。
 
-来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.12），每一步都重新通过一致性测试：默认的 legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。模块名 `example.com/imkit/server` 是占位符，定名后替换。
+来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.13），每一步都重新通过一致性测试：默认的 legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。模块名 `example.com/imkit/server` 是占位符，定名后替换。
 
 ## 现状（2026-10-25）
 
@@ -20,8 +20,9 @@ ImKit 的 Go 实时服务端。
 | 1.10 | 工程化：`go.mod` 整理、lint 脚本、按红线编号的单测、D9（strict 档） |
 | 1.11 | 并发：修 F58、F60、F61，竞态压力用例 |
 | 1.12 | 多端同时在线：登录带 `device`，不同设备同时在线（协议规范第 6.2 节） |
+| 1.13 | strict 档修正 D1、D2（`leave_grp` 校验群与成员）、D5（补投带当前群名）、D7（扫码入群通知成员、订阅入群者）、D8（审核先检查后写入）；计划外加的任务 |
 
-验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖两个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 129 个（数据库用例需要 `IMKIT_TEST_DSN`）。
+验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖六个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 139 个（含子测试，数据库用例需要 `IMKIT_TEST_DSN`）。
 
 ## 代码结构
 
@@ -34,7 +35,7 @@ ImKit 的 Go 实时服务端。
 | `publish.go`、`forward.go`、`clear.go`、`access.go` | 消息收发与历史；转发；撤回与清空；成员与好友校验、单聊地址解析 |
 | `group.go`、`offline.go` | 群管理；离线补投（清空、群事件）与回执 |
 | `push.go`、`push/` | 离线推送：选目标与文案；FCM、APNs、Web Push 三个服务商 |
-| `profile.go`、`protocol.go` | 协议档位与 strict 档的新增；帧的结构 |
+| `profile.go`、`protocol.go` | 协议档位与 strict 档的新增；帧的结构。strict 档对缺陷的修正写在各自的处理函数旁（如 `mayLeaveGroup`、`reviewGroupJoinStrict`） |
 | `modules.go`、`call.go`、`groupjoin.go`、`groupai.go`、`e2ee.go` | 模块注册表与四个可选模块 |
 | `store*.go` | 数据库访问，按领域分文件 |
 | `host/` | 宿主接口与实现：`httpadapter`（原版的 HTTP 宿主）、`standalone`、`hmacjwt`、`jwks` |
@@ -99,7 +100,7 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 模块可以不装；standalone 模式不需要宿主进程。
 - 多端同时在线：只在客户端登录带 `device` 时启用，不带时与原版相同。
 
-strict 档在此之外修正 D3、D4、D9 并加上新增字段；D1、D2、D5、D7、D8 的修正尚未实现（协议规范第 18 节）。
+strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。
 
 ## 已知问题
 

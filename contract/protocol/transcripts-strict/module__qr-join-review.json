@@ -1,0 +1,523 @@
+{
+  "scenario": "module/qr-join-review",
+  "source": "imkit strict profile (D8)",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "e"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "e",
+      "frames": {
+        "e": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s2",
+            "protocol": 1,
+            "uid": "${uid:E}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "m"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "m",
+      "frames": {
+        "m": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s4",
+            "protocol": 1,
+            "uid": "${uid:M}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "o"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "o",
+      "frames": {
+        "o": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s6",
+            "protocol": 1,
+            "uid": "${uid:O}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 8,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "multi-device",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s8",
+            "protocol": 1,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "create_grp",
+        "name": "g1",
+        "members": []
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s9",
+            "name": "g1",
+            "topic": "${g1}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "o",
+      "sent": {
+        "action": "create_grp",
+        "name": "g2",
+        "members": [
+          "${uid:M}"
+        ]
+      },
+      "frames": {
+        "m": [
+          {
+            "action": "grp_sync",
+            "from": "${uid:O}",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ],
+        "o": [
+          {
+            "action": "create_grp",
+            "code": 201,
+            "id": "s10",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:O}",
+            "b": "${user:M}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "o",
+      "sent": {
+        "action": "update_group_join_settings",
+        "topic": "${g2}",
+        "requireApproval": true
+      },
+      "frames": {
+        "o": [
+          {
+            "action": "update_group_join_settings",
+            "code": 200,
+            "id": "s11",
+            "requireApproval": true,
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "send",
+      "conn": "o",
+      "sent": {
+        "action": "group_qr_token",
+        "topic": "${g2}"
+      },
+      "frames": {
+        "o": [
+          {
+            "action": "group_qr_token",
+            "code": 200,
+            "expiresAt": "<time>",
+            "id": "s12",
+            "qrToken": "${qr}",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 13,
+      "do": "send",
+      "conn": "e",
+      "note": "request 1",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr}",
+        "joinMessage": "first try"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s13",
+            "joinStatus": "pending_approval",
+            "topic": "${g2}"
+          }
+        ],
+        "o": [
+          {
+            "action": "group_join_request",
+            "from": "${uid:E}",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "m",
+      "note": "a plain member cannot review",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${g2}",
+        "joinRequestId": 1,
+        "approve": false
+      },
+      "frames": {
+        "m": [
+          {
+            "action": "group_join_review",
+            "code": 401,
+            "errCode": "not_group_manager",
+            "id": "s14",
+            "reason": "只有群主或管理员可以执行此操作"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "send",
+      "conn": "o",
+      "note": "rejected: the requester is told, nobody joins",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${g2}",
+        "joinRequestId": 1,
+        "approve": false
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "group_join_reviewed",
+            "joinStatus": "rejected",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ],
+        "o": [
+          {
+            "action": "group_join_review",
+            "code": 200,
+            "id": "s15",
+            "joinStatus": "rejected",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 16,
+      "do": "send",
+      "conn": "e",
+      "note": "E is not a member",
+      "sent": {
+        "action": "get_members",
+        "topic": "${g2}"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "get_members",
+            "code": 401,
+            "errCode": "not_member",
+            "id": "s16",
+            "reason": "not a member of this conversation"
+          }
+        ]
+      }
+    },
+    {
+      "index": 17,
+      "do": "send",
+      "conn": "o",
+      "note": "nothing pending",
+      "sent": {
+        "action": "group_join_requests_list",
+        "topic": "${g2}"
+      },
+      "frames": {
+        "o": [
+          {
+            "action": "group_join_requests_list",
+            "code": 200,
+            "id": "s17",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 18,
+      "do": "send",
+      "conn": "e",
+      "note": "request 2: asking again after a rejection",
+      "sent": {
+        "action": "group_join",
+        "qrToken": "${qr}",
+        "joinMessage": "second try"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "group_join",
+            "code": 200,
+            "id": "s18",
+            "joinStatus": "pending_approval",
+            "topic": "${g2}"
+          }
+        ],
+        "o": [
+          {
+            "action": "group_join_request",
+            "from": "${uid:E}",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 19,
+      "do": "send",
+      "conn": "a",
+      "note": "A manages g1, not g2",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${g1}",
+        "joinRequestId": 2,
+        "approve": true
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "group_join_review",
+            "code": 400,
+            "errCode": "join_request_mismatch",
+            "id": "s19",
+            "reason": "请求与群聊不匹配"
+          }
+        ]
+      }
+    },
+    {
+      "index": 20,
+      "do": "send",
+      "conn": "o",
+      "note": "is request 2 still pending?",
+      "sent": {
+        "action": "group_join_requests_list",
+        "topic": "${g2}"
+      },
+      "frames": {
+        "o": [
+          {
+            "action": "group_join_requests_list",
+            "code": 200,
+            "id": "s20",
+            "joinRequests": [
+              {
+                "createdAt": "<time>",
+                "id": 2,
+                "message": "second try",
+                "requesterName": "${uid:E}",
+                "requesterUid": "${uid:E}"
+              }
+            ],
+            "topic": "${g2}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/profile",
+          "query": {
+            "sender": "${user:E}",
+            "viewer": "${user:O}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "do": "send",
+      "conn": "o",
+      "note": "can the real owner still review it?",
+      "sent": {
+        "action": "group_join_review",
+        "topic": "${g2}",
+        "joinRequestId": 2,
+        "approve": true
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "group_join_reviewed",
+            "joinStatus": "approved",
+            "name": "g2",
+            "topic": "${g2}"
+          },
+          {
+            "action": "grp_sync",
+            "from": "${uid:O}",
+            "name": "g2",
+            "topic": "${g2}"
+          }
+        ],
+        "o": [
+          {
+            "action": "group_join_review",
+            "code": 200,
+            "id": "s21",
+            "joinStatus": "approved",
+            "topic": "${g2}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 22,
+      "do": "send",
+      "conn": "e",
+      "note": "did E join?",
+      "sent": {
+        "action": "get_members",
+        "topic": "${g2}"
+      },
+      "frames": {
+        "e": [
+          {
+            "action": "get_members",
+            "code": 200,
+            "id": "s22",
+            "members": [
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:E}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "member",
+                "uid": "${uid:M}"
+              },
+              {
+                "joinedAt": "<time>",
+                "role": "owner",
+                "uid": "${uid:O}"
+              }
+            ],
+            "topic": "${g2}"
+          }
+        ]
+      }
+    }
+  ]
+}
