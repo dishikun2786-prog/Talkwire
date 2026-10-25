@@ -12,14 +12,15 @@
     "packages/group-join",
     "packages/call",
     "packages/admin",
+    "packages/call-dingrtc",
     "sample",
     "e2e"
   ],
   "scripts": {
     "gen": "node packages/protocol/scripts/gen-types.mjs",
     "gen:check": "node packages/protocol/scripts/gen-types.mjs --check",
-    "typecheck": "tsc -b packages/protocol packages/client packages/storage-idb packages/react packages/group-join packages/call packages/admin && tsc -p sample && tsc -p e2e",
-    "build": "tsc -b packages/protocol packages/client packages/storage-idb packages/react packages/group-join packages/call packages/admin",
+    "typecheck": "tsc -b packages/protocol packages/client packages/storage-idb packages/react packages/group-join packages/call packages/admin packages/call-dingrtc && tsc -p sample && tsc -p e2e",
+    "build": "tsc -b packages/protocol packages/client packages/storage-idb packages/react packages/group-join packages/call packages/admin packages/call-dingrtc",
     "test": "vitest run",
     "e2e": "playwright test -c e2e",
     "sample": "vite sample --config sample/vite.config.ts"

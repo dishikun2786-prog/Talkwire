@@ -13,6 +13,7 @@
 | `@imkit/group-join` | 可选模块：扫码入群（协议第 14 节）。`GroupJoinClient` 一个动作一个方法；`/react` 里有群二维码卡片、入群页、入群申请列表、审核开关 |
 | `@imkit/admin` | 后台页面，嵌进宿主自己的管理后台：聊天记录（查一个用户的会话与消息，为双方清空单聊）、通话记录与详情。对接 `@imkit/host-node` 的 `imkitAdminRoutes`，只依赖 React |
 | `@imkit/call` | 可选模块：音视频通话（协议第 16 节）。`CallSignaling` 一个动作一个方法；`CallManager` 管本标签页的通话状态，驱动一个 `CallMediaEngine`（RTC 适配器）；`/react` 里有标签页内来电与通话界面、单聊页的通话按钮 |
+| `@imkit/call-dingrtc` | 通话的 RTC 适配器：阿里云 ARTC 3.0（DingRTC）Web SDK 上的 `CallMediaEngine`。SDK（npm `dingrtc`）是 peer 依赖，由应用安装后传入；宿主一侧的签令牌见 `examples/artc` |
 | `sample/` | 示例 App（Vite），连 `examples/sample-host` 与 `imkit-server` |
 | `e2e/` | Playwright 端到端用例，对真实服务端跑示例 |
 
@@ -83,7 +84,7 @@ import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
 ```
 
 - **扫码入群**：二维码里放什么由应用决定（`linkFor`，通常是自己的入群页链接）；套件不带二维码编码器，`renderQr` 交给应用自己的库画。legacy 档的服务端不会给入群者订阅群（D7），`JoinGroupScreen` 入群后会订阅并刷新群列表；只用 `GroupJoinClient` 时调 `afterJoined(engine, topic)`。审核失败时按 strict 档的 `errCode` 区分“群已满”（申请留着）与“已被处理”，不解析 `reason`。
-- **通话**：媒体不经过 IM 服务端，走宿主的 RTC 服务；`CallMediaEngine` 是 RTC 适配器要实现的接口（加入频道、开摄像头、静音、离开、挂视频画面）。每一方只拿到自己的 `rtcToken`，客户端不把它发给对方。同一账号的多个标签页：来电在所有标签页响铃，在哪个标签页接听或拒绝，其他标签页就停止响铃；一个标签页在通话中时，其他标签页不响铃也不能发起（在通话中的标签页每 30 秒告知一次，关掉的标签页 90 秒后不再算数）。未知的结束原因按“通话已结束”显示。
+- **通话**：媒体不经过 IM 服务端，走宿主的 RTC 服务；`CallMediaEngine` 是 RTC 适配器要实现的接口（加入频道、开摄像头、静音、离开、挂视频画面）。用阿里云 ARTC 时直接用 `new DingRtcMediaEngine(DingRTC)`（`@imkit/call-dingrtc`），其他 RTC 服务照它的样子写一个。每一方只拿到自己的 `rtcToken`，客户端不把它发给对方。同一账号的多个标签页：来电在所有标签页响铃，在哪个标签页接听或拒绝，其他标签页就停止响铃；一个标签页在通话中时，其他标签页不响铃也不能发起（在通话中的标签页每 30 秒告知一次，关掉的标签页 90 秒后不再算数）。未知的结束原因按“通话已结束”显示。
 - **React StrictMode**：开发模式下效果会先卸载一次再挂上；两个 Provider 都在效果里重新开始监听，模块客户端的 `dispose()` 之后可以再 `start()`。
 
 ### 后台页面

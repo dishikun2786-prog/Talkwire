@@ -18,6 +18,7 @@ export default defineConfig({
       "@imkit/call/react": src("call", "react.tsx"),
       "@imkit/call": src("call"),
       "@imkit/admin": src("admin"),
+      "@imkit/call-dingrtc": src("call-dingrtc"),
     },
   },
   test: {

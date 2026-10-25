@@ -26,6 +26,9 @@ const root = process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), ".
 const FORBIDDEN = /libsignal|signal-client|@signalapp\/|org\.signal\b|dingrtc|com\.ding\.rtc|alivc|aliyun.*rtc/i;
 const WEB_CORE = ["protocol", "client", "storage-idb", "react"];
 const WEB_MODULES = ["call", "group-join", "admin"];
+// RTC adapters: optional packages that bring a module and one RTC SDK
+// together. The SDK may only be a peer dependency (the app installs it).
+const WEB_ADAPTERS = { "call-dingrtc": ["call"] };
 const ANDROID_CORE = ["imkit-core", "imkit-android", "imkit-storage-room", "imkit-ui", "imkit-push-fcm"];
 const PERMISSIVE = new Set(["MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "BlueOak-1.0.0", "Unlicense", "CC0-1.0", "Python-2.0"]);
 
@@ -50,8 +53,9 @@ function files(dir, exts) {
   return out;
 }
 
-/** Module specifiers imported by a JS/TS source. */
-function imports(source) {
+/** Module specifiers imported by a JS/TS source; examples in comments do not count. */
+function imports(text) {
+  const source = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   const out = [];
   const re = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["']([^"'\n]+)["']/g;
   for (const m of source.matchAll(re)) out.push(m[1]);
@@ -71,7 +75,7 @@ function permissive(expr) {
 
 // ------------------------------------------------------------------ web
 
-function webPackage(name, allowedImkit) {
+function webPackage(name, allowedImkit, { sdkPeer = false } = {}) {
   const dir = join(root, "web", "packages", name);
   const pkg = readJson(join(dir, "package.json"));
   const where = `web/packages/${name}`;
@@ -79,13 +83,15 @@ function webPackage(name, allowedImkit) {
   const declared = { ...pkg.dependencies, ...pkg.peerDependencies, ...pkg.optionalDependencies };
   const declaredImkit = new Set(Object.keys(declared).map(imkitName).filter(Boolean));
   for (const dep of Object.keys(declared)) {
-    check(!FORBIDDEN.test(dep), `${where}/package.json: depends on ${dep}`);
+    const asPeer = dep in (pkg.peerDependencies ?? {}) && !(dep in (pkg.dependencies ?? {}));
+    check(!FORBIDDEN.test(dep) || (sdkPeer && asPeer), `${where}/package.json: depends on ${dep}`);
     const other = imkitName(dep);
     if (other) check(allowedImkit.includes(other), `${where}/package.json: depends on @imkit/${other}, which it must not`);
   }
   for (const file of files(join(dir, "src"), [".ts", ".tsx"])) {
     for (const spec of imports(readFileSync(file, "utf8"))) {
-      check(!FORBIDDEN.test(spec), `${rel(file)}: imports ${spec}`);
+      const peerSdk = sdkPeer && spec in (pkg.peerDependencies ?? {}) && !(spec in (pkg.dependencies ?? {}));
+      check(!FORBIDDEN.test(spec) || peerSdk, `${rel(file)}: imports ${spec}`);
       const other = imkitName(spec);
       if (other && other !== name) {
         check(allowedImkit.includes(other), `${rel(file)}: imports @imkit/${other}, which it must not`);
@@ -103,8 +109,9 @@ if (existsSync(join(root, "web", "packages"))) {
   webPackage("react", ["protocol", "client"]);
   // Modules: the core only, never another module.
   for (const m of WEB_MODULES) if (existsSync(join(root, "web", "packages", m))) webPackage(m, WEB_CORE);
+  for (const [a, mods] of Object.entries(WEB_ADAPTERS)) if (existsSync(join(root, "web", "packages", a))) webPackage(a, [...WEB_CORE, ...mods], { sdkPeer: true });
   const present = readdirSync(join(root, "web", "packages")).filter((d) => existsSync(join(root, "web", "packages", d, "package.json")));
-  for (const d of present) check([...WEB_CORE, ...WEB_MODULES].includes(d), `web/packages/${d}: not classified as core or module in tools/depcheck`);
+  for (const d of present) check([...WEB_CORE, ...WEB_MODULES, ...Object.keys(WEB_ADAPTERS)].includes(d), `web/packages/${d}: not classified as core, module or adapter in tools/depcheck`);
 }
 
 // ------------------------------------------------------------------ Node host SDK

@@ -1,0 +1,22 @@
+{
+  "name": "@imkit/example-artc",
+  "private": true,
+  "description": "Calls over Alibaba Cloud ARTC 3.0 (DingRTC): the host's CallHandlers and its channel tokens, for @imkit/host-node",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@imkit/host-node": "file:../../host-sdk-node"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "tsx": "4.22.3",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
