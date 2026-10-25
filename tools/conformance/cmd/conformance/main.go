@@ -68,6 +68,7 @@ func main() {
 	fs.BoolVar(&o.standalone, "standalone", false, "check: run the server without a host (friends, profiles and runtime config from the scenario); host calls are not compared")
 	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
 	golden := fs.String("golden", "../../contract/protocol/transcripts", "check: golden directory")
+	overlay := fs.String("overlay", "", "check: directory of transcripts that replace the golden one for the same scenario (deliberate deviations, e.g. the strict profile's fixes)")
 	n := fs.Int("n", 3, "repeat: number of runs")
 	schemaDir := fs.String("schema", "../../contract/protocol/schema", "coverage: protocol schemas")
 	negative := fs.String("negative", "../schema/negative-cases.json", "coverage: steps that send invalid requests on purpose")
@@ -115,7 +116,14 @@ func main() {
 		}
 		removed := map[string]int{}
 		for _, sc := range scenarios {
-			want, err := harness.ReadTranscript(filepath.Join(*golden, fileName(sc.Name)))
+			wantPath := filepath.Join(*golden, fileName(sc.Name))
+			if *overlay != "" {
+				if p := filepath.Join(*overlay, fileName(sc.Name)); fileExists(p) {
+					wantPath = p
+					fmt.Printf("OVERLAY  %-40s %s\n", sc.Name, p)
+				}
+			}
+			want, err := harness.ReadTranscript(wantPath)
 			if err != nil {
 				fmt.Printf("MISSING  %-40s %v\n", sc.Name, err)
 				failed++
@@ -135,6 +143,9 @@ func main() {
 				dropHostCalls(got)
 			}
 			if stripping {
+				// An overlay transcript was recorded with the additions;
+				// the goldens have none, so this is a no-op for them.
+				want.Strip(additions)
 				for k, n := range got.Strip(additions) {
 					removed[k] += n
 				}
@@ -263,6 +274,11 @@ func serveHost(h *fakehost.Host, port int) func() {
 
 func fileName(name string) string {
 	return strings.ReplaceAll(name, "/", "__") + ".json"
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func must(err error) {

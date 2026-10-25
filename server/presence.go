@@ -65,6 +65,9 @@ func (h *Hub) handlePresQuery(client *Client, msg *ClientMessage) {
 	}
 
 	var uids []string
+	// shared is set when only users sharing a conversation with the caller
+	// may be reported (strict profile, red line R22).
+	var shared map[string]bool
 	switch {
 	case len(msg.Topics) > 0:
 		uids = msg.Topics
@@ -82,12 +85,28 @@ func (h *Hub) handlePresQuery(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionPres, CodeBadReq, "topic or topics required"))
 		return
 	}
+	if strictProtocol && msg.Topic != TopicAll {
+		// The reference server answers about any uid, strangers included
+		// (F30): anyone could poll whether anyone is online. Under the
+		// strict profile only users sharing a conversation are reported;
+		// the others are dropped as if they were not uids.
+		peers, err := h.store.GetPeerUIDs(client.uid)
+		if err != nil {
+			logf("handlePresQuery: GetPeerUIDs(%s) failed: %v", client.uid, err)
+			client.SendJSON(ErrorResponse(msg.Id, ActionPres, CodeInternal, "presence lookup failed"))
+			return
+		}
+		shared = make(map[string]bool, len(peers))
+		for _, p := range peers {
+			shared[p] = true
+		}
+	}
 
 	// Only ever report on user uids, and never on the caller themselves.
 	filtered := make([]string, 0, len(uids))
 	seen := make(map[string]bool, len(uids))
 	for _, u := range uids {
-		if u == "" || u == client.uid || seen[u] || !isUserUID(u) {
+		if u == "" || u == client.uid || seen[u] || !isUserUID(u) || (shared != nil && !shared[u]) {
 			continue
 		}
 		seen[u] = true

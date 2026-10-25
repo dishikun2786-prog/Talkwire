@@ -41,6 +41,13 @@ type Config struct {
 	// Profile is the protocol profile: ProfileLegacy (the default) or
 	// ProfileStrict; see profile.go.
 	Profile string
+	// User tokens. Under the strict profile only access tokens of
+	// TokenUserRoles log in (R18) unless AcceptLegacyTokens, a switch for
+	// the migration of an existing deployment. JWKSURL, when set, verifies
+	// user tokens with the host's public keys instead of the shared secret.
+	AcceptLegacyTokens bool
+	TokenUserRoles     []string
+	JWKSURL            string
 }
 
 // LoadConfig builds the config from defaults plus environment overrides.
@@ -124,6 +131,15 @@ func LoadConfig() *Config {
 	if cfg.Profile != ProfileLegacy && cfg.Profile != ProfileStrict {
 		log.Fatalf("IMKIT_PROTOCOL_PROFILE must be legacy or strict, got %q", cfg.Profile)
 	}
+	cfg.AcceptLegacyTokens = os.Getenv("IMKIT_ACCEPT_LEGACY_TOKENS") == "1"
+	if v := os.Getenv("IMKIT_TOKEN_USER_ROLES"); v != "" {
+		for _, r := range strings.Split(v, ",") {
+			if r = strings.TrimSpace(r); r != "" {
+				cfg.TokenUserRoles = append(cfg.TokenUserRoles, r)
+			}
+		}
+	}
+	cfg.JWKSURL = os.Getenv("IMKIT_JWKS_URL")
 	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
 		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
 	}

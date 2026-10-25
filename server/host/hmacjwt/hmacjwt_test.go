@@ -65,3 +65,44 @@ func TestCheckInternalToken(t *testing.T) {
 		t.Fatal("empty token accepted")
 	}
 }
+
+// The tokens of the golden scenario core/login-tokens: the reference server
+// (no policy) accepts every one with a subject; the access-only policy (R18)
+// accepts only the user access token.
+func TestAccessOnlyPolicy(t *testing.T) {
+	exp := time.Now().Add(time.Hour).Unix()
+	tokens := []struct {
+		name   string
+		claims jwt.MapClaims
+		strict bool // accepted under the access-only policy
+	}{
+		{"user access token", jwt.MapClaims{"type": "access", "role": "app_user"}, true},
+		{"refresh token", jwt.MapClaims{"type": "refresh", "role": "app_user"}, false},
+		{"agent token", jwt.MapClaims{"type": "agent", "role": "app_user", "deviceId": "dev-1"}, false},
+		{"superadmin token", jwt.MapClaims{"type": "access", "role": "superadmin"}, false},
+		{"no type, no role", jwt.MapClaims{}, false},
+		{"access, no role", jwt.MapClaims{"type": "access"}, false},
+	}
+	legacy := New(secret)
+	strict := New(secret).WithPolicy(Policy{AccessOnly: true})
+	for _, c := range tokens {
+		c.claims["sub"] = "alice"
+		c.claims["exp"] = exp
+		tok := sign(t, secret, jwt.SigningMethodHS256, c.claims)
+		if got, err := legacy.UserID(tok); err != nil || got != "alice" {
+			t.Errorf("%s: legacy refused: %v", c.name, err)
+		}
+		_, err := strict.UserID(tok)
+		if (err == nil) != c.strict {
+			t.Errorf("%s: access-only accepted=%v, want %v (%v)", c.name, err == nil, c.strict, err)
+		}
+	}
+	// A host with other role names configures them.
+	custom := New(secret).WithPolicy(Policy{AccessOnly: true, UserRoles: []string{"member"}})
+	if _, err := custom.UserID(sign(t, secret, jwt.SigningMethodHS256, jwt.MapClaims{"sub": "a", "type": "access", "role": "member", "exp": exp})); err != nil {
+		t.Errorf("configured role refused: %v", err)
+	}
+	if _, err := custom.UserID(sign(t, secret, jwt.SigningMethodHS256, jwt.MapClaims{"sub": "a", "type": "access", "role": "app_user", "exp": exp})); err == nil {
+		t.Error("default role accepted after configuring other roles")
+	}
+}

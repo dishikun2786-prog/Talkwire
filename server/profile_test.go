@@ -1,17 +1,21 @@
 package main
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"example.com/imkit/server/push"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // withStrict runs fn under the strict profile.
@@ -150,5 +154,80 @@ func TestEveryErrorReasonHasACode(t *testing.T) {
 	want := map[string]int{"reason": 2, "result.Reason": 1}
 	if !reflect.DeepEqual(variables, want) {
 		t.Errorf("variable reasons %v, want %v; check that each is a machine-readable code", variables, want)
+	}
+}
+
+// R22: under the strict profile a presence query reports only users sharing
+// a conversation with the caller.
+func TestPresenceQueryScope(t *testing.T) {
+	s := testStore(t)
+	a, _ := s.EnsureUser("app-a")
+	b, _ := s.EnsureUser("app-b")
+	stranger, _ := s.EnsureUser("app-stranger")
+	if _, err := s.EnsureP2PTopic(a, b); err != nil {
+		t.Fatal(err)
+	}
+	h := &Hub{store: s, clients: map[string]*Client{}, presRev: map[string]int64{}}
+	query := func() []string {
+		c := &Client{hub: h, uid: a, send: make(chan []byte, 4)}
+		h.handlePresQuery(c, &ClientMessage{Id: "q1", Action: ActionPres, Topics: []string{b, stranger}})
+		var reply struct {
+			Id     string `json:"id"`
+			States []struct {
+				UID string `json:"uid"`
+			} `json:"states"`
+		}
+		if err := json.Unmarshal(<-c.send, &reply); err != nil {
+			t.Fatal(err)
+		}
+		var uids []string
+		for _, st := range reply.States {
+			uids = append(uids, st.UID)
+		}
+		sort.Strings(uids)
+		if strictProtocol && reply.Id != "q1" {
+			t.Errorf("strict snapshot reply id %q, want q1", reply.Id)
+		}
+		return uids
+	}
+	if got, want := query(), sortedOf(b, stranger); !reflect.DeepEqual(got, want) {
+		t.Errorf("legacy reports %v, want %v (the reference behaviour, F30)", got, want)
+	}
+	withStrict(t, func() {
+		if got := query(); !reflect.DeepEqual(got, []string{b}) {
+			t.Errorf("strict reports %v, want only the peer %s", got, b)
+		}
+	})
+}
+
+func sortedOf(s ...string) []string {
+	sort.Strings(s)
+	return s
+}
+
+func TestNewIdentityPolicy(t *testing.T) {
+	refresh, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": "alice", "type": "refresh", "role": "app_user", "exp": time.Now().Add(time.Hour).Unix(),
+	}).SignedString([]byte("secret-0123456789"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name     string
+		cfg      Config
+		accepted bool
+	}{
+		{"legacy", Config{Profile: ProfileLegacy}, true},
+		{"strict", Config{Profile: ProfileStrict}, false},
+		{"strict, migration switch", Config{Profile: ProfileStrict, AcceptLegacyTokens: true}, true},
+	} {
+		c.cfg.JWTSecret = "secret-0123456789"
+		id, err := newIdentity(&c.cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := id.UserID(refresh); (err == nil) != c.accepted {
+			t.Errorf("%s: refresh token accepted=%v, want %v", c.name, err == nil, c.accepted)
+		}
 	}
 }

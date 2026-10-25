@@ -1,0 +1,330 @@
+{
+  "scenario": "core/presence",
+  "source": "imkit strict profile (R18, R22)",
+  "steps": [
+    {
+      "index": 1,
+      "do": "connect",
+      "conn": "b"
+    },
+    {
+      "index": 2,
+      "do": "login",
+      "conn": "b",
+      "frames": {
+        "b": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s2",
+            "protocol": 1,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "do": "connect",
+      "conn": "c"
+    },
+    {
+      "index": 4,
+      "do": "login",
+      "conn": "c",
+      "frames": {
+        "c": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s4",
+            "protocol": 1,
+            "uid": "${uid:C}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "do": "connect",
+      "conn": "a"
+    },
+    {
+      "index": 6,
+      "do": "login",
+      "conn": "a",
+      "frames": {
+        "a": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s6",
+            "protocol": 1,
+            "uid": "${uid:A}"
+          }
+        ]
+      }
+    },
+    {
+      "index": 7,
+      "do": "send",
+      "conn": "a",
+      "note": "creates the p2p topic; a presence frame follows the ack",
+      "sent": {
+        "action": "sub",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          },
+          {
+            "action": "sub",
+            "code": 200,
+            "id": "s7",
+            "topic": "${uid:B}"
+          }
+        ]
+      },
+      "hostCalls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/internal/im/friendship",
+          "query": {
+            "a": "${user:A}",
+            "b": "${user:B}"
+          },
+          "status": 200
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "do": "send",
+      "conn": "a",
+      "sent": {
+        "action": "pres",
+        "topic": "${uid:B}"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "id": "s8",
+            "states": [
+              {
+                "online": true,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "index": 9,
+      "do": "send",
+      "conn": "a",
+      "note": "C is a stranger to A",
+      "sent": {
+        "action": "pres",
+        "topics": [
+          "${uid:B}",
+          "${uid:C}",
+          "${uid:A}",
+          "${uid:B}",
+          "grp_notauser",
+          ""
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "id": "s9",
+            "states": [
+              {
+                "online": true,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "index": 10,
+      "do": "send",
+      "conn": "a",
+      "note": "every peer A shares a topic with",
+      "sent": {
+        "action": "pres",
+        "topic": "*"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "id": "s10",
+            "states": [
+              {
+                "online": true,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "index": 11,
+      "do": "send",
+      "conn": "a",
+      "note": "neither topic nor topics",
+      "sent": {
+        "action": "pres"
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 400,
+            "errCode": "missing_field",
+            "id": "s11",
+            "reason": "topic or topics required"
+          }
+        ]
+      }
+    },
+    {
+      "index": 12,
+      "do": "close",
+      "conn": "c",
+      "note": "A shares no topic with C: no push"
+    },
+    {
+      "index": 13,
+      "do": "close",
+      "conn": "b",
+      "note": "A shares the p2p topic with B: off push",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "off"
+          }
+        ]
+      }
+    },
+    {
+      "index": 14,
+      "do": "send",
+      "conn": "a",
+      "note": "both offline now, with lastSeenAt",
+      "sent": {
+        "action": "pres",
+        "topics": [
+          "${uid:B}",
+          "${uid:C}"
+        ]
+      },
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "code": 200,
+            "id": "s14",
+            "states": [
+              {
+                "lastSeenAt": "<time>",
+                "online": false,
+                "presRev": "<rev>",
+                "uid": "${uid:B}"
+              }
+            ],
+            "what": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "index": 15,
+      "do": "connect",
+      "conn": "b2"
+    },
+    {
+      "index": 16,
+      "do": "login",
+      "conn": "b2",
+      "note": "on push to A",
+      "frames": {
+        "a": [
+          {
+            "action": "pres",
+            "online": true,
+            "presRev": "<rev>",
+            "topic": "${uid:B}",
+            "what": "on"
+          }
+        ],
+        "b2": [
+          {
+            "action": "login",
+            "capabilities": [
+              "errcode",
+              "reply-id",
+              "module:groupjoin",
+              "module:e2ee",
+              "module:groupai",
+              "module:call"
+            ],
+            "code": 200,
+            "id": "s16",
+            "protocol": 1,
+            "uid": "${uid:B}"
+          }
+        ]
+      }
+    }
+  ]
+}

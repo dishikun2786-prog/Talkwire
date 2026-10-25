@@ -9,6 +9,7 @@ import (
 	"example.com/imkit/server/host"
 	"example.com/imkit/server/host/hmacjwt"
 	"example.com/imkit/server/host/httpadapter"
+	"example.com/imkit/server/host/jwks"
 	"example.com/imkit/server/host/standalone"
 	"example.com/imkit/server/push"
 )
@@ -37,8 +38,10 @@ func main() {
 	}
 	defer store.Close()
 
-	// End-user and internal tokens are signed with the secret shared with the host.
-	auth := hmacjwt.New(cfg.JWTSecret)
+	auth, err := newIdentity(cfg)
+	if err != nil {
+		log.Fatalf("Identity setup failed: %v", err)
+	}
 
 	// The protocol profile is fixed before anything can send a frame.
 	strictProtocol = cfg.Profile == ProfileStrict
@@ -174,6 +177,35 @@ func newHost(cfg *Config) (hostWithConfig, error) {
 	}
 	log.Printf("Host: %s", cfg.MainAPIBaseURL)
 	return httpadapter.New(cfg.MainAPIBaseURL, cfg.JWTSecret), nil
+}
+
+// / newIdentity builds the verifier of user and internal tokens. Internal
+// tokens are always signed with the secret shared with the host; user tokens
+// too, unless the host publishes a key set (IMKIT_JWKS_URL).
+func newIdentity(cfg *Config) (host.Identity, error) {
+	policy := hmacjwt.Policy{UserRoles: cfg.TokenUserRoles}
+	if cfg.Profile == ProfileStrict {
+		if cfg.AcceptLegacyTokens {
+			log.Println("WARNING: IMKIT_ACCEPT_LEGACY_TOKENS=1: refresh, administrator and other non-access tokens can log in (red line R18); use it only while migrating clients")
+		} else {
+			policy.AccessOnly = true
+		}
+	}
+	secret := hmacjwt.New(cfg.JWTSecret)
+	if cfg.JWKSURL == "" {
+		log.Printf("Identity: shared secret (HS256), access tokens only: %v", policy.AccessOnly)
+		return secret.WithPolicy(policy), nil
+	}
+	v, err := jwks.New(cfg.JWKSURL, policy, secret, 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	// Read now so a wrong URL shows at startup; logins retry on their own.
+	if err := v.Refresh(); err != nil {
+		logf("Identity: reading the key set failed (logins will retry): %v", err)
+	}
+	log.Printf("Identity: key set %s, access tokens only: %v", cfg.JWKSURL, policy.AccessOnly)
+	return v, nil
 }
 
 // newPusher builds a sender for every configured push provider. A provider
