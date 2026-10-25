@@ -50,15 +50,29 @@ func TestEveryFrameNameHasAGoldenCase(t *testing.T) {
 	}
 	scs, trs := loadGoldens(t)
 	var missing []string
+	added := map[string]bool{}
 	for _, u := range Coverage(v, scs, trs, loadSkip(t)) {
+		k := u.Side + " " + u.Name
+		if _, ok := AddedFrames[k]; ok {
+			added[k] = true
+			if u.Count > 0 {
+				t.Errorf("%s has a golden case now: drop it from AddedFrames", k)
+			}
+			continue
+		}
 		if u.Count == 0 {
-			missing = append(missing, u.Side+" "+u.Name)
+			missing = append(missing, k)
+		}
+	}
+	for k := range AddedFrames {
+		if !added[k] {
+			t.Errorf("AddedFrames lists %s, which the schemas do not define", k)
 		}
 	}
 	if len(missing) > 0 {
 		t.Errorf("no golden case for: %s", strings.Join(missing, ", "))
 	}
-	t.Logf("%d client actions, %d server frame names, all covered", len(v.Client), len(v.Server))
+	t.Logf("%d client actions, %d server frame names, all covered (%d added frames covered by server tests)", len(v.Client), len(v.Server), len(added))
 }
 
 // Every name the golden set uses must be in the schemas.

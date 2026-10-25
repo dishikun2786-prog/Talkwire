@@ -122,6 +122,7 @@ func main() {
 	mux.HandleFunc("/api/v1/internal/im/contact-sync", wsHandler.InternalContactSync)
 	mux.HandleFunc("/api/v1/internal/im/media-ref-count", wsHandler.InternalMediaRefCount)
 	mux.HandleFunc("/api/v1/internal/im/topic-members-resolve", wsHandler.InternalTopicMembersResolve)
+	mux.HandleFunc("/api/v1/internal/im/custom-broadcast", wsHandler.InternalCustomBroadcast)
 	mux.HandleFunc("/api/v1/internal/im/red-packet-broadcast", wsHandler.InternalRedPacketBroadcast)
 	// IM voice/video calling (IM_VOICE_VIDEO_CALL_PLAN.md §4.4) -- roubao's
 	// per-call billing tick relays credit_balance/call_ended pushes through

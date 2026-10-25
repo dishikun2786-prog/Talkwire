@@ -44,6 +44,8 @@
             "grp_sync",
             "grp_disband",
             "contact_sync",
+            "custom_update",
+            "red_packet_update",
             "group_qr_token",
             "group_qr_resolve",
             "group_join",
@@ -2055,6 +2057,142 @@
                   "action",
                   "what",
                   "from"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "code": {
+                    "type": "integer",
+                    "minimum": 400
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
+                  }
+                },
+                "required": [
+                  "action",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "custom_update"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "const": "custom_update"
+                  },
+                  "topic": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "what": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+                  },
+                  "extra": {
+                    "not": {
+                      "type": "null"
+                    }
+                  }
+                },
+                "required": [
+                  "action",
+                  "what",
+                  "extra"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "code": {
+                    "type": "integer",
+                    "minimum": 400
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
+                  }
+                },
+                "required": [
+                  "action",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "red_packet_update"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "const": "red_packet_update"
+                  },
+                  "topic": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "extra": {}
+                },
+                "required": [
+                  "action",
+                  "topic",
+                  "extra"
                 ],
                 "additionalProperties": false
               },

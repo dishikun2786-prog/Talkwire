@@ -9,7 +9,7 @@
 | `oracle/build-oracle.sh` | 用 `git archive` 从源提交导出原版服务并编译到 `oracle/bin/`，源工作区不被触碰 |
 | `oracle/SOURCE.sha256` | 导出源码的哈希，等于 Git 中存储的字节（LF）；`server/` 也用它核对是否原样 |
 | `oracle/baseline-schema.sql` | 原版服务在空库上建出的表结构，`0001_baseline` 的依据 |
-| `fakehost/` | 可脚本化的假宿主：好友关系、资料、配置、删媒体；记录 IM 对宿主的每次调用 |
+| `fakehost/` | 可脚本化的假宿主：好友关系、资料、配置、删媒体；记录 IM 对宿主的每次调用。`Control` 接口统一驱动它和外部宿主（`-host`，见下文） |
 | `harness/` | 场景执行、归一化、比对 |
 | `cmd/conformance/` | 命令行：`record`、`check`、`repeat`、`coverage`、`schema` |
 | `replay/`、`cmd/replay/` | 客户端回放服务器：按一份黄金对话扮演服务端，用来测客户端 SDK；可注入断线、延迟、重复、丢弃 |
@@ -37,7 +37,7 @@ go build -o bin/conformance.exe ./cmd/conformance
 ./bin/conformance.exe schema -bin <新服务端> -db imkit_new   # 新服务端建的表结构与原版比较
 ```
 
-常用参数：`-only <名称片段>` 只跑部分场景；`-port`、`-hostport` 改端口；`-logs` 改服务端日志目录。
+常用参数：`-only <名称片段>` 只跑部分场景；`-port`、`-hostport` 改端口；`-logs` 改服务端日志目录；`-host <URL>` 用外部宿主代替假宿主（见下文“外部宿主”）。
 
 `check` 的其他参数：
 
@@ -51,24 +51,47 @@ go build -o bin/conformance.exe ./cmd/conformance
 ImKit 服务端的三种检查：
 
 ```bash
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：32/32（测试台给被测服务端设 IMKIT_PROTOCOL_PROFILE=legacy，-env 可改）
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict   # strict：32/32
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -standalone   # 29/32（通话两个、群 AI 一个需要宿主）
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：33/33（测试台给被测服务端设 IMKIT_PROTOCOL_PROFILE=legacy，-env 可改）
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict   # strict：33/33
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -standalone   # 30/33（通话两个、群 AI 一个需要宿主）
 ```
 
 `schema` 依次比较四种情形，任何一项不同即失败：空库上新服务端建的表结构与原版建的（去掉 ImKit 新增的表和列后逐项相同：列、索引、约束、序列）；重启后表结构不变、不再重复执行迁移；在原版建好的库上启动新服务端后，与原版相同（同样去掉新增），且与空库上建的完全相同。ImKit 新增的表：`imkit_schema_migrations`（迁移记录）、`im_devices`、`im_pending_acks`（多端在线）；新增的列：`im_fcm_tokens.provider`（推送服务商）、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`（多端在线）。新增项列在 `cmd/conformance/main.go` 的 `schemaAddedTables`、`schemaAddedColumns` 里，加表加列时要同步。`-oracle`、`-oracle-db` 指定原版服务和它用的一次性库（默认 `imkit_oracle`，必须与 `-db` 不同）。
 
-多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。
+多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。同理，只有 ImKit 服务端会发的帧（目前是宿主卡片更新 `custom_update`）登记在 `harness/additions.go` 的 `AddedFrames` 里，写明由哪个服务端测试覆盖；`coverage` 把它们列为 `TEST` 而不是缺失。
 
-`coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 50 个 action、服务端 68 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
+`coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 50 个 action、服务端 70 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
 
 竞态检测：`bash ../race.sh`（在本目录下跑整个模块的 `go test -race`，Windows 上需要的 C 编译器与绕过办法见根目录 README 的"开发工具"）。
+
+## 外部宿主（`-host`）
+
+`-host <URL>` 不起假宿主：被测服务端的 `MAIN_API_BASE_URL` 指向这个 URL，场景对宿主的设置（好友关系、资料、运行配置）经它的**一致性控制接口**下发，它记录的 IM→宿主调用拿来与黄金对话比较。这样黄金对话可以检查任何语言写的真实宿主，而不只是服务端。`record`、`repeat`、`schema` 同样接受 `-host`。
+
+控制接口挂在 `<URL>/__conformance/` 下，全是 `POST`、JSON 请求体，鉴权与 IM 调宿主相同（`Authorization: Bearer` 内部令牌，用测试台的密钥签名）。应答 200 即成功，其余状态码让场景失败：
+
+| 路径 | 请求体 | 作用 |
+| --- | --- | --- |
+| `reset` | `{}` | 清空关系、资料、两份配置文档和调用记录 |
+| `friends` | `{"a","b","friends":bool}` | `true`：两人成为已接受的好友；`false`：删除两人的关系 |
+| `profile` | `{"user","displayName","avatarUrl"}` | 设置资料；`avatarUrl` 为空串表示没有头像 |
+| `runtime-config`、`e2ee-config` | `{"document": 对象或 null}` | 设置配置文档；`null` 表示没有（宿主对该端点应答 404） |
+| `calls` | `{}` | 应答 `{"calls":[…]}` 并清空：自上次以来 IM 对宿主的每次调用，形如 `{"method","path","query","body","status"}`，`query` 是排好序的字符串表（没有则省略），`body` 是请求体 JSON（没有则省略）；控制接口自身和两个配置端点的周期刷新不记录 |
+
+通话和群 AI 模块的业务应答属于宿主自己，外部宿主要给出与假宿主相同的值才能比对（通话凭证 `fake-channel`、`fake-rtc-caller`、`fake-rtc-callee`、`fake-app`，`videoQuality` 接听 `sd`、升级 `hd`；未成为好友的通话 `not_friends`；含 `quota` 的提问 `quota_exceeded`，其余答 `fake answer`）。Node 宿主 SDK 的 `host-sdk-node/conformance/host.ts` 就是这样一个外部宿主：
+
+```bash
+cd host-sdk-node
+IMKIT_HOST_SECRET=imkit-conformance-secret-not-for-production-0123456789 node --import tsx conformance/host.ts --port 17101 --store prisma &
+cd ../tools/conformance
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -host http://127.0.0.1:17101   # 33/33；内存版 --store memory 同样 33/33
+```
 
 ## 每个场景怎么跑
 
 1. 删除并重建测试库的 `public` schema；
-2. 按场景脚本设置假宿主（好友关系、资料、运行配置）；
-3. 启动被测服务端，`MAIN_API_BASE_URL` 指向假宿主；
+2. 按场景脚本设置假宿主或外部宿主（好友关系、资料、运行配置）；
+3. 启动被测服务端，`MAIN_API_BASE_URL` 指向宿主；
 4. 逐步执行：每步发出请求、等应答（按 `id`；原版的登录和在线快照应答不带 `id`，只对这两种按 `action` 匹配），再等一个静置窗口收集所有连接上的推送；
 5. 归一化：用户 id、uid、单聊主题替换成占位符；时间类字段写成 `<time>`，在线版本号写成 `<rev>`；群 id 按首次出现编号；每个连接的帧排序后比较；
 6. 停止服务端。
@@ -123,7 +146,7 @@ go build -o bin/replay.exe ./cmd/replay
 
 ### 自测
 
-`go test ./replay/` 用一个照脚本走的 Go 客户端回放全部黄金对话：每个场景按每个登录过的用户各回放一次（32 个场景共 85 次），再让一个客户端扮演全部连接各回放一次（32 次）；另有断线（含重连后补订阅、没登录就发请求）、重复（单步与每一步）、丢弃、延迟、应答顺序、偶发帧、发错请求、`-allow-extra` 跳过多余请求、比对失败不留下对应关系、错误参数、对应关系一一性等用例。另用一个 Node 客户端（只读借用 roubao `server/node_modules/ws`）驱动命令行跑通过 `core/p2p`，确认外部语言的客户端也能接入。变异检查：去掉 id 回写、把 `<time>` 发成字符串、不发偶发帧，三处都会被测试抓到。
+`go test ./replay/` 用一个照脚本走的 Go 客户端回放全部黄金对话：每个场景按每个登录过的用户各回放一次（33 个场景共 88 次），再让一个客户端扮演全部连接各回放一次（33 次）；另有断线（含重连后补订阅、没登录就发请求）、重复（单步与每一步）、丢弃、延迟、应答顺序、偶发帧、发错请求、`-allow-extra` 跳过多余请求、比对失败不留下对应关系、错误参数、对应关系一一性等用例。另用一个 Node 客户端（只读借用 roubao `server/node_modules/ws`）驱动命令行跑通过 `core/p2p`，确认外部语言的客户端也能接入。变异检查：去掉 id 回写、把 `<time>` 发成字符串、不发偶发帧，三处都会被测试抓到。
 
 ## 红线对照表
 

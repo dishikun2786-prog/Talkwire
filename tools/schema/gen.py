@@ -216,6 +216,10 @@ SERVER_ACTION = {
     "grp_sync": [({"topic": NS, "name": S, "from": UID, "eventId": POS}, ["topic"])],
     "grp_disband": [({"topic": NS, "from": UID, "eventId": POS}, ["topic"])],
     "contact_sync": [({"topic": S, "what": {"enum": ["accepted", "removed"]}, "from": UID}, ["what", "from"])],
+    # Host card updates (appendix B). topic is absent when sent to one user.
+    "custom_update": [({"topic": NS, "what": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$"},
+                        "extra": {"not": {"type": "null"}}}, ["what", "extra"])],
+    "red_packet_update": [({"topic": NS, "extra": ANY}, ["topic", "extra"])],
     # -- modules --
     "group_qr_token": [({"id": S, "code": C200, "topic": NS, "qrToken": NS, "expiresAt": MS},
                         ["code", "topic", "qrToken"])],

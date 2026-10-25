@@ -990,7 +990,7 @@ conformance check -additions strict -overlay contract/protocol/transcripts-stric
 | `forward_bundle`、`forward_broadcast` | 请求 | action 请求、type 应答 | 按 `reqId` | 9.6 |
 | `ack_topic_cleared`、`ack_group_event` | 请求 | action | 无 | 11.3、10.10 |
 | `reg_token`、`unreg_token` | 请求 | action | 无 | 17 |
-| `data`、`recalled`、`info`、`pres`、`grp_sync`、`grp_disband`、`topic_cleared`、`contact_sync` | 推送 | action | — | 9、10、11、12、附录 B |
+| `data`、`recalled`、`info`、`pres`、`grp_sync`、`grp_disband`、`topic_cleared`、`contact_sync`、`custom_update`、`red_packet_update` | 推送 | action | — | 9、10、11、12、附录 B |
 | E2EE、扫码入群、群 AI、通话 | 两向 | 见各节 | 见各节 | 13–16 |
 
 ## 附录 B. 宿主触发的推送
@@ -1001,3 +1001,11 @@ conformance check -additions strict -overlay contract/protocol/transcripts-stric
 | --- | --- | --- |
 | `contact_sync` | `what`（`accepted` 或 `removed`）、`from`（对方 uid） | 好友关系变化，双方都收到。客户端收到后**应当**刷新好友列表；`removed` 之后再向对方发单聊会被拒绝（F6、F7） |
 | `call_ended` | `reason` 为 `credit_exhausted` 或 `max_duration_reached` | 宿主侧结束通话 |
+| `custom_update` 【测】 | `topic`（按会话推送时才有）、`what`（宿主定的卡片类型）、`extra`（宿主载荷） | 宿主自定义消息卡片的状态更新，见下文 |
+| `red_packet_update` 【码】 | `topic`、`extra` | 参考部署的红包进度推送，等同 `what` 为红包的 `custom_update`。新宿主不应当再用 |
+
+`custom_update` 不分档位，由宿主调用 `custom-broadcast` 接口触发，服务端不解读 `extra`：
+
+- 按会话推送时，订阅了该会话的连接都收到，帧里带 `topic`；按用户推送时，该用户的每个连接都收到，帧里没有 `topic`。
+- `what` 符合 `^[a-z][a-z0-9_.-]{0,63}$`，含义由宿主约定，例如 `red_packet`。客户端**应当**按 `what` 分派，**必须**忽略不认识的 `what`。
+- 不进离线队列，也不重发。不在线的连接收不到；客户端打开会话或卡片时**应当**向宿主拉取当前状态，不能只靠这个推送。

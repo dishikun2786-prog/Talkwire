@@ -28,6 +28,13 @@ var KnownAdditions = map[string]Additions{
 	},
 }
 
+// AddedFrames are frames only ImKit's server sends, for behaviour the
+// reference server does not have (marked 【测】 in the specification). They
+// cannot have a golden case; the named test covers each instead.
+var AddedFrames = map[string]string{
+	"server custom_update": "server/custombroadcast_test.go",
+}
+
 // Strip removes the additions from the transcript's frames and counts what it
 // removed, by field.
 func (t *Transcript) Strip(a Additions) map[string]int {

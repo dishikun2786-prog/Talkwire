@@ -29,7 +29,7 @@ type Env struct {
 	WSURL    string
 	HTTPBase string
 	Secret   string
-	Host     *fakehost.Host
+	Host     fakehost.Control
 	Source   string // label stored in the transcript, e.g. "oracle 33e23250"
 }
 
@@ -91,7 +91,9 @@ func Run(sc *Scenario, env Env) (*Transcript, error) {
 			_ = c.ws.Close()
 		}
 	}()
-	env.Host.TakeCalls()
+	if _, err := env.Host.TakeCalls(); err != nil {
+		return nil, err
+	}
 	settle := defaultSettle
 	if sc.SettleMs > 0 {
 		settle = time.Duration(sc.SettleMs) * time.Millisecond
@@ -122,7 +124,11 @@ func Run(sc *Scenario, env Env) (*Transcript, error) {
 				rec.Closed = append(rec.Closed, name)
 			}
 		}
-		rec.hostCalls = append(rec.hostCalls, env.Host.TakeCalls()...)
+		calls, err := env.Host.TakeCalls()
+		if err != nil {
+			return nil, fmt.Errorf("scenario %s step %d: %w", sc.Name, i+1, err)
+		}
+		rec.hostCalls = append(rec.hostCalls, calls...)
 		tr.Steps = append(tr.Steps, rec)
 	}
 	tr.vars = st.vars
@@ -185,8 +191,7 @@ func (st *runState) exec(idx int, step Step, rec *StepRecord) error {
 		if len(step.Friends) != 3 {
 			return fmt.Errorf("friends step needs [A, B, on|off]")
 		}
-		st.env.Host.SetFriends(AppUserID(step.Friends[0]), AppUserID(step.Friends[1]), step.Friends[2] == "on")
-		return nil
+		return st.env.Host.SetFriends(AppUserID(step.Friends[0]), AppUserID(step.Friends[1]), step.Friends[2] == "on")
 	case "raw":
 		c, err := st.conn(step.Conn)
 		if err != nil {

@@ -33,9 +33,13 @@ type options struct {
 	db        harness.DB
 	port      int
 	hostPort  int
-	only      string
-	source    string
-	logDir    string
+	// hostURL, when set, is a host under test running elsewhere: the server
+	// calls it instead of the fake host, and scenarios drive it through its
+	// conformance control API.
+	hostURL string
+	only    string
+	source  string
+	logDir  string
 	// standalone runs the server with no host process (IMKIT_HOST_MODE=standalone).
 	standalone bool
 	// env is extra environment for the server, e.g. IMKIT_MODULES=e2ee.
@@ -60,6 +64,7 @@ func main() {
 	fs.StringVar(&o.db.Name, "db", "imkit_oracle", "throwaway database (its public schema is dropped)")
 	fs.IntVar(&o.port, "port", 16062, "port for the server under test")
 	fs.IntVar(&o.hostPort, "hostport", 17001, "port for the fake host")
+	fs.StringVar(&o.hostURL, "host", "", "base URL of a host under test that serves the conformance control API; replaces the fake host")
 	fs.StringVar(&o.only, "only", "", "run only scenarios whose name contains this")
 	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
 	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
@@ -91,9 +96,15 @@ func main() {
 		os.Exit(coverage(scenarios, *golden, *schemaDir, *negative))
 	}
 	must(os.MkdirAll(o.logDir, 0o755))
-	host := fakehost.New(testSecret)
-	stopHost := serveHost(host, o.hostPort)
-	defer stopHost()
+	var host fakehost.Control
+	if o.hostURL != "" {
+		host = fakehost.Remote(o.hostURL, testSecret)
+	} else {
+		fake := fakehost.New(testSecret)
+		stopHost := serveHost(fake, o.hostPort)
+		defer stopHost()
+		host = fakehost.Local(fake)
+	}
 
 	switch cmd {
 	case "schema":
@@ -212,26 +223,19 @@ func main() {
 	}
 }
 
-func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Transcript, error) {
+func runOne(o options, host fakehost.Control, sc *harness.Scenario) (*harness.Transcript, error) {
 	if err := o.db.Reset(); err != nil {
 		return nil, fmt.Errorf("reset db: %w", err)
 	}
-	host.Reset()
-	for _, f := range sc.Host.Friends {
-		host.SetFriends(harness.AppUserID(f[0]), harness.AppUserID(f[1]), true)
-	}
-	for u, p := range sc.Host.Profiles {
-		host.SetProfile(harness.AppUserID(u), p)
-	}
-	if len(sc.Host.RuntimeConfig) > 0 {
-		host.SetRuntimeConfig(json.RawMessage(sc.Host.RuntimeConfig))
+	if err := setUpHost(host, sc); err != nil {
+		return nil, err
 	}
 	cfg := harness.ServerConfig{
 		Bin:     o.bin,
 		Port:    o.port,
 		DB:      o.db,
 		Secret:  testSecret,
-		HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort),
+		HostURL: o.hostBase(),
 		LogPath: filepath.Join(o.logDir, fileName(sc.Name)+".log"),
 	}
 	// The golden transcripts are the reference server's, so the server under
@@ -266,6 +270,40 @@ func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Tran
 	}
 	tr.Normalize(sc)
 	return tr, nil
+}
+
+// setUpHost resets the host and applies the scenario's starting state.
+func setUpHost(host fakehost.Control, sc *harness.Scenario) error {
+	if err := host.Reset(); err != nil {
+		return err
+	}
+	for _, f := range sc.Host.Friends {
+		if err := host.SetFriends(harness.AppUserID(f[0]), harness.AppUserID(f[1]), true); err != nil {
+			return err
+		}
+	}
+	users := make([]string, 0, len(sc.Host.Profiles))
+	for u := range sc.Host.Profiles {
+		users = append(users, u)
+	}
+	sort.Strings(users)
+	for _, u := range users {
+		if err := host.SetProfile(harness.AppUserID(u), sc.Host.Profiles[u]); err != nil {
+			return err
+		}
+	}
+	if len(sc.Host.RuntimeConfig) > 0 {
+		return host.SetRuntimeConfig(json.RawMessage(sc.Host.RuntimeConfig))
+	}
+	return nil
+}
+
+// hostBase is the host URL the server under test is given.
+func (o options) hostBase() string {
+	if o.hostURL != "" {
+		return o.hostURL
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", o.hostPort)
 }
 
 func serveHost(h *fakehost.Host, port int) func() {
@@ -318,7 +356,10 @@ func coverage(scenarios []*harness.Scenario, golden, schemaDir, negative string)
 			where = strings.Join(u.Where[:3], ", ") + fmt.Sprintf(" and %d more", len(u.Where)-3)
 		}
 		status := "OK  "
-		if u.Count == 0 {
+		if test, added := harness.AddedFrames[u.Side+" "+u.Name]; added && u.Count == 0 {
+			status = "TEST"
+			where = test
+		} else if u.Count == 0 {
 			status = "NONE"
 			missing++
 		}
@@ -397,7 +438,7 @@ func withoutAdditions(c harness.Catalog) harness.Catalog {
 // and on a database the reference server already created (the upgrade path
 // of an existing deployment), where the result must also equal the empty
 // database's, additions included.
-func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int {
+func schemaCheck(o options, host fakehost.Control, oracleBin, oracleDB string) int {
 	ref := o.db
 	ref.Name = oracleDB
 	if ref.Name == o.db.Name {
@@ -405,11 +446,11 @@ func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int
 		return 2
 	}
 	start := func(bin string, db harness.DB, tag string) string {
-		host.Reset()
+		must(host.Reset())
 		logPath := filepath.Join(o.logDir, "schema-"+tag+".log")
 		srv, err := harness.StartServer(harness.ServerConfig{
 			Bin: bin, Port: o.port, DB: db, Secret: testSecret,
-			HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort), LogPath: logPath,
+			HostURL: o.hostBase(), LogPath: logPath,
 		})
 		must(err)
 		srv.Stop()

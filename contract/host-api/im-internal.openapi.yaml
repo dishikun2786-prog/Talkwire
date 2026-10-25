@@ -1,0 +1,473 @@
+openapi: 3.1.0
+info:
+  title: ImKit host contract — endpoints the IM server exposes to the host
+  version: 1.0.0
+  description: |
+    The host calls these endpoints on the IM server, which listens on
+    IM_PORT (default 6062). They are internal: do not route them through a
+    public reverse proxy. Every request carries `Authorization: Bearer
+    <token>`, an HS256 JWT signed with the shared secret whose `role` claim
+    is `internal_service` (the reference host signs tokens valid for an
+    hour; one minute is enough). Any other token gets 401 with the plain
+    text body "unauthorized".
+
+    Errors other than 401 and 405 answer JSON `{"error": "..."}`. A wrong
+    method answers 405 with a plain text body.
+
+    The endpoints the host itself implements are in host.openapi.yaml.
+servers:
+  - url: http://127.0.0.1:6062
+    description: the IM server (IM_PORT)
+security:
+  - internalService: []
+paths:
+  /api/v1/internal/im/contact-sync:
+    post:
+      operationId: contactSync
+      summary: A relationship was accepted or removed
+      description: |
+        Call it whenever a relationship changes. accepted creates the
+        one-to-one conversation, makes both users members and tells both
+        connected users; removed takes both users out of it (the history
+        stays). Both users are created on the IM side if needed.
+      x-imkit: { requirement: required }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [appUserIdA, appUserIdB, event]
+              properties:
+                appUserIdA: { $ref: "#/components/schemas/HostUserId" }
+                appUserIdB: { $ref: "#/components/schemas/HostUserId" }
+                event: { type: string, enum: [accepted, removed] }
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topic, uidA, uidB]
+                properties:
+                  topic: { type: string, pattern: "^p2p_" }
+                  uidA: { $ref: "#/components/schemas/WireUid" }
+                  uidB: { $ref: "#/components/schemas/WireUid" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /api/v1/internal/im/media-ref-count:
+    post:
+      operationId: mediaRefCount
+      summary: How many messages still reference a media URL
+      description: |
+        Ask before deleting a blob the host stores: a forwarded message
+        shares the original's URL, so the blob may still be in use. Recalled
+        messages do not count.
+      x-imkit: { requirement: optional }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer, minimum: 0 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /api/v1/internal/im/topic-members-resolve:
+    post:
+      operationId: topicMembersResolve
+      summary: Group membership by host user id, and host user ids by wire uid
+      description: |
+        members answers, for each host user id in checkAppUserIds, whether
+        that user is a member of topic. resolved answers, for each wire uid
+        in resolveUids, the host user id behind it (null when the IM server
+        has never seen the uid) and whether that user is a member. Blank
+        entries are skipped.
+      x-imkit: { requirement: optional }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic]
+              properties:
+                topic: { type: string, minLength: 1 }
+                checkAppUserIds: { type: array, items: { type: string } }
+                resolveUids: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: The answers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members, resolved]
+                properties:
+                  members:
+                    type: object
+                    additionalProperties: { type: boolean }
+                  resolved:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [appUserId, isMember]
+                      properties:
+                        appUserId: { type: [string, "null"] }
+                        isMember: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /api/v1/internal/im/custom-broadcast:
+    post:
+      operationId: customBroadcast
+      summary: Push a host card update to a conversation or to one user
+      description: |
+        The IM server relays payload, uninterpreted, as
+        {"action":"custom_update","topic":...,"what":kind,"extra":payload}
+        (protocol specification, appendix B). Given topic, every connection
+        subscribed to it gets the frame; given targetUid, every connection
+        of that user does, and the frame has no topic. Exactly one of the
+        two is required.
+
+        Use it for host-owned message cards whose state changes after they
+        are sent, such as a red packet being claimed, and for host events a
+        user's devices should learn about at once, such as a contact
+        request. Best effort: nothing is queued for clients that are not
+        connected, so the host must also let a client fetch the current
+        state.
+      x-imkit: { requirement: optional }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, payload]
+              oneOf:
+                - required: [topic]
+                  not: { required: [targetUid] }
+                - required: [targetUid]
+                  not: { required: [topic] }
+              properties:
+                topic: { type: string, minLength: 1 }
+                targetUid: { $ref: "#/components/schemas/WireUid" }
+                kind:
+                  type: string
+                  pattern: "^[a-z][a-z0-9_.-]{0,63}$"
+                  description: the host's name for the card type, for example red_packet
+                payload:
+                  description: any JSON value except null; the whole request is at most 64 KiB
+                  not: { type: "null" }
+      responses:
+        "200":
+          description: Relayed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { const: true }
+                  delivered:
+                    type: boolean
+                    description: only with targetUid; false when the user had no connection
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413":
+          description: The request is larger than 64 KiB
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/v1/internal/im/red-packet-broadcast:
+    post:
+      operationId: redPacketBroadcast
+      deprecated: true
+      summary: The reference deployment's form of custom-broadcast
+      description: |
+        Kept for hosts written against the reference server. Relays payload
+        as {"action":"red_packet_update","topic":...,"extra":payload}. New
+        hosts use custom-broadcast.
+      x-imkit: { requirement: optional }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, payload]
+              properties:
+                topic: { type: string, minLength: 1 }
+                payload: {}
+      responses:
+        "200":
+          description: Relayed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { const: true }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/internal/im/call-broadcast:
+    post:
+      operationId: callBroadcast
+      summary: Push a host-decided call frame to every device of one user
+      description: |
+        For the call module's host side: a balance update during a call, or
+        a call the host ended (credit_exhausted, max_duration_reached). The
+        payload must already be a complete frame the client understands; it
+        is sent byte for byte. A payload whose type is call_ended also frees
+        the call on the IM server. delivered is false when the user had no
+        connected device; nothing is queued.
+      x-imkit: { requirement: "module:call" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetUid, payload]
+              properties:
+                targetUid: { $ref: "#/components/schemas/WireUid" }
+                payload: { type: object }
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, delivered]
+                properties:
+                  ok: { const: true }
+                  delivered: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/internal/admin/im/topics:
+    get:
+      operationId: adminTopics
+      summary: A user's conversations, for the admin console
+      x-imkit: { requirement: optional }
+      parameters:
+        - name: uid
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/WireUid" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Most recent first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topics]
+                properties:
+                  topics:
+                    type: [array, "null"]
+                    items: { $ref: "#/components/schemas/AdminTopic" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /api/v1/internal/admin/im/topic:
+    get:
+      operationId: adminTopic
+      summary: One conversation, for the admin console
+      x-imkit: { requirement: optional }
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: The conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminTopic" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/internal/admin/im/messages:
+    get:
+      operationId: adminMessages
+      summary: A conversation's messages, newest first, for the admin console
+      description: Recalled messages are left out. Pages go backwards with beforeSeq.
+      x-imkit: { requirement: optional }
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - name: beforeSeq
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: type
+          in: query
+          schema: { type: string, enum: [text, image, video, audio, file] }
+        - name: keyword
+          in: query
+          schema: { type: string }
+        - name: fromMs
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: toMs
+          in: query
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: One page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [messages, hasMore]
+                properties:
+                  messages:
+                    type: [array, "null"]
+                    items: { $ref: "#/components/schemas/StoredMessage" }
+                  hasMore: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+  /api/v1/internal/admin/im/clear:
+    post:
+      operationId: adminClear
+      summary: Clear a one-to-one conversation for both users
+      description: |
+        Deletes every message of a two-person conversation for both users,
+        asks the host to delete media no longer referenced, and tells both
+        users (connected now, or at their next login). Groups answer 409.
+        Confirming with an operator first and auditing the action are the
+        host's job.
+      x-imkit: { requirement: optional }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic]
+              properties:
+                topic: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deletedMessages, deletedMedia, clearVersion, clearBeforeSeq]
+                properties:
+                  deletedMessages: { type: integer, minimum: 0 }
+                  deletedMedia: { type: integer, minimum: 0 }
+                  clearVersion: { type: integer }
+                  clearBeforeSeq: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+components:
+  securitySchemes:
+    internalService:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'HS256, shared secret, claims {"role":"internal_service","exp":...}'
+  responses:
+    BadRequest:
+      description: The request is malformed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid internal_service token (plain text body)
+      content:
+        text/plain:
+          schema: { type: string }
+    NotFound:
+      description: No such conversation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Not a two-person conversation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServerError:
+      description: The IM server's database failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    HostUserId:
+      type: string
+      minLength: 1
+      maxLength: 128
+    WireUid:
+      type: string
+      pattern: "^uid_[A-Za-z0-9_-]{11}$"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    AdminTopic:
+      type: object
+      required: [topic, isGroup, lastSeq, messageCount, members, clearVersion, clearBeforeSeq]
+      properties:
+        topic: { type: string }
+        isGroup: { type: boolean }
+        name: { type: string }
+        lastSeq: { type: integer }
+        lastContent: { type: string }
+        lastContentType: { type: string }
+        lastMessageAt: { type: integer, description: milliseconds since the epoch }
+        messageCount: { type: integer }
+        members:
+          type: [array, "null"]
+          items: { $ref: "#/components/schemas/WireUid" }
+        clearVersion: { type: integer }
+        clearBeforeSeq: { type: integer }
+    StoredMessage:
+      type: object
+      required: [topic, seq, from, content, contentType, ts]
+      properties:
+        topic: { type: string }
+        seq: { type: integer }
+        from: { type: string }
+        content: { type: string }
+        contentType: { type: string }
+        fileUrl: { type: string }
+        fileName: { type: string }
+        ts: { type: integer, description: milliseconds since the epoch }
+        duration: { type: integer }
+        extra: {}
+        senderKind: { type: string }
+        forwardFromMsgId: { type: integer }
+        forwardFromTopic: { type: string }

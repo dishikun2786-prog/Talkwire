@@ -1,0 +1,20 @@
+{
+  "name": "core/host-red-packet",
+  "description": "The host relays a red packet's progress to the members connected to a group (red-packet-broadcast, the reference deployment's form of custom-broadcast); a user outside the group gets nothing, a request without a topic is refused, an unknown topic reaches nobody.",
+  "users": ["A", "B", "C"],
+  "host": {"friends": [["A", "B"]]},
+  "steps": [
+    {"do": "connect", "conn": "b"},
+    {"do": "login", "conn": "b", "user": "B"},
+    {"do": "connect", "conn": "a"},
+    {"do": "login", "conn": "a", "user": "A"},
+    {"do": "connect", "conn": "c"},
+    {"do": "login", "conn": "c", "user": "C", "note": "not in the group"},
+    {"do": "send", "conn": "a", "msg": {"action": "create_grp", "name": "lucky", "members": ["${uid:B}"]}, "capture": {"grp": "topic"}},
+    {"do": "send", "conn": "a", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "send", "conn": "b", "msg": {"action": "sub", "topic": "${grp}"}},
+    {"do": "host", "call": "red-packet-broadcast", "body": {"topic": "${grp}", "payload": {"packetId": "rp-1", "claimed": 1, "total": 3, "lastClaimer": "${uid:B}"}}, "note": "every subscribed connection, the sender included"},
+    {"do": "host", "call": "red-packet-broadcast", "body": {"payload": {"packetId": "rp-1"}}, "note": "no topic: 400"},
+    {"do": "host", "call": "red-packet-broadcast", "body": {"topic": "grp_does_not_exist", "payload": {"packetId": "rp-2"}}, "note": "unknown topic: accepted, nobody to tell"}
+  ]
+}

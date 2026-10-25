@@ -1,0 +1,463 @@
+openapi: 3.1.0
+info:
+  title: ImKit host contract — endpoints the host implements
+  version: 1.0.0
+  description: |
+    The IM server calls these endpoints on the business backend (the
+    "host") when it runs in HTTP host mode (IMKIT_HOST_MODE=http, base URL
+    MAIN_API_BASE_URL). The endpoints the IM server itself exposes to the
+    host are in im-internal.openapi.yaml.
+
+    Every request carries `Authorization: Bearer <token>`: an HS256 JWT
+    signed with the secret both sides share (JWT_SECRET on the IM server),
+    with claims `{"role": "internal_service", "exp": <now + 60 s>}`. The host
+    must reject any other token with 401.
+
+    Each operation states, in `x-imkit`:
+      - `requirement`: `required` (the core needs it), `optional` (the IM
+        server copes without it) or `module:<name>` (only that optional
+        module calls it);
+      - `timeoutSeconds`: how long the IM server waits;
+      - `onFailure`: what the IM server does on a timeout, a transport error
+        or any status other than 200. It never retries a failed call.
+
+    Host user ids are opaque strings chosen by the host; the IM server maps
+    them to wire uids (see uid-vectors.json). The reference host uses UUIDs.
+    A 200 response must be JSON; fields the IM server does not know are
+    ignored.
+servers:
+  - url: http://127.0.0.1:6001
+    description: the host (MAIN_API_BASE_URL)
+security:
+  - internalService: []
+paths:
+  /api/v1/internal/im/friendship:
+    get:
+      operationId: getFriendship
+      summary: Whether two host users have an accepted relationship
+      description: |
+        Direct chats, invitations into a group and group creation require
+        an accepted relationship. The relationship is symmetric: (a, b) and
+        (b, a) must give the same answer.
+      x-imkit:
+        requirement: required
+        timeoutSeconds: 3
+        onFailure: the action that needed the check is refused (error frame "cannot verify relationship" or "relationship check failed")
+      parameters:
+        - $ref: "#/components/parameters/UserA"
+        - $ref: "#/components/parameters/UserB"
+      responses:
+        "200":
+          description: The answer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [friends]
+                properties:
+                  friends: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/internal/im/profile:
+    get:
+      operationId: getProfile
+      summary: How the viewer sees the sender
+      description: |
+        Used for the sender name and avatar of offline push notifications.
+        displayName is the viewer's remark for the sender when the viewer set
+        one, else the sender's own display name. Remarks are directional: the
+        remark the sender set for the viewer must never be returned. An
+        unknown user answers 200 with empty strings; the IM server then uses
+        its configured fallback name (runtime config pushText.sender).
+      x-imkit:
+        requirement: required
+        timeoutSeconds: 3
+        cacheSeconds: 300
+        onFailure: the notification uses the fallback name and no avatar
+      parameters:
+        - name: viewer
+          in: query
+          required: true
+          description: host user id of the recipient of the notification
+          schema: { $ref: "#/components/schemas/HostUserId" }
+        - name: sender
+          in: query
+          required: true
+          description: host user id of the author of the message
+          schema: { $ref: "#/components/schemas/HostUserId" }
+      responses:
+        "200":
+          description: The profile as the viewer sees it
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [displayName, avatarUrl]
+                properties:
+                  displayName: { type: string }
+                  avatarUrl:
+                    type: [string, "null"]
+                    description: absolute or host-relative URL; empty or null when there is none
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/internal/im/runtime-config:
+    get:
+      operationId: getRuntimeConfig
+      summary: Group-chat limits and other live settings
+      description: |
+        Fetched at startup and every 60 seconds. A missing or non-positive
+        number keeps its built-in default. A boolean has no default once a
+        document is accepted: a missing boolean is false, so send every
+        boolean explicitly.
+      x-imkit:
+        requirement: optional
+        timeoutSeconds: 3
+        refreshSeconds: 60
+        onFailure: keeps the previous values (the built-in defaults before the first success); 404 means the host has no document
+      responses:
+        "200":
+          description: The settings document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RuntimeConfig" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/internal/im/e2ee-config:
+    get:
+      operationId: getE2eeConfig
+      summary: End-to-end encryption switches
+      description: Same refresh and failure rules as runtime-config.
+      x-imkit:
+        requirement: module:e2ee
+        timeoutSeconds: 3
+        refreshSeconds: 60
+        onFailure: keeps the previous values (built-in defaults enabled=true, groupEnabled=true, envelopeTtlHours=336)
+      responses:
+        "200":
+          description: The switches
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/E2eeConfig" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/internal/im/delete-media:
+    post:
+      operationId: deleteMedia
+      summary: Permanently delete media blobs
+      description: |
+        Called after a recall or a clear, for files that no remaining message
+        references. The host deletes the blobs behind the URLs it issued and
+        ignores URLs it does not recognise. Deleting a missing blob is not an
+        error.
+      x-imkit:
+        requirement: optional
+        timeoutSeconds: 3
+        onFailure: logged; the blobs stay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [urls]
+              properties:
+                urls:
+                  type: array
+                  maxItems: 500
+                  items: { type: string }
+      responses:
+        "200":
+          description: Done; the body is not read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer, minimum: 0 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/internal/im/calls/create:
+    post:
+      operationId: createCallSession
+      summary: Whether a call may start
+      description: |
+        The IM server mints callSessionId and reserves both users before
+        asking. ok=false refuses the call: the caller gets an error frame
+        whose reason is the host's reason (401 for not_friends, 409 for any
+        other, for example insufficient_credits).
+      x-imkit:
+        requirement: module:call
+        timeoutSeconds: 3
+        onFailure: the invite is refused with 500
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callSessionId, callerAppUserId, calleeAppUserId, callType]
+              properties:
+                callSessionId: { $ref: "#/components/schemas/CallSessionId" }
+                callerAppUserId: { $ref: "#/components/schemas/HostUserId" }
+                calleeAppUserId: { $ref: "#/components/schemas/HostUserId" }
+                callType: { $ref: "#/components/schemas/CallType" }
+      responses:
+        "200":
+          description: The decision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkReason" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/ModuleNotServed" }
+  /api/v1/internal/im/calls/answer:
+    post:
+      operationId: answerCallSession
+      summary: The callee answered; issue media credentials
+      description: |
+        effectiveType is the type from now on: voice when the callee answered
+        a video invite as voice. The two tokens must differ: each encodes its
+        own participant.
+      x-imkit:
+        requirement: module:call
+        timeoutSeconds: 8
+        onFailure: the call ends with reason "failed" for both participants; ok=false does the same, and the callee's error frame carries the host's reason
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callSessionId, effectiveType]
+              properties:
+                callSessionId: { $ref: "#/components/schemas/CallSessionId" }
+                effectiveType: { $ref: "#/components/schemas/CallType" }
+      responses:
+        "200":
+          description: The credentials, or ok=false with a reason
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+                  reason: { type: string }
+                  channelId: { type: string }
+                  callerToken: { type: string }
+                  calleeToken: { type: string }
+                  videoQuality: { type: string, description: "for example sd or hd" }
+                  denoiseEnabled: { type: boolean }
+                  appId: { type: string, description: the media service's application id, the same for both participants }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/ModuleNotServed" }
+  /api/v1/internal/im/calls/settle:
+    post:
+      operationId: settleCallSession
+      summary: A call reached a terminal state the IM server decided
+      x-imkit:
+        requirement: module:call
+        timeoutSeconds: 3
+        onFailure: logged; the host's own sweep must settle the call
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callSessionId, reason]
+              properties:
+                callSessionId: { $ref: "#/components/schemas/CallSessionId" }
+                reason:
+                  type: string
+                  enum: [user_hangup, no_answer, rejected, cancelled, disconnected, failed]
+      responses:
+        "200":
+          description: Recorded; the body is not read
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/ModuleNotServed" }
+  /api/v1/internal/im/calls/upgrade:
+    post:
+      operationId: upgradeCallSession
+      summary: Both sides agreed to switch a voice call to video
+      x-imkit:
+        requirement: module:call
+        timeoutSeconds: 3
+        onFailure: the upgrade is refused with 500 (ok=false with 409 and the host's reason); the call continues as voice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callSessionId, toType]
+              properties:
+                callSessionId: { $ref: "#/components/schemas/CallSessionId" }
+                toType: { const: video }
+      responses:
+        "200":
+          description: The decision
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+                  reason: { type: string }
+                  videoQuality: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/ModuleNotServed" }
+  /api/v1/internal/im/group-ai-qa:
+    post:
+      operationId: askGroupAi
+      summary: Answer a question asked in a group by mentioning the assistant
+      description: |
+        Business outcomes answer 200 with ok=false and a reason (for example
+        quota_exceeded); the IM server posts a fallback message. Any other
+        status is a technical fault.
+      x-imkit:
+        requirement: module:groupai
+        timeoutSeconds: 10
+        onFailure: treated as reason "timeout"; the group gets the fallback message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupTopic, askerImUid, question, groupOwnerAppUserId, kbIds, docIds]
+              properties:
+                groupTopic: { type: string, pattern: "^grp_" }
+                askerImUid: { $ref: "#/components/schemas/WireUid" }
+                question: { type: string }
+                groupOwnerAppUserId: { $ref: "#/components/schemas/HostUserId" }
+                kbIds: { type: array, items: { type: string } }
+                docIds: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: The answer, or ok=false with a reason
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+                  answer: { type: string }
+                  reason: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/ModuleNotServed" }
+components:
+  securitySchemes:
+    internalService:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'HS256, shared secret, claims {"role":"internal_service","exp":...}'
+  parameters:
+    UserA:
+      name: a
+      in: query
+      required: true
+      schema: { $ref: "#/components/schemas/HostUserId" }
+    UserB:
+      name: b
+      in: query
+      required: true
+      schema: { $ref: "#/components/schemas/HostUserId" }
+  responses:
+    BadRequest:
+      description: The request is malformed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid internal_service token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: The host has no such document
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ModuleNotServed:
+      description: |
+        The host does not serve this module. Install the module on the IM
+        server only when the host serves it (IMKIT_MODULES); otherwise every
+        use of it fails as the operation's onFailure describes.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    HostUserId:
+      type: string
+      minLength: 1
+      maxLength: 128
+    WireUid:
+      type: string
+      pattern: "^uid_[A-Za-z0-9_-]{11}$"
+    CallSessionId:
+      type: string
+      minLength: 1
+      maxLength: 64
+    CallType:
+      type: string
+      enum: [voice, video]
+    OkReason:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        reason: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    RuntimeConfig:
+      type: object
+      description: Every field is optional; see getRuntimeConfig for the defaulting rules.
+      properties:
+        maxMembers: { type: integer, description: "group size limit (default 500)" }
+        maxAdmins: { type: integer, description: "administrators per group (default 10)" }
+        nameMaxLen: { type: integer, description: "group name length in code points (default 30)" }
+        messageMaxLen: { type: integer, description: "message length in bytes (default 20000)" }
+        forwardBundleMax: { type: integer, description: "messages per merged forward (default 50)" }
+        forwardBroadcastMax: { type: integer, description: "targets per forward (default 20)" }
+        historyPageSize: { type: integer, description: "largest history page (default 50)" }
+        fcmEnabled: { type: boolean, description: "offline push on (default true; false when the field is missing)" }
+        fcmConcurrency: { type: integer, description: "parallel push requests (default 16)" }
+        readReceiptEnabled: { type: boolean, description: "group read cursors (default false)" }
+        qrTtlSeconds: { type: integer, description: "group QR code lifetime (default 604800)" }
+        publishRateLimitPer10s: { type: integer, description: "messages one user may send per 10 seconds (default 20)" }
+        callRingTimeoutSeconds: { type: integer, description: "ring time before no_answer (default 45)" }
+        callMaxDurationMinutes: { type: integer, description: "read but not enforced by the IM server (default 60)" }
+        pushText: { $ref: "#/components/schemas/PushText" }
+    PushText:
+      type: object
+      description: Wording of offline push notifications; an empty or missing entry keeps the default.
+      properties:
+        image: { type: string }
+        video: { type: string }
+        audio: { type: string }
+        file: { type: string }
+        sender: { type: string, description: name used when the host cannot name the sender }
+        assistant: { type: string, description: the group assistant's name }
+        joinRequest: { type: string, description: '"{group}" is replaced with the group name' }
+        joinApproved: { type: string }
+        joinRejected: { type: string }
+    E2eeConfig:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        groupEnabled: { type: boolean }
+        envelopeTtlHours: { type: integer, minimum: 1 }

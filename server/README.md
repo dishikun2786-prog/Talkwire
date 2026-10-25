@@ -29,7 +29,7 @@ ImKit 的 Go 实时服务端。
 | 文件 | 内容 |
 | --- | --- |
 | `main.go`、`config.go`、`config_refresh.go` | 启动、环境变量、从宿主刷新运行配置 |
-| `hub.go`、`session.go`、`client.go`、`handler.go` | 连接表与动作分发；登录、注册、注销；单个连接的读写；HTTP 与内部接口 |
+| `hub.go`、`session.go`、`client.go`、`handler.go`、`custombroadcast.go` | 连接表与动作分发；登录、注册、注销；单个连接的读写；HTTP 与内部接口（宿主卡片更新单独一个文件） |
 | `devices.go`、`store_devices.go` | 多端在线：按设备查连接、发给一个用户的所有设备、离开的设备该补投什么 |
 | `subscriptions.go`、`presence.go` | 订阅索引与按会话广播；在线状态 |
 | `publish.go`、`forward.go`、`clear.go`、`access.go` | 消息收发与历史；转发；撤回与清空；成员与好友校验、单聊地址解析 |
@@ -74,6 +74,10 @@ ImKit 的 Go 实时服务端。
 
 启动时按顺序执行 `migrations/` 里尚未执行过的脚本，记录在 `imkit_schema_migrations`。在原版服务已经建好的库上启动时，基线脚本只补缺的部分，不重建。相对原版新增的表：`imkit_schema_migrations`、`im_devices`、`im_pending_acks`；新增的列：`im_fcm_tokens.provider`、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`。`im_fcm_tokens` 保留原名，虽然它已经不只存 FCM 令牌。
 
+## 宿主接口
+
+服务端调用宿主的端点、以及暴露给宿主的内部端点，契约都在 `contract/host-api/`（OpenAPI 3.1）。uid 的算法由 `contract/host-api/uid-vectors.json` 钉住，`host/uids_test.go` 逐条核对。
+
 ## 构建与验证
 
 ```bash
@@ -102,6 +106,7 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 队列长度配置 `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` 真正生效（原版读了却没用，F62）。
 - 登录中途断开的连接不再被注册成在线（原版偶发让用户永久显示在线，F63）。
 - 默认档位是 strict；要与原版逐帧一致须设 `IMKIT_PROTOCOL_PROFILE=legacy`。
+- 新增内部接口 `POST /api/v1/internal/im/custom-broadcast`（Phase 2）：宿主把自定义消息卡片的新状态推给一个会话的在线连接或一个用户的全部设备，帧为 `custom_update`（协议规范附录 B）。它是原版 `red-packet-broadcast` 的通用形式，后者保留。两档都有；契约见 `contract/host-api/im-internal.openapi.yaml`，测试 `custombroadcast_test.go`。
 
 strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。
 

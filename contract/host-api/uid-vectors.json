@@ -1,0 +1,41 @@
+{
+  "description": "Wire uids for host user ids: \"uid_\" + base64url(SHA-256(UTF-8 hostUserId)[:8]) without padding. Every implementation of the scheme (server/host/uids.go, host-sdk-node/src/uid.ts, a host in another language) must reproduce all of them. Changing the scheme orphans every stored uid.",
+  "vectors": [
+    {
+      "hostUserId": "alice",
+      "uid": "uid_K9gGyX8OAK8"
+    },
+    {
+      "hostUserId": "bob",
+      "uid": "uid_gbY32PzSxto"
+    },
+    {
+      "hostUserId": "0",
+      "uid": "uid_X-zrZv_Ibzg"
+    },
+    {
+      "hostUserId": "user-123",
+      "uid": "uid__N7G301E28Y"
+    },
+    {
+      "hostUserId": "a b",
+      "uid": "uid_yGh6CKpdbtI"
+    },
+    {
+      "hostUserId": "张三",
+      "uid": "uid_HYQbwO6YMJw"
+    },
+    {
+      "hostUserId": "Ünïcödé",
+      "uid": "uid_Oa-V0H2CtdY"
+    },
+    {
+      "hostUserId": "00000000-0000-4000-8000-000000000000",
+      "uid": "uid_24BV4OAwfVo"
+    },
+    {
+      "hostUserId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "uid": "uid_heYqzXUMTrU"
+    }
+  ]
+}
