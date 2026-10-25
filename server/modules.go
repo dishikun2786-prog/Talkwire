@@ -196,6 +196,9 @@ func (nopHost) AskGroupAiQa(string, string, string, string, []string, []string) 
 // names lists the installed modules.
 func (m *modules) names() []string {
 	var out []string
+	if m == nil {
+		return out
+	}
 	for _, mod := range m.installed {
 		out = append(out, mod.name())
 	}
@@ -204,6 +207,9 @@ func (m *modules) names() []string {
 
 // has reports whether a module is installed.
 func (m *modules) has(name string) bool {
+	if m == nil {
+		return false
+	}
 	for _, mod := range m.installed {
 		if mod.name() == name {
 			return true
@@ -247,6 +253,9 @@ func (m *modules) migrationSets() ([]migrate.Set, error) {
 }
 
 func (m *modules) start(h *Hub, cfg host.Config) {
+	if m == nil {
+		return
+	}
 	for _, mod := range m.installed {
 		if s, ok := mod.(starter); ok {
 			s.start(h, cfg)

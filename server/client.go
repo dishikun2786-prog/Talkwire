@@ -26,7 +26,7 @@ var (
 	// reason. At 0.45 there are always two pings inside one pongWait
 	// window, so it takes two consecutive losses to kill the connection --
 	// the usual rule for any keepalive with a deadline behind it.
-	pingPeriod = time.Duration(float64(pongWait) * 0.45)
+	pingPeriod = pingPeriodFor(pongWait)
 	// maxMessageSize was 10MB "for file sharing", but no file bytes have
 	// ever crossed this socket: media is uploaded over HTTP and referenced
 	// here by fileUrl, so a frame is only text plus small metadata. The 10MB
@@ -378,4 +378,10 @@ func (c *Client) IsOnline() bool {
 
 func logf(format string, args ...interface{}) {
 	log.Printf("[IM] "+format, args...)
+}
+
+// pingPeriodFor is the keepalive interval for a read deadline: 0.45 of it
+// (see pingPeriod).
+func pingPeriodFor(readDeadline time.Duration) time.Duration {
+	return time.Duration(float64(readDeadline) * 0.45)
 }

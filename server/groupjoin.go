@@ -365,7 +365,13 @@ func (h *Hub) notifyGroupManagersOfJoinRequest(topic, requesterUID, groupName st
 	if len(offline) == 0 {
 		return
 	}
-	h.enqueueGroupEventForOffline(topic, offline, requesterUID, PendingGroupEventJoinRequest, groupName)
+	// D9: the reference server tried to queue this and always failed (the
+	// store accepted only grp_sync and grp_disband), so an offline manager
+	// never heard of the request. Queued under the strict profile only, where
+	// deliverPendingGroupEvents replays it at their next login.
+	if strictProtocol {
+		h.enqueueGroupEventForOffline(topic, offline, requesterUID, PendingGroupEventJoinRequest, groupName)
+	}
 	text := CurrentRuntimeConfig().PushText
 	h.pushJoin(offline, groupName, text.group(text.JoinRequest, groupName), topic)
 }
@@ -386,8 +392,11 @@ func (h *Hub) notifyRequesterOfReview(topic, requesterUID, status string) {
 		kind = PendingGroupEventJoinApproved
 		body = text.group(text.JoinApproved, groupName)
 	}
-	if err := h.store.EnqueuePendingGroupEvent(topic, requesterUID, kind, groupName, ""); err != nil {
-		logf("notifyRequesterOfReview: enqueue failed: %v", err)
+	// D9, as in notifyGroupManagersOfJoinRequest: queued under the strict profile.
+	if strictProtocol {
+		if err := h.store.EnqueuePendingGroupEvent(topic, requesterUID, kind, groupName, ""); err != nil {
+			logf("notifyRequesterOfReview: enqueue failed: %v", err)
+		}
 	}
 	h.pushJoin([]string{requesterUID}, groupName, body, topic)
 }

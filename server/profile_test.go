@@ -159,7 +159,7 @@ func TestEveryErrorReasonHasACode(t *testing.T) {
 
 // R22: under the strict profile a presence query reports only users sharing
 // a conversation with the caller.
-func TestPresenceQueryScope(t *testing.T) {
+func TestR22_PresenceOnlyForSharedTopics(t *testing.T) {
 	s := testStore(t)
 	a, _ := s.EnsureUser("app-a")
 	b, _ := s.EnsureUser("app-b")
@@ -205,29 +205,81 @@ func sortedOf(s ...string) []string {
 	return s
 }
 
-func TestNewIdentityPolicy(t *testing.T) {
-	refresh, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": "alice", "type": "refresh", "role": "app_user", "exp": time.Now().Add(time.Hour).Unix(),
-	}).SignedString([]byte("secret-0123456789"))
-	if err != nil {
-		t.Fatal(err)
+// R18: under the strict profile only user access tokens log in; the
+// migration switch is off unless set. The token kinds are those of the golden
+// scenario core/login-tokens.
+func TestR18_OnlyAccessTokensLogIn(t *testing.T) {
+	const secret = "secret-0123456789"
+	exp := time.Now().Add(time.Hour).Unix()
+	tokens := []struct {
+		name   string
+		claims jwt.MapClaims
+		access bool
+	}{
+		{"access token", jwt.MapClaims{"type": "access", "role": "app_user"}, true},
+		{"refresh token", jwt.MapClaims{"type": "refresh", "role": "app_user"}, false},
+		{"agent token", jwt.MapClaims{"type": "agent", "deviceId": "dev-1", "role": "app_user"}, false},
+		{"superadmin token", jwt.MapClaims{"type": "access", "role": "superadmin"}, false},
+		{"no type, no role", jwt.MapClaims{}, false},
+	}
+	t.Setenv("IMKIT_ACCEPT_LEGACY_TOKENS", "")
+	t.Setenv("DB_PASSWORD", "x")
+	t.Setenv("JWT_SECRET", secret)
+	t.Setenv("IMKIT_PROTOCOL_PROFILE", "strict")
+	if cfg := LoadConfig(); cfg.AcceptLegacyTokens {
+		t.Fatal("the migration switch is on by default")
 	}
 	for _, c := range []struct {
-		name     string
-		cfg      Config
-		accepted bool
+		name string
+		cfg  Config
+		// all: every token logs in; otherwise only access tokens do.
+		all bool
 	}{
 		{"legacy", Config{Profile: ProfileLegacy}, true},
 		{"strict", Config{Profile: ProfileStrict}, false},
 		{"strict, migration switch", Config{Profile: ProfileStrict, AcceptLegacyTokens: true}, true},
 	} {
-		c.cfg.JWTSecret = "secret-0123456789"
+		c.cfg.JWTSecret = secret
 		id, err := newIdentity(&c.cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := id.UserID(refresh); (err == nil) != c.accepted {
-			t.Errorf("%s: refresh token accepted=%v, want %v", c.name, err == nil, c.accepted)
+		for _, tok := range tokens {
+			claims := jwt.MapClaims{"sub": "alice", "exp": exp}
+			for k, v := range tok.claims {
+				claims[k] = v
+			}
+			signed, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+			_, err := id.UserID(signed)
+			if want := c.all || tok.access; (err == nil) != want {
+				t.Errorf("%s, %s: accepted=%v, want %v", c.name, tok.name, err == nil, want)
+			}
 		}
 	}
+}
+
+// R19: under the strict profile the login reply and the presence snapshot
+// reply carry the request id; the legacy profile keeps the reference frames.
+func TestR19_LoginAndSnapshotRepliesCarryId(t *testing.T) {
+	s := testStore(t)
+	a, _ := s.EnsureUser("app-a")
+	h := &Hub{store: s, clients: map[string]*Client{}, presRev: map[string]int64{}}
+	replies := func() (login, snapshot string) {
+		login = h.loginReply("l1", a).Id
+		c := &Client{hub: h, uid: a, send: make(chan []byte, 2)}
+		h.handlePresQuery(c, &ClientMessage{Id: "p1", Action: ActionPres, Topic: TopicAll})
+		var m ServerMessage
+		if err := json.Unmarshal(<-c.send, &m); err != nil || m.What != PresSnapshot {
+			t.Fatalf("snapshot reply %+v %v", m, err)
+		}
+		return login, m.Id
+	}
+	if l, p := replies(); l != "" || p != "" {
+		t.Errorf("legacy replies carry ids %q %q (F1: the reference sends none)", l, p)
+	}
+	withStrict(t, func() {
+		if l, p := replies(); l != "l1" || p != "p1" {
+			t.Errorf("strict replies carry ids %q %q, want l1 p1", l, p)
+		}
+	})
 }

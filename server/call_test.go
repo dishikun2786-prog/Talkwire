@@ -415,3 +415,60 @@ func TestCallHub_RemoveIsIdentitySafe(t *testing.T) {
 		t.Fatal("bySession[s2] should still resolve to fresh")
 	}
 }
+
+// The call module through the registry: its hooks run only when it is
+// installed, and a call the host ended frees both participants' slot.
+
+func reservedCall(h *Hub) *callState {
+	call := &callState{id: "s1", callerUID: "uid_a", calleeUID: "uid_b", status: callStateActive}
+	h.calls.reserve(call)
+	return call
+}
+
+func TestCallModule_HostEndedCallReleasesTheSlot(t *testing.T) {
+	h := newTestHubForCallDisconnect()
+	if _, err := installModules(h, nopHost{}, []string{"call"}, true); err != nil {
+		t.Fatal(err)
+	}
+	reservedCall(h)
+	h.mods.hostBroadcast(h, "uid_a", "credit_balance")
+	if h.calls.getByUID("uid_a") == nil {
+		t.Fatal("a payload other than call_ended released the call")
+	}
+	h.mods.hostBroadcast(h, "uid_b", "call_ended")
+	if h.calls.getByUID("uid_a") != nil || h.calls.getByUID("uid_b") != nil {
+		t.Fatal("call_ended from the host left the slot taken")
+	}
+}
+
+func TestCallModule_ReconnectCancelsTheGraceTimer(t *testing.T) {
+	withShortCallDisconnectGrace(50*time.Millisecond, func() {
+		h := newTestHubForCallDisconnect()
+		if _, err := installModules(h, nopHost{}, []string{"call"}, true); err != nil {
+			t.Fatal(err)
+		}
+		call := reservedCall(h)
+		h.mods.disconnected(h, "uid_a")
+		h.mods.connected(h, "uid_a")
+		time.Sleep(150 * time.Millisecond)
+		if _, status := call.currentTypeAndStatus(); status != callStateActive {
+			t.Fatalf("call ended (%s) although the participant reconnected within the grace period", status)
+		}
+	})
+}
+
+func TestCallModule_NotInstalledLeavesCallsAlone(t *testing.T) {
+	withShortCallDisconnectGrace(20*time.Millisecond, func() {
+		h := newTestHubForCallDisconnect()
+		if _, err := installModules(h, nopHost{}, nil, true); err != nil {
+			t.Fatal(err)
+		}
+		call := reservedCall(h)
+		h.mods.disconnected(h, "uid_a")
+		h.mods.hostBroadcast(h, "uid_a", "call_ended")
+		time.Sleep(80 * time.Millisecond)
+		if _, status := call.currentTypeAndStatus(); status != callStateActive {
+			t.Fatal("hooks of an uninstalled call module ran")
+		}
+	})
+}

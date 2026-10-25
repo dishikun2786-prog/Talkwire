@@ -69,15 +69,22 @@ func (s *Store) AckPendingClear(id int64, uid string) error {
 	return err
 }
 
-// ReapExpiredPendingClears drops tombstones nobody has ack'd within maxAge --
+// pendingQueueMaxAge is how long an unacknowledged clear or group event is
+// kept (red lines R7, R8). The reapers take the current time as a parameter so
+// the expiry can be tested without waiting a month; created_at is TIMESTAMPTZ,
+// so comparing it with a time from Go is not shifted by the session time zone.
+const pendingQueueMaxAge = 30 * 24 * time.Hour
+
+// ReapExpiredPendingClears drops tombstones nobody has ack'd within
+// pendingQueueMaxAge of now --
 // the backstop for clients too old to understand ack_topic_cleared. Safe to
 // drop unconditionally: any client that eventually reconnects and re-fetches
 // that topic still gets the authoritative clear_version/clear_before_seq from
 // im_topics via handleGet, independent of this queue.
-func (s *Store) ReapExpiredPendingClears(maxAge time.Duration) (int64, error) {
+func (s *Store) ReapExpiredPendingClears(now time.Time) (int64, error) {
 	res, err := s.db.Exec(
-		`DELETE FROM im_pending_clears WHERE created_at < NOW() - ($1 * INTERVAL '1 second')`,
-		int(maxAge.Seconds()),
+		`DELETE FROM im_pending_clears WHERE created_at < $1`,
+		now.Add(-pendingQueueMaxAge),
 	)
 	if err != nil {
 		return 0, err
@@ -90,11 +97,10 @@ func (s *Store) ReapExpiredPendingClears(maxAge time.Duration) (int64, error) {
 // Launch with `go` once from main.go, mirroring hub.gcForwardReqCache's
 // launch pattern.
 func (s *Store) StartPendingClearsReaper() {
-	const maxAge = 30 * 24 * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for range ticker.C {
-		n, err := s.ReapExpiredPendingClears(maxAge)
+		n, err := s.ReapExpiredPendingClears(time.Now())
 		if err != nil {
 			logf("reapPendingClears: %v", err)
 			continue
@@ -131,7 +137,10 @@ type PendingGroupEvent struct {
 // refreshed created_at keeps the reaper from expiring a notice that is
 // still being re-raised.
 func (s *Store) EnqueuePendingGroupEvent(topic, uid, kind, groupName, fromUID string) error {
-	if kind != PendingGroupEventSync && kind != PendingGroupEventDisband {
+	switch kind {
+	case PendingGroupEventSync, PendingGroupEventDisband,
+		PendingGroupEventJoinRequest, PendingGroupEventJoinApproved, PendingGroupEventJoinRejected:
+	default:
 		return fmt.Errorf("enqueue pending group event: unknown kind %q", kind)
 	}
 	_, err := s.db.Exec(`
@@ -182,16 +191,17 @@ func (s *Store) AckPendingGroupEvent(id int64, uid string) error {
 	return err
 }
 
-// ReapExpiredPendingGroupEvents drops notices nobody acked within maxAge --
+// / ReapExpiredPendingGroupEvents drops notices nobody acked within
+// pendingQueueMaxAge of now --
 // the backstop for clients too old to understand ack_group_event. Safe to
 // drop unconditionally: group membership itself lives in im_topic_members,
 // and a client that reconnects and calls getGroupTopics() gets the
 // authoritative picture regardless of this queue. The queue only shortens
 // the window before that happens.
-func (s *Store) ReapExpiredPendingGroupEvents(maxAge time.Duration) (int64, error) {
+func (s *Store) ReapExpiredPendingGroupEvents(now time.Time) (int64, error) {
 	res, err := s.db.Exec(
-		`DELETE FROM im_pending_group_events WHERE created_at < NOW() - ($1 * INTERVAL '1 second')`,
-		int(maxAge.Seconds()),
+		`DELETE FROM im_pending_group_events WHERE created_at < $1`,
+		now.Add(-pendingQueueMaxAge),
 	)
 	if err != nil {
 		return 0, err
@@ -203,11 +213,10 @@ func (s *Store) ReapExpiredPendingGroupEvents(maxAge time.Duration) (int64, erro
 // StartPendingGroupEventsReaper runs ReapExpiredPendingGroupEvents hourly.
 // Launch with `go` once from main.go, alongside StartPendingClearsReaper.
 func (s *Store) StartPendingGroupEventsReaper() {
-	const maxAge = 30 * 24 * time.Hour
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for range ticker.C {
-		n, err := s.ReapExpiredPendingGroupEvents(maxAge)
+		n, err := s.ReapExpiredPendingGroupEvents(time.Now())
 		if err != nil {
 			logf("reapPendingGroupEvents: %v", err)
 			continue

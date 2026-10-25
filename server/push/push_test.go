@@ -38,7 +38,7 @@ func TestDataMatchesLegacyPayloads(t *testing.T) {
 	}
 }
 
-func TestEncryptedMessageCarriesNoContent(t *testing.T) {
+func TestR12_EncryptedMessageHasNoPreview(t *testing.T) {
 	// Even if a caller fills in what it should not, nothing of it leaves.
 	n := Notification{Kind: KindE2eMessage, Topic: "uid_a", SenderName: "Ann", SenderAvatar: "https://x/a.png", GroupName: "G", Body: "secret"}
 	secrets := []string{"Ann", "a.png", "secret", `"G"`}

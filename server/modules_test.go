@@ -101,4 +101,11 @@ func TestNilRegistryIsInert(t *testing.T) {
 	if len(m.disbandTx()) != 0 {
 		t.Error("nil registry returned cleanups")
 	}
+	if m.names() != nil || m.has("e2ee") {
+		t.Error("nil registry lists modules")
+	}
+	m.start(nil, nil)
+	if sets, err := m.migrationSets(); err != nil || len(sets) != 0 {
+		t.Error("nil registry has migrations")
+	}
 }

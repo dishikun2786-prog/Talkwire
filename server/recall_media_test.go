@@ -39,7 +39,7 @@ func (m *mediaHost) waitDeleted(t *testing.T, n int) []string {
 	}
 }
 
-func TestRecallReclaimsVideoThumbnail(t *testing.T) {
+func TestR6_RecallReclaimsVideoThumbnail(t *testing.T) {
 	s := testStore(t)
 	a, _ := s.EnsureUser("app-a")
 	b, _ := s.EnsureUser("app-b")
