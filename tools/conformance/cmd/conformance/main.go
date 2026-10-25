@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -39,6 +40,9 @@ type options struct {
 	standalone bool
 	// env is extra environment for the server, e.g. IMKIT_MODULES=e2ee.
 	env envList
+	// additions names fields the server under test may add (see
+	// harness.KnownAdditions); they are removed before comparing.
+	additions string
 }
 
 func main() {
@@ -60,6 +64,7 @@ func main() {
 	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
 	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
 	fs.Var(&o.env, "env", "extra server environment KEY=VALUE (repeatable), e.g. -env IMKIT_MODULES=none")
+	fs.StringVar(&o.additions, "additions", "", "check: fields the server may add, removed before comparing (strict = the strict protocol profile's)")
 	fs.BoolVar(&o.standalone, "standalone", false, "check: run the server without a host (friends, profiles and runtime config from the scenario); host calls are not compared")
 	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
 	golden := fs.String("golden", "../../contract/protocol/transcripts", "check: golden directory")
@@ -103,6 +108,12 @@ func main() {
 		}
 	case "check":
 		failed := 0
+		additions, stripping := harness.KnownAdditions[o.additions]
+		if o.additions != "" && !stripping {
+			fmt.Fprintf(os.Stderr, "unknown -additions %q\n", o.additions)
+			os.Exit(2)
+		}
+		removed := map[string]int{}
 		for _, sc := range scenarios {
 			want, err := harness.ReadTranscript(filepath.Join(*golden, fileName(sc.Name)))
 			if err != nil {
@@ -123,6 +134,11 @@ func main() {
 				dropHostCalls(want)
 				dropHostCalls(got)
 			}
+			if stripping {
+				for k, n := range got.Strip(additions) {
+					removed[k] += n
+				}
+			}
 			if diffs := harness.Compare(want, got); len(diffs) > 0 {
 				failed++
 				fmt.Printf("FAIL     %-40s %d difference(s)\n", sc.Name, len(diffs))
@@ -132,6 +148,18 @@ func main() {
 				continue
 			}
 			fmt.Printf("PASS     %s\n", sc.Name)
+		}
+		if stripping {
+			keys := make([]string, 0, len(removed))
+			for k := range removed {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			var parts []string
+			for _, k := range keys {
+				parts = append(parts, fmt.Sprintf("%s=%d", k, removed[k]))
+			}
+			fmt.Printf("ADDED    %s: %s\n", additions.Name, strings.Join(parts, " "))
 		}
 		fmt.Printf("SUMMARY  %d scenario(s), %d failed\n", len(scenarios), failed)
 		if failed > 0 {

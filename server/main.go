@@ -40,8 +40,12 @@ func main() {
 	// End-user and internal tokens are signed with the secret shared with the host.
 	auth := hmacjwt.New(cfg.JWTSecret)
 
+	// The protocol profile is fixed before anything can send a frame.
+	strictProtocol = cfg.Profile == ProfileStrict
+	log.Printf("Protocol profile: %s", cfg.Profile)
+
 	// Offline push through each configured provider.
-	pusher := newPusher(cfg)
+	pusher, vapidKey := newPusher(cfg)
 
 	// The host: over HTTP (friendship checks, profiles, media, config and the
 	// modules' calls against the main server), or in-process.
@@ -54,6 +58,7 @@ func main() {
 	// the schema is migrated: only an installed module's tables are created.
 	hub := NewHub(store, auth, pusher, hostImpl)
 	hub.webPushHosts = cfg.WebPush.Hosts
+	hub.vapidKey = vapidKey
 	mods, err := installModules(hub, hostImpl, cfg.Modules, cfg.ModulesExplicit)
 	if err != nil {
 		log.Fatalf("Module setup failed: %v", err)
@@ -176,8 +181,10 @@ func newHost(cfg *Config) (hostWithConfig, error) {
 // Every provider that is not configured is named in the log too: staying
 // silent is what once let a misspelled env var (FCM_SERVICE_ACCOUNT_KEY_PATH
 // vs ..._PATH) disable push for the entire life of a deployment without
-// leaving a single trace.
-func newPusher(cfg *Config) *push.Dispatcher {
+// leaving a single trace. The second result is the VAPID public key, or ""
+// without Web Push.
+func newPusher(cfg *Config) (*push.Dispatcher, string) {
+	vapidKey := ""
 	senders := map[string]push.Sender{}
 	if cfg.FCMServiceAccountPath == "" {
 		log.Println("Push: FCM not configured (set FCM_SERVICE_ACCOUNT_KEY_PATH)")
@@ -202,15 +209,16 @@ func newPusher(cfg *Config) *push.Dispatcher {
 	} else {
 		senders[push.WebPush] = s
 		// Public: browsers subscribe with it (applicationServerKey).
-		log.Printf("Push: Web Push VAPID public key %s", s.PublicKey())
+		vapidKey = s.PublicKey()
+		log.Printf("Push: Web Push VAPID public key %s", vapidKey)
 	}
 	d := push.NewDispatcher(senders)
 	if d == nil {
 		log.Println("Push: no provider configured; offline push disabled")
-		return nil
+		return nil, ""
 	}
 	log.Printf("Push: enabled %v", d.Providers())
-	return d
+	return d, vapidKey
 }
 
 // warnEncryptedGroupsWithoutE2ee says so when groups were made encrypted

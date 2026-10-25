@@ -24,15 +24,18 @@ type Hub struct {
 	pusher *push.Dispatcher // nil disables offline push
 	// webPushHosts are the push services a Web Push subscription may name.
 	webPushHosts push.Hosts
-	host         hostAPI                       // friendship checks, profiles and media
-	mods         *modules                      // installed optional modules
-	callHost     host.CallSessions             // set by the call module
-	aiHost       host.GroupAI                  // set by the group AI module
-	clients      map[string]*Client            // uid -> client (one active session per user)
-	topics       map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
-	mu           sync.RWMutex
-	register     chan *Client
-	unregister   chan *Client
+	// vapidKey is the Web Push public key strict login replies carry ("" when
+	// Web Push is not configured).
+	vapidKey   string
+	host       hostAPI                       // friendship checks, profiles and media
+	mods       *modules                      // installed optional modules
+	callHost   host.CallSessions             // set by the call module
+	aiHost     host.GroupAI                  // set by the group AI module
+	clients    map[string]*Client            // uid -> client (one active session per user)
+	topics     map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
+	mu         sync.RWMutex
+	register   chan *Client
+	unregister chan *Client
 
 	// presenceCh serializes presence fan-out through a single worker. See
 	// runPresenceWorker for why two bare `go BroadcastPresence(...)` calls

@@ -163,7 +163,7 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 	client.setAppUserID(appUserID)
 	client.loginTime = time.Now()
 	h.register <- client
-	client.SendJSON(&ServerMessage{Action: ActionLogin, Code: CodeOK, UID: imUID})
+	client.SendJSON(h.loginReply(msg.Id, imUID))
 	logf("User logged in: %s -> %s", appUserID, imUID)
 	go h.deliverPendingClears(client)
 	go h.deliverPendingGroupEvents(client)

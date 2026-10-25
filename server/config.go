@@ -38,6 +38,9 @@ type Config struct {
 	WebPush push.WebPushConfig
 	// PushTimeout bounds each push request, including token exchanges.
 	PushTimeout time.Duration
+	// Profile is the protocol profile: ProfileLegacy (the default) or
+	// ProfileStrict; see profile.go.
+	Profile string
 }
 
 // LoadConfig builds the config from defaults plus environment overrides.
@@ -114,6 +117,13 @@ func LoadConfig() *Config {
 		}
 	}
 	loadPushConfig(cfg)
+	cfg.Profile = ProfileLegacy
+	if v := os.Getenv("IMKIT_PROTOCOL_PROFILE"); v != "" {
+		cfg.Profile = v
+	}
+	if cfg.Profile != ProfileLegacy && cfg.Profile != ProfileStrict {
+		log.Fatalf("IMKIT_PROTOCOL_PROFILE must be legacy or strict, got %q", cfg.Profile)
+	}
 	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
 		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
 	}

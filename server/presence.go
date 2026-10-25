@@ -116,9 +116,11 @@ func (h *Hub) handlePresQuery(client *Client, msg *ClientMessage) {
 			LastSeenAt: lastSeen[u],
 		})
 	}
-	client.SendJSON(&ServerMessage{
-		Action: ActionPres, Code: CodeOK, What: PresSnapshot, States: states,
-	})
+	reply := &ServerMessage{Action: ActionPres, Code: CodeOK, What: PresSnapshot, States: states}
+	if strictProtocol {
+		reply.Id = msg.Id // F1
+	}
+	client.SendJSON(reply)
 }
 
 // presenceEvent is one presence transition awaiting fan-out.

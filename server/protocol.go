@@ -161,19 +161,27 @@ type E2eOneTimePreKey struct {
 
 // -- Server -> Client (response) --
 type ServerMessage struct {
-	Id          string `json:"id,omitempty"`
-	Action      string `json:"action"`
-	Code        int    `json:"code,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-	Topic       string `json:"topic,omitempty"`
-	From        string `json:"from,omitempty"`
-	Seq         int    `json:"seq,omitempty"`
-	Content     string `json:"content,omitempty"`
-	ContentType string `json:"contentType,omitempty"`
-	FileURL     string `json:"fileUrl,omitempty"`
-	FileName    string `json:"fileName,omitempty"`
-	UID         string `json:"uid,omitempty"`
-	User        string `json:"user,omitempty"`
+	Id     string `json:"id,omitempty"`
+	Action string `json:"action"`
+	Code   int    `json:"code,omitempty"`
+	Reason string `json:"reason,omitempty"`
+	// ErrCode is the machine-readable form of an error (strict profile only):
+	// clients branch on it, while Reason stays opaque text. See errCodeFor.
+	ErrCode string `json:"errCode,omitempty"`
+	// Protocol, Capabilities and VapidKey ride on a successful login reply
+	// (strict profile only); see Hub.loginReply.
+	Protocol     int      `json:"protocol,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
+	VapidKey     string   `json:"vapidKey,omitempty"`
+	Topic        string   `json:"topic,omitempty"`
+	From         string   `json:"from,omitempty"`
+	Seq          int      `json:"seq,omitempty"`
+	Content      string   `json:"content,omitempty"`
+	ContentType  string   `json:"contentType,omitempty"`
+	FileURL      string   `json:"fileUrl,omitempty"`
+	FileName     string   `json:"fileName,omitempty"`
+	UID          string   `json:"uid,omitempty"`
+	User         string   `json:"user,omitempty"`
 	// Name is the topic/group display name. Besides its original uses
 	// (create_grp / update_grp / get_groups replies) it is also populated on
 	// the group "data" push: a recipient whose local conversation list has
@@ -597,8 +605,14 @@ func SuccessResponse(action string, code int) *ServerMessage {
 // ErrorResponse 必须回填发起该请求的 id。客户端按 (action,id) 精确关联请求与响应；
 // 拿不到 id 时它只能按 action 猜，而同一个 action 常有多个请求同时在飞，猜错会把
 // 一个会话的响应交给另一个会话的等待者（见 docs/IM_CROSS_TOPIC_LEAK_PLAN.md R6）。
+// ErrorResponse is an error frame. Under the strict profile it also carries
+// the machine-readable errCode.
 func ErrorResponse(id, action string, code int, reason string) *ServerMessage {
-	return &ServerMessage{Id: id, Action: action, Code: code, Reason: reason}
+	m := &ServerMessage{Id: id, Action: action, Code: code, Reason: reason}
+	if strictProtocol {
+		m.ErrCode = errCodeFor(code, reason)
+	}
+	return m
 }
 
 const (
