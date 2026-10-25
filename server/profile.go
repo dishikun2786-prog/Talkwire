@@ -9,9 +9,11 @@ import (
 
 // Protocol profiles, chosen with IMKIT_PROTOCOL_PROFILE.
 //
-// legacy (the default) answers exactly like the reference server: every frame
-// matches the golden transcripts. strict adds the protocol v1 improvements,
-// all of them additions an older client ignores:
+// strict (the default) is the protocol v1 profile. legacy answers exactly
+// like the reference server -- every frame matches the golden transcripts --
+// and is for a project migrating from it. strict fixes the reference
+// server's defects (protocol specification section 18) and adds the protocol
+// v1 improvements, all of them additions an older client ignores:
 //
 //   - a successful login reply and a presence snapshot reply carry the
 //     request's id (F1), so a client can match every reply by id;

@@ -10,6 +10,16 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			// A connection closed during its login can get here after its
+			// unregister: select picks at random among ready channels, and
+			// that unregister found nothing to remove. Registering it now
+			// would leave a dead connection counted as online for good, its
+			// user shown online with no device connected (finding F63). A
+			// connection still open here unregisters after this, in order.
+			if !client.IsOnline() {
+				logf("Client closed before it was registered, skipped: %s device %q", client.UID(), client.Device())
+				break
+			}
 			uid, device := client.UID(), client.Device()
 			var victim *Client
 			h.mu.Lock()

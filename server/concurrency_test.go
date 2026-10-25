@@ -693,3 +693,25 @@ func TestEnsureUserConcurrentFirstLogin(t *testing.T) {
 		}
 	}
 }
+
+// F63: a connection closed during its login may reach the register queue
+// after its unregister was handled. It must not be registered: nothing would
+// ever remove it, and its user would show online with no device connected.
+func TestClosedConnectionIsNotRegistered(t *testing.T) {
+	ls := newLiveServer(t, liveOptions{})
+	uid, err := ls.store.EnsureUser("f63-closed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dead := &Client{hub: ls.hub, uid: uid, send: make(chan []byte, 8), subscribed: map[string]bool{}}
+	dead.closed = true
+	ls.hub.unregister <- dead
+	ls.hub.register <- dead
+	// A later login on the same queue: once it is registered, so is (or is
+	// skipped) the dead one before it.
+	other := ls.connect("f63-other")
+	ls.waitRegistered(other.uid, "")
+	if c := ls.hub.clientOf(uid, ""); c != nil {
+		t.Fatal("a closed connection was registered")
+	}
+}

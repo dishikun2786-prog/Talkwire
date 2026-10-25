@@ -234,6 +234,10 @@ func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Tran
 		HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort),
 		LogPath: filepath.Join(o.logDir, fileName(sc.Name)+".log"),
 	}
+	// The golden transcripts are the reference server's, so the server under
+	// test runs the legacy profile unless -env names another (a later entry
+	// wins); the reference server ignores the variable.
+	cfg.Env = append(cfg.Env, "IMKIT_PROTOCOL_PROFILE=legacy")
 	cfg.Env = append(cfg.Env, o.env...)
 	if o.standalone {
 		path, err := writeStandaloneConfig(o.logDir, sc)

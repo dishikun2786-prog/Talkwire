@@ -389,7 +389,7 @@ func (h *Hub) handleGet(client *Client, msg *ClientMessage) {
 		} else {
 			readCursors = make([]ReadCursorDto, len(cursors))
 			for i, c := range cursors {
-				readCursors[i] = ReadCursorDto{UID: c.UID, Seq: c.Seq}
+				readCursors[i] = ReadCursorDto(c)
 			}
 		}
 	}

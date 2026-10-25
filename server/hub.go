@@ -104,12 +104,12 @@ func NewHub(store *Store, auth host.Identity, pusher *push.Dispatcher, hostAPI h
 		host:       hostAPI,
 		clients:    make(map[string]map[string]*Client),
 		topics:     make(map[string]map[connKey]*Client),
-		register:   make(chan *Client, 100),
-		unregister: make(chan *Client, 100),
+		register:   make(chan *Client, hubChanBuf),
+		unregister: make(chan *Client, hubChanBuf),
 		// Deep enough that ordinary mobile-network churn never reaches the
 		// drop path; enqueuePresence deliberately drops rather than blocking
 		// the hub loop if it ever does.
-		presenceCh: make(chan presenceEvent, 1024),
+		presenceCh: make(chan presenceEvent, presenceChanBuf),
 		presRev:    make(map[string]int64),
 		presEpoch:  time.Now().UnixMilli(),
 		calls:      newCallHub(),
@@ -174,10 +174,6 @@ func (h *Hub) ProcessMessage(client *Client, msg *ClientMessage) {
 			client.SendJSON(ErrorResponse(msg.Id, msg.Action, CodeBadReq, "unknown action: "+msg.Action))
 		}
 	}
-}
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

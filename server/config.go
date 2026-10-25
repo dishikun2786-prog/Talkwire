@@ -38,8 +38,9 @@ type Config struct {
 	WebPush push.WebPushConfig
 	// PushTimeout bounds each push request, including token exchanges.
 	PushTimeout time.Duration
-	// Profile is the protocol profile: ProfileLegacy (the default) or
-	// ProfileStrict; see profile.go.
+	// Profile is the protocol profile: ProfileStrict (the default) or
+	// ProfileLegacy, which a deployment of the reference server's clients
+	// sets; see profile.go.
 	Profile string
 	// User tokens. Under the strict profile only access tokens of
 	// TokenUserRoles log in (R18) unless AcceptLegacyTokens, a switch for
@@ -124,7 +125,7 @@ func LoadConfig() *Config {
 		}
 	}
 	loadPushConfig(cfg)
-	cfg.Profile = ProfileLegacy
+	cfg.Profile = ProfileStrict
 	if v := os.Getenv("IMKIT_PROTOCOL_PROFILE"); v != "" {
 		cfg.Profile = v
 	}
@@ -210,11 +211,12 @@ func envInt(name string, def int) int {
 }
 
 // Channel buffer sizes for the hub's register/unregister and presence
-// queues. These were inline literals in NewHub; they are the two places a
-// large deployment most often needs headroom (a reconnect storm after a
-// network blip fills register/unregister; a big group coming online at once
-// fills presenceCh), and both are cheap memory-wise, so they are worth an
-// operator-facing knob rather than a rebuild.
+// queues. They are the two places a large deployment most often needs
+// headroom (a reconnect storm after a network blip fills register/unregister;
+// a big group coming online at once fills presenceCh), and both are cheap
+// memory-wise, so they are worth an operator-facing knob rather than a
+// rebuild. The reference server read both variables but NewHub kept its
+// inline literals, so the knobs did nothing (finding F62).
 var (
 	hubChanBuf      = envInt("IM_HUB_CHAN_BUF", 100)
 	presenceChanBuf = envInt("IM_PRESENCE_CHAN_BUF", 1024)

@@ -31,7 +31,7 @@
 - **legacy**：对所有黄金对话逐帧一致，包括缺陷行为。ImKit 迁移原版项目时用这一档。
 - **strict**：修正第 18 节列出的缺陷，其余与 legacy 一致。新项目默认用这一档。
 
-ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，目前默认 legacy（新项目是否改为默认 strict 待定）。strict 档相对 legacy 只做两类改动：
+ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做两类改动：
 
 - **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）。
 - **修正第 18 节的缺陷**。ImKit 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。

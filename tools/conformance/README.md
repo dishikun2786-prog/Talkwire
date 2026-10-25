@@ -51,7 +51,7 @@ go build -o bin/conformance.exe ./cmd/conformance
 ImKit 服务端的三种检查：
 
 ```bash
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：32/32
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：32/32（测试台给被测服务端设 IMKIT_PROTOCOL_PROFILE=legacy，-env 可改）
 ./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict   # strict：32/32
 ./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -standalone   # 29/32（通话两个、群 AI 一个需要宿主）
 ```

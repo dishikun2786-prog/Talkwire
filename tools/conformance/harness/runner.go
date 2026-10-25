@@ -122,9 +122,7 @@ func Run(sc *Scenario, env Env) (*Transcript, error) {
 				rec.Closed = append(rec.Closed, name)
 			}
 		}
-		for _, call := range env.Host.TakeCalls() {
-			rec.hostCalls = append(rec.hostCalls, call)
-		}
+		rec.hostCalls = append(rec.hostCalls, env.Host.TakeCalls()...)
 		tr.Steps = append(tr.Steps, rec)
 	}
 	tr.vars = st.vars

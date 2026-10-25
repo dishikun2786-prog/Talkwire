@@ -2,7 +2,7 @@
 
 ImKit 的 Go 实时服务端。
 
-来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.13），每一步都重新通过一致性测试：默认的 legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。模块名 `example.com/imkit/server` 是占位符，定名后替换。
+来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.13），每一步都重新通过一致性测试：legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。默认档位是 strict，闸门 G1 已于 2026-10-25 通过。模块名 `example.com/imkit/server` 是占位符，定名后替换。
 
 ## 现状（2026-10-25）
 
@@ -52,7 +52,7 @@ ImKit 的 Go 实时服务端。
 | `DB_HOST`、`DB_PORT`、`DB_USER`、`DB_NAME`、`DB_SSLMODE` | localhost、5432、xiaotaozi、xiaotaozi、disable | 数据库 |
 | `IMKIT_HOST_MODE` | `http` | `http`：宿主是一个 HTTP 服务（`MAIN_API_BASE_URL`，默认 `http://127.0.0.1:6001`）；`standalone`：没有宿主进程，好友、资料、运行配置来自 `IMKIT_STANDALONE_CONFIG` 指向的文件 |
 | `IMKIT_MODULES` | 宿主支持的全部模块 | 逗号分隔的模块名（`call`、`groupjoin`、`groupai`、`e2ee`），或 `none`。没装的模块的动作得到 501 `module not enabled: <名>`。standalone 宿主只支持 `groupjoin`、`e2ee` |
-| `IMKIT_PROTOCOL_PROFILE` | `legacy` | `legacy` 或 `strict`（协议规范第 0.3 节） |
+| `IMKIT_PROTOCOL_PROFILE` | `strict` | `strict` 或 `legacy`（协议规范第 0.3 节）；迁移原版项目时设 `legacy` |
 | `IMKIT_TOKEN_USER_ROLES` | `app_user` | strict 档允许登录的令牌 `role`，逗号分隔 |
 | `IMKIT_ACCEPT_LEGACY_TOKENS` | 不设 | 设为 `1` 时 strict 档也接受非访问令牌，只用于迁移期（启动时打印警告） |
 | `IMKIT_JWKS_URL` | 不设 | 用宿主公布的 JWKS 验用户令牌（RS256/ES256，按 `kid` 选钥，RSA 至少 2048 位）；只接受 https 或本机 http |
@@ -82,7 +82,7 @@ go build -o bin/imkit-server.exe .
 go vet ./...
 IMKIT_TEST_DSN="host=127.0.0.1 port=55432 user=postgres dbname=imkit_new sslmode=disable" go test ./...   # 口令从 pgpass 读
 bash ../tools/race.sh                # 竞态检测（同样需要 IMKIT_TEST_DSN 才会跑数据库用例）
-bash ../tools/lint.sh                # gofmt、go vet，装了 staticcheck 时也跑
+bash ../tools/lint.sh                # gofmt、go vet、staticcheck（没装时跳过并说明）
 
 cd ../tools/conformance              # 三种一致性检查与表结构比较，见该目录 README
 ./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new
@@ -99,11 +99,13 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 推送多了 APNs 与 Web Push，`reg_token` 可带 `provider`；文案可由宿主配置。
 - 模块可以不装；standalone 模式不需要宿主进程。
 - 多端同时在线：只在客户端登录带 `device` 时启用，不带时与原版相同。
+- 队列长度配置 `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` 真正生效（原版读了却没用，F62）。
+- 登录中途断开的连接不再被注册成在线（原版偶发让用户永久显示在线，F63）。
+- 默认档位是 strict；要与原版逐帧一致须设 `IMKIT_PROTOCOL_PROFILE=legacy`。
 
 strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。
 
 ## 已知问题
 
-- 本机没有装 staticcheck，`tools/lint.sh` 跳过了它。
 - 测试里会打印 `settleCallAsync: recovered panic ... nil pointer dereference`：部分单测的 Hub 没有配宿主，异步结算在 recover 里吞掉了这个 panic，不影响结果。
 - `store_users.go` 里有一行没有对象的注释（`// GetUserTopics returns …`，函数在 `store_topics.go`），原版就有，未改。

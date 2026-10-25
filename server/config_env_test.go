@@ -20,3 +20,29 @@ func TestFCMKeyPathEnvNames(t *testing.T) {
 		}
 	}
 }
+
+// A new deployment runs the strict profile; legacy is chosen explicitly.
+func TestDefaultProfileIsStrict(t *testing.T) {
+	t.Setenv("DB_PASSWORD", "x")
+	t.Setenv("JWT_SECRET", "s")
+	t.Setenv("IMKIT_PROTOCOL_PROFILE", "")
+	if got := LoadConfig().Profile; got != ProfileStrict {
+		t.Fatalf("default profile %q, want %q", got, ProfileStrict)
+	}
+	t.Setenv("IMKIT_PROTOCOL_PROFILE", ProfileLegacy)
+	if got := LoadConfig().Profile; got != ProfileLegacy {
+		t.Fatalf("profile %q, want %q", got, ProfileLegacy)
+	}
+}
+
+// IM_HUB_CHAN_BUF and IM_PRESENCE_CHAN_BUF size the hub's queues; the
+// reference server read them and kept its literals (F62).
+func TestHubQueueSizesAreConfigurable(t *testing.T) {
+	prevHub, prevPresence := hubChanBuf, presenceChanBuf
+	defer func() { hubChanBuf, presenceChanBuf = prevHub, prevPresence }()
+	hubChanBuf, presenceChanBuf = 7, 9
+	h := NewHub(nil, nil, nil, nil)
+	if cap(h.register) != 7 || cap(h.unregister) != 7 || cap(h.presenceCh) != 9 {
+		t.Fatalf("queue sizes %d, %d, %d; want 7, 7, 9", cap(h.register), cap(h.unregister), cap(h.presenceCh))
+	}
+}

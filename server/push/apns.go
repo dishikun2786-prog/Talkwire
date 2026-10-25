@@ -157,7 +157,7 @@ type apnsAps struct {
 func apnsPayload(n Notification) ([]byte, error) {
 	al := n.alert()
 	p := map[string]any{"aps": apnsAps{
-		Alert:          apnsAlert{Title: al.Title, Subtitle: al.Subtitle, Body: al.Body, LocKey: al.LocKey},
+		Alert:          apnsAlert(al),
 		Sound:          "default",
 		ThreadID:       n.Topic,
 		MutableContent: 1,
