@@ -2,38 +2,107 @@
 
 ImKit 的 Go 实时服务端。
 
-当前是计划任务 1.1 的结果：小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）原样搬入，只改了模块名（`roubao/im-server` → `example.com/imkit/server`，占位符，定名后替换）。从 1.2 起按职责拆文件，每一步都要重新通过一致性测试。
+来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.12），每一步都重新通过一致性测试：默认的 legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。模块名 `example.com/imkit/server` 是占位符，定名后替换。
 
-## 来源与核对
+## 现状（2026-10-25）
 
-- 用 `git -c core.autocrlf=false archive` 从源仓库导出，和 `tools/conformance/oracle/` 是同一个提交、同样的字节（LF）。源仓库只读，没有被改动。
-- 没有搬入 `build-all.ps1`：那是原项目的交叉编译与部署脚本，输出到它自己的 `deploy\im-server` 目录，在这里路径不成立。
-- 除 `go.mod` 第一行外，每个文件都和冻结的源码相同：
+| 任务 | 内容 |
+| --- | --- |
+| 1.1 | 原样搬入，只改模块名 |
+| 1.2 | 按职责拆文件（见下文“代码结构”），之前先单独做了一步 gofmt |
+| 1.3 | 宿主适配层（`host/`）：HTTP 宿主（原版行为）与不需要宿主进程的 standalone 宿主 |
+| 1.4 | 推送：FCM 之外加 APNs 和 Web Push |
+| 1.5 | 模块注册表：通话、扫码入群、群 AI、端到端加密成为可选模块 |
+| 1.6 | 数据库迁移（`migrations/`）：空库建表、采用原版已建的库、重启不重复执行，加表结构比较 |
+| 1.7 | strict 档：应答补 `id`、登录应答带协议版本与能力、错误帧带 `errCode` |
+| 1.8 | 安全：strict 档只接受访问令牌（R18）、在线状态查询只返回共享会话的用户（R22）；可用 JWKS 验令牌 |
+| 1.9 | 已知缺口：撤回视频时一并回收缩略图；离线推送的文案可配置 |
+| 1.10 | 工程化：`go.mod` 整理、lint 脚本、按红线编号的单测、D9（strict 档） |
+| 1.11 | 并发：修 F58、F60、F61，竞态压力用例 |
+| 1.12 | 多端同时在线：登录带 `device`，不同设备同时在线（协议规范第 6.2 节） |
 
-  ```bash
-  cd server
-  sha256sum *.go go.sum | sed 's/ \*\?/ */' | diff - <(grep -v ' \*go.mod$' ../tools/conformance/oracle/SOURCE.sha256)
-  ```
+验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖两个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 129 个（数据库用例需要 `IMKIT_TEST_DSN`）。
 
-- 去掉构建 ID 和路径（`-trimpath -ldflags=-buildid=`）后编译，和原版的产物只差嵌入的模块路径与 VCS 标记（`go version -m` 可见）。
+## 代码结构
+
+| 文件 | 内容 |
+| --- | --- |
+| `main.go`、`config.go`、`config_refresh.go` | 启动、环境变量、从宿主刷新运行配置 |
+| `hub.go`、`session.go`、`client.go`、`handler.go` | 连接表与动作分发；登录、注册、注销；单个连接的读写；HTTP 与内部接口 |
+| `devices.go`、`store_devices.go` | 多端在线：按设备查连接、发给一个用户的所有设备、离开的设备该补投什么 |
+| `subscriptions.go`、`presence.go` | 订阅索引与按会话广播；在线状态 |
+| `publish.go`、`forward.go`、`clear.go`、`access.go` | 消息收发与历史；转发；撤回与清空；成员与好友校验、单聊地址解析 |
+| `group.go`、`offline.go` | 群管理；离线补投（清空、群事件）与回执 |
+| `push.go`、`push/` | 离线推送：选目标与文案；FCM、APNs、Web Push 三个服务商 |
+| `profile.go`、`protocol.go` | 协议档位与 strict 档的新增；帧的结构 |
+| `modules.go`、`call.go`、`groupjoin.go`、`groupai.go`、`e2ee.go` | 模块注册表与四个可选模块 |
+| `store*.go` | 数据库访问，按领域分文件 |
+| `host/` | 宿主接口与实现：`httpadapter`（原版的 HTTP 宿主）、`standalone`、`hmacjwt`、`jwks` |
+| `migrations/`、`migrate/` | 迁移脚本（`core/`、`e2ee/`、`groupjoin/` 各自编号）与执行它们的迁移器，启动时执行 |
+| `cmd/vapidkey` | 生成 Web Push 用的 VAPID 密钥 |
+
+## 配置
+
+必填：`DB_PASSWORD`、`JWT_SECRET`（与宿主共享的 HS256 密钥；用 JWKS 验用户令牌时，内部接口仍用它）。缺任何一个启动即退出。
+
+| 变量 | 默认 | 作用 |
+| --- | --- | --- |
+| `IM_PORT` | 6062 | 监听端口 |
+| `DB_HOST`、`DB_PORT`、`DB_USER`、`DB_NAME`、`DB_SSLMODE` | localhost、5432、xiaotaozi、xiaotaozi、disable | 数据库 |
+| `IMKIT_HOST_MODE` | `http` | `http`：宿主是一个 HTTP 服务（`MAIN_API_BASE_URL`，默认 `http://127.0.0.1:6001`）；`standalone`：没有宿主进程，好友、资料、运行配置来自 `IMKIT_STANDALONE_CONFIG` 指向的文件 |
+| `IMKIT_MODULES` | 宿主支持的全部模块 | 逗号分隔的模块名（`call`、`groupjoin`、`groupai`、`e2ee`），或 `none`。没装的模块的动作得到 501 `module not enabled: <名>`。standalone 宿主只支持 `groupjoin`、`e2ee` |
+| `IMKIT_PROTOCOL_PROFILE` | `legacy` | `legacy` 或 `strict`（协议规范第 0.3 节） |
+| `IMKIT_TOKEN_USER_ROLES` | `app_user` | strict 档允许登录的令牌 `role`，逗号分隔 |
+| `IMKIT_ACCEPT_LEGACY_TOKENS` | 不设 | 设为 `1` 时 strict 档也接受非访问令牌，只用于迁移期（启动时打印警告） |
+| `IMKIT_JWKS_URL` | 不设 | 用宿主公布的 JWKS 验用户令牌（RS256/ES256，按 `kid` 选钥，RSA 至少 2048 位）；只接受 https 或本机 http |
+| `IMKIT_MAX_DEVICES_PER_USER` | 10 | 一个账号最多同时在线的设备数（协议规范第 6.2 节） |
+| `FCM_SERVICE_ACCOUNT_KEY_PATH` | 不设 | FCM 服务账号密钥文件；旧名 `FCM_SERVICE_ACCOUNT_PATH` 也读 |
+| `IMKIT_APNS_KEY_PATH`、`_KEY_ID`、`_TEAM_ID`、`_TOPIC`、`_ENV` | `_ENV`=production | APNs（`.p8` 密钥）；`_ENV` 可设 sandbox |
+| `IMKIT_VAPID_KEY_PATH`、`IMKIT_VAPID_SUBJECT` | 不设 | Web Push 的 VAPID 密钥与联系方式；配置后 strict 登录应答带 `vapidKey` |
+| `IMKIT_WEBPUSH_ALLOWED_HOSTS` | 主流浏览器的推送服务 | 订阅里的推送服务地址只许这些主机 |
+| `IMKIT_WEBPUSH_TTL_SEC` | 86400 | 推送服务保留消息的时长 |
+| `IMKIT_PUSH_HTTP_TIMEOUT_SEC` | 10 | 每次推送请求的超时；旧名 `IM_FCM_HTTP_TIMEOUT_SEC` 也读 |
+| `IM_MAX_CONNECTIONS` | 10000 | 同时接受的 WebSocket 连接数上限 |
+| `IM_PONG_WAIT_SEC`、`IM_WRITE_WAIT_SEC` | 60、10 | 心跳超时（发 ping 的间隔是它的 0.45 倍）、写超时 |
+| `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` | 100、1024 | 内部队列长度 |
+| `IM_CALL_DISCONNECT_GRACE_SEC` | 10 | 通话一方断线后等多久结束通话 |
+
+默认值与原版写死的值相同（单测 `TestR9_DefaultsEqualOriginalValues` 逐项比对，新增的配置项列在测试里并写明理由）。离线推送的文案等运行配置由宿主下发，不在环境变量里。
+
+## 数据库
+
+启动时按顺序执行 `migrations/` 里尚未执行过的脚本，记录在 `imkit_schema_migrations`。在原版服务已经建好的库上启动时，基线脚本只补缺的部分，不重建。相对原版新增的表：`imkit_schema_migrations`、`im_devices`、`im_pending_acks`；新增的列：`im_fcm_tokens.provider`、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`。`im_fcm_tokens` 保留原名，虽然它已经不只存 FCM 令牌。
 
 ## 构建与验证
 
 ```bash
 cd server
 go build -o bin/imkit-server.exe .
-go vet ./... && go test ./...
+go vet ./...
+IMKIT_TEST_DSN="host=127.0.0.1 port=55432 user=postgres dbname=imkit_new sslmode=disable" go test ./...   # 口令从 pgpass 读
+bash ../tools/race.sh                # 竞态检测（同样需要 IMKIT_TEST_DSN 才会跑数据库用例）
+bash ../tools/lint.sh                # gofmt、go vet，装了 staticcheck 时也跑
 
-cd ../tools/conformance
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -logs logs/server
+cd ../tools/conformance              # 三种一致性检查与表结构比较，见该目录 README
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new
 ```
 
-2026-10-24 的结果：32 个场景全部通过；用本目录的服务端重新录制的 32 份归一化对话，与 `contract/protocol/transcripts/` 里的黄金对话逐字节相同（包括标为可选的帧）。
+数据库用例在 `IMKIT_TEST_DSN` 指向的库里建临时 schema，用完删除；不设时跳过。多端、并发类用例在进程内起真实的服务端和 WebSocket（`live_test.go`）。
 
-## 原样带来的已知问题
+## 与原版的差异
 
-不在 1.1 里改，改了就不是“原样”。各自的处理位置写在后面。
+legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异或新增的可选能力：
 
-- **数据竞争**（F58）：`hub.go` 发起通话时给 `call.ringTimer` 赋值没有持 `call.mu`，而取消呼叫或断线会在另一个 goroutine 里调用持锁读取它的 `resolve()`。`resolve()` 赶在赋值之前执行时看不到计时器、也就停不掉它，振铃超时（默认 45 秒）到点它照常触发，因为通话已结束而什么都不做。`go test -race` 能复现（`call_test.go` 里的同款写法）；不开竞态检测时单测全部通过。计划任务 1.11 修。
-- **排版**：`hub.go`、`protocol.go`、`store.go` 没有按 gofmt 排版。改排版是纯机械改动，单独做一步，做完重跑一致性测试。
-- 测试里会打印 `settleCallAsync: recovered panic ... nil pointer dereference`：单测的 Hub 没有配宿主客户端，异步结算在 recover 里吞掉了这个 panic，不影响测试结果。
+- 修了原版的并发缺陷：振铃计时器的数据竞争（F58）、被顶替连接的迟到帧抢走新连接的订阅（F60）、同一新用户并发首次登录失败（F61）。
+- 撤回视频时缩略图也请求宿主删除（原版只删主文件）。
+- 推送多了 APNs 与 Web Push，`reg_token` 可带 `provider`；文案可由宿主配置。
+- 模块可以不装；standalone 模式不需要宿主进程。
+- 多端同时在线：只在客户端登录带 `device` 时启用，不带时与原版相同。
+
+strict 档在此之外修正 D3、D4、D9 并加上新增字段；D1、D2、D5、D7、D8 的修正尚未实现（协议规范第 18 节）。
+
+## 已知问题
+
+- 本机没有装 staticcheck，`tools/lint.sh` 跳过了它。
+- 测试里会打印 `settleCallAsync: recovered panic ... nil pointer dereference`：部分单测的 Hub 没有配宿主，异步结算在 recover 里吞掉了这个 panic，不影响结果。
+- `store_users.go` 里有一行没有对象的注释（`// GetUserTopics returns …`，函数在 `store_topics.go`），原版就有，未改。

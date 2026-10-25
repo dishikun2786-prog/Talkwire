@@ -11,7 +11,7 @@
 | `oracle/baseline-schema.sql` | 原版服务在空库上建出的表结构，`0001_baseline` 的依据 |
 | `fakehost/` | 可脚本化的假宿主：好友关系、资料、配置、删媒体；记录 IM 对宿主的每次调用 |
 | `harness/` | 场景执行、归一化、比对 |
-| `cmd/conformance/` | 命令行：`record`、`check`、`repeat`、`coverage` |
+| `cmd/conformance/` | 命令行：`record`、`check`、`repeat`、`coverage`、`schema` |
 | `replay/`、`cmd/replay/` | 客户端回放服务器：按一份黄金对话扮演服务端，用来测客户端 SDK；可注入断线、延迟、重复、丢弃 |
 | `redlines/`、`cmd/redlines/` | 红线对照表的校验与生成：`contract/redlines/redlines.json` → `matrix.md` |
 | `legacy-probes/` | Phase 0 开工前用来核实行为的一次性 Node 探针，已被本工具取代，仅作留档 |
@@ -34,9 +34,31 @@ go build -o bin/conformance.exe ./cmd/conformance
 ./bin/conformance.exe repeat -n 3                # G0：每个场景连跑 3 次，结果必须一致
 ./bin/conformance.exe check -bin <新服务端> -db imkit_new   # 用黄金对话检查新服务端
 ./bin/conformance.exe coverage                   # 协议里每个帧名是否都有黄金用例（不启动服务端）
+./bin/conformance.exe schema -bin <新服务端> -db imkit_new   # 新服务端建的表结构与原版比较
 ```
 
 常用参数：`-only <名称片段>` 只跑部分场景；`-port`、`-hostport` 改端口；`-logs` 改服务端日志目录。
+
+`check` 的其他参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `-env KEY=VALUE` | 给被测服务端加环境变量，可重复，例如 `-env IMKIT_MODULES=none`、`-env IMKIT_PROTOCOL_PROFILE=strict` |
+| `-additions strict` | 比较前从服务端的帧里去掉 strict 档新增的字段（顶层的 `errCode`、`protocol`、`capabilities`、`vapidKey`，以及成功 `login` 与 `pres` 快照应答里的 `id`），并按场景报出去掉了多少处。去掉之后仍须逐帧一致，证明 strict 档只是在原版之上加字段 |
+| `-overlay <目录>` | 目录里有同名黄金对话的场景改用它比较，其余照旧用 `-golden`。strict 档有意偏离原版的场景放在 `contract/protocol/transcripts-strict/` |
+| `-standalone` | 不起宿主进程（`IMKIT_HOST_MODE=standalone`），好友、资料、运行配置由场景写成配置文件交给服务端；不比较对宿主的调用。依赖宿主的场景（通话、群 AI）在这种模式下必然失败 |
+
+ImKit 服务端的三种检查：
+
+```bash
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：32/32
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict   # strict：32/32
+./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -standalone   # 29/32（通话两个、群 AI 一个需要宿主）
+```
+
+`schema` 依次比较四种情形，任何一项不同即失败：空库上新服务端建的表结构与原版建的（去掉 ImKit 新增的表和列后逐项相同：列、索引、约束、序列）；重启后表结构不变、不再重复执行迁移；在原版建好的库上启动新服务端后，与原版相同（同样去掉新增），且与空库上建的完全相同。ImKit 新增的表：`imkit_schema_migrations`（迁移记录）、`im_devices`、`im_pending_acks`（多端在线）；新增的列：`im_fcm_tokens.provider`（推送服务商）、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`（多端在线）。新增项列在 `cmd/conformance/main.go` 的 `schemaAddedTables`、`schemaAddedColumns` 里，加表加列时要同步。`-oracle`、`-oracle-db` 指定原版服务和它用的一次性库（默认 `imkit_oracle`，必须与 `-db` 不同）。
+
+多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。
 
 `coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 50 个 action、服务端 68 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
 
@@ -105,7 +127,7 @@ go build -o bin/replay.exe ./cmd/replay
 
 ## 红线对照表
 
-`contract/redlines/redlines.json` 把计划里的每条红线（R1–R22 服务端与宿主，C1–C10 客户端）对应到已录的黄金对话步骤和计划中的自动化用例；`contract/redlines/matrix.md` 由它生成，不要手改。
+`contract/redlines/redlines.json` 把计划里的每条红线（R1–R22 服务端与宿主，C1–C10 客户端）对应到已录的黄金对话步骤和计划中的自动化用例；`contract/redlines/matrix.md` 由它生成，不要手改。服务端已经写好的用例在表里标“已写”：生成时扫描 `server/` 下 `*_test.go` 里的测试函数（`-tests` 指定目录，默认 `../../server`），所以服务端加了用例要重新 `write`。
 
 ```bash
 go run ./cmd/redlines check   # 校验，并确认 matrix.md 是最新的
@@ -119,6 +141,7 @@ go run ./cmd/redlines write   # 改完 JSON 后重新生成 matrix.md
 - 编号连续，R 在前、C 在后；
 - 场景的 `redlines` 标签与对照表双向一致：标了某条红线的场景必须被它引用，被引用的场景必须标了它；
 - 计划用例的任务号在 `tasks` 里，平台属于这条红线，用例名带红线编号（如 `TestR3_…`、`C1_…`）；
-- 每条红线的每个平台至少有一个用例；服务端红线没有黄金用例时必须写明原因（`noGolden`）；参照服务违反的红线必须有 strict 档用例。
+- 每条红线的每个平台至少有一个用例；服务端红线没有黄金用例时必须写明原因（`noGolden`）；参照服务违反的红线必须有 strict 档用例；
+- `server/` 里按红线命名（`TestR<n>_…`）的测试必须出现在对照表里，作为该红线的服务端用例。
 
 `go test ./redlines/` 对每条规则各做一次变异，确认它真能报出问题。

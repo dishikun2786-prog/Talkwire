@@ -1,6 +1,6 @@
 # ImKit 客户端协议 v1（草稿）
 
-状态：草稿，2026-10-24。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
+状态：草稿，2026-10-24；2026-10-25 补入 ImKit 服务端 Phase 1 的结果：strict 档新增的字段与错误码（第 0.3、3.3、4、6.1 节）、模块未安装时的 501（第 4.1 节）、推送服务商（第 17 节）、多端同时在线（第 6.2 节及各节的“多端”段）、D9（第 18 节）。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
 
 本文的目标读者是要独立实现客户端或服务端的团队。只读本文、JSON Schema（`contract/protocol/schema/`）和黄金对话，就应能写出与参考服务逐帧兼容的实现。
 
@@ -20,6 +20,7 @@
 | --- | --- |
 | 【录】 | 黄金对话里有实测帧，并核对过源码 |
 | 【码】 | 只读源码得到，还没有录制 |
+| 【测】 | ImKit 服务端新增、参考服务没有的行为：没有黄金对话，由 `server/` 的自动化测试验证 |
 
 模块组（第 13–16 节）已录制，只有第 16.4 节末尾注明的两种情况尚未录制。
 
@@ -29,6 +30,13 @@
 
 - **legacy**：对所有黄金对话逐帧一致，包括缺陷行为。ImKit 迁移原版项目时用这一档。
 - **strict**：修正第 18 节列出的缺陷，其余与 legacy 一致。新项目默认用这一档。
+
+ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，目前默认 legacy（新项目是否改为默认 strict 待定）。strict 档相对 legacy 只做两类改动：
+
+- **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）。
+- **修正第 18 节的缺陷**。ImKit 服务端目前修正了 D3、D4、D9；D1、D2、D5、D7、D8 尚未修正，strict 档在这几项上与 legacy 相同。
+
+多端同时在线（第 6.2 节）不分档位：客户端在 `login` 里带 `device` 才启用，不带时两档都与参考服务一致。
 
 客户端**必须**在两种档位下都能正常工作。具体做法是：不依赖任何缺陷行为；对缺陷行为可能产生的帧做容错处理（第 18 节逐条写明）。
 
@@ -93,6 +101,8 @@
 
 出处：F1、F21、F31。失败的 `login` 和失败的 `pres` 会带 `id`。
 
+strict 档成功的 `login` 和 `pres` 快照也带 `id`（红线 R19）。按上表关联在两档下都成立；客户端也**可以**先按 `id` 匹配，匹配不到再按 `action`。
+
 有些请求没有任何应答（第 9 节各动作里写明“无应答”）。客户端**不应**为它们等待应答。
 
 ### 3.4 推送
@@ -118,9 +128,10 @@ action 帧族的错误应答形如：
 | 404 | 对象不存在 |
 | 409 | 状态冲突（如群主不能直接退群、群已加密） |
 | 429 | 超过频率限制 |
+| 501 | 动作属于服务端没有安装的模块，`reason` 为 `module not enabled: <模块名>`（ImKit 服务端；参考服务没有模块开关） |
 | 500 | 服务端内部错误，可以重试 |
 
-`reason` 是给人看的说明，**不透明**：有中文也有英文，措辞随版本变化（F28）。客户端**必须**只根据 `code`（以及第 9 节里明确列出的少数 `reason` 值）做逻辑判断，不得解析其他 `reason` 文本。
+`reason` 是给人看的说明，**不透明**：有中文也有英文，措辞随版本变化（F28）。客户端**必须**只根据 `code`（以及第 9 节里明确列出的少数 `reason` 值）做逻辑判断，不得解析其他 `reason` 文本。strict 档的错误帧另带 `errCode`（第 4.3 节），客户端**应当**优先按它判断。
 
 type 帧族的错误不用 `code`，而是 `ok: false` 加 `reason`。这里的 `reason` 是固定的小写英文枚举（如 `not_member`），可以用于判断。
 
@@ -132,6 +143,60 @@ type 帧族的错误不用 `code`，而是 `ok: false` 加 `reason`。这里的 
 | `action` 为空 | 静默丢弃 | 码 F38 |
 | 未知 `action` | 回 400，`reason` 为 `unknown action: <名>`，带 `id` | 码 F38 |
 | 未登录就发其他请求 | 回 401 `not authenticated`，带 `id`；“无应答”类动作直接丢弃 | 录 F15 |
+
+### 4.3 `errCode`（strict 档）
+
+strict 档的 action 帧族错误帧多一个 `errCode`：小写下划线形式的稳定代码，不随 `reason` 的措辞变化。
+
+```json
+{"id": "r7", "action": "pub", "code": 400, "reason": "message too long", "errCode": "message_too_long"}
+```
+
+服务端按以下顺序得出 `errCode`：`reason` 在下表对应的固定文案里时取表中的值；`reason` 以 `not friends: `、`unknown action: `、`invalid JSON: `、`module not enabled: ` 开头时分别取 `not_friends`、`unknown_action`、`invalid_json`、`module_not_enabled`；`reason` 本身已是小写下划线形式（E2EE 的原因、宿主给的通话原因）时原样使用；否则按 `code` 取通用值：400 `bad_request`、401 `unauthorized`、404 `not_found`、409 `conflict`、429 `rate_limited`、501 `module_not_enabled`，其余 `internal_error`。客户端**必须**容忍不认识的 `errCode`，退回按 `code` 处理。
+
+| `not_authenticated` | 未登录 |
+| `token_required` | 登录缺令牌 |
+| `invalid_token` | 令牌无效、过期，或 strict 档下不是访问令牌 |
+| `already_logged_in` | 连接已登录 |
+| `invalid_device` | 登录的 `device` 不合法（第 6.2 节） |
+| `too_many_devices` | 账号在线设备已达上限，新设备不能登录（第 6.2 节） |
+| `bad_request` | 请求不合法（通用） |
+| `missing_field` | 缺必填字段 |
+| `message_too_long` | 消息超长 |
+| `group_name_too_long` | 群名超长 |
+| `rate_limited` | 超过频率限制 |
+| `unsupported_topic` | 不能对 `me`、`fnd` 做这个操作 |
+| `not_a_group` | 只能对群做的操作用在了单聊上 |
+| `invalid_member_role` | 角色不合法 |
+| `invalid_call_type` | 通话类型不是 `voice` 或 `video` |
+| `cannot_target_self` | 不能对自己做（踢自己、改自己角色、呼叫自己） |
+| `target_not_member` | 对象不是群成员 |
+| `not_friends` | 不是好友 |
+| `relationship_check_failed` | 向宿主核对关系失败，可以重试 |
+| `not_authorized` | 没有权限（通用） |
+| `not_member` | 不是该会话的成员 |
+| `not_group_manager` | 需要群主或管理员 |
+| `not_group_owner` | 需要群主 |
+| `cannot_remove_owner` | 不能踢群主 |
+| `owner_cannot_leave` | 群主要先转让或解散才能退群 |
+| `admin_limit_reached` | 管理员人数已达上限 |
+| `group_not_found` | 群不存在 |
+| `group_full` | 群人数已达上限 |
+| `message_not_found` | 要撤回的消息不存在、已撤回或不是自己发的 |
+| `qr_token_invalid` | 二维码令牌不存在或已过期 |
+| `join_request_handled` | 入群申请已被处理 |
+| `join_request_mismatch` | 入群申请不属于请求里的群 |
+| `call_not_found` | 通话不存在、已结束，或本设备不在这通电话里 |
+| `call_ended` | 通话已结束 |
+| `call_already_handled` | 通话已被接听、拒接或结束 |
+| `call_not_active` | 通话尚未接通 |
+| `already_video` | 已经是视频通话 |
+| `offline` | 对方不在线 |
+| `unknown_action` | 未知动作 |
+| `invalid_json` | 帧不是合法 JSON |
+| `module_not_enabled` | 动作所属的模块没有安装 |
+
+`reason` 文案到 `errCode` 的权威映射是服务端 `server/profile.go` 的 `errCodes` 表；单测 `TestEveryErrorReasonHasACode` 保证服务端发出的每个固定 `reason` 都在表里。type 帧族的错误本来就用小写英文的 `reason`，没有 `errCode`。
 
 ## 5. 身份与地址
 
@@ -206,22 +271,51 @@ topic  = "p2p_" + base64url_nopad( SHA-256( a + ":" + b )[0:8] )
 
 `token` 是宿主签发的 HS256 JWT，与服务端共享密钥。服务端只要求 `sub`（即 `appUserId`）存在且签名、有效期合法。
 
+`device`（可选，ImKit 服务端【测】）：本连接所在设备的名字，见第 6.2 节。
+
 | 结果 | 应答 |
 | --- | --- |
 | 成功 | `{"action":"login","code":200,"uid":"uid_…"}`，**不带 `id`** |
 | 缺 `token` | 401 `token required` |
 | 令牌无效或过期 | 401 `invalid token` |
 | 连接已登录 | 400 `already logged in` |
+| `device` 不合法（第 6.2 节） | 400 `invalid device` |
+| 已在上限台数的设备上在线，本次是一台新设备（第 6.2 节） | 409 `too many devices` |
 
 legacy 档接受任何带 `sub` 的有效 HS256 令牌，包括刷新令牌、管理员令牌、没有 `type` 的令牌（F2，红线 R18）。strict 档只接受 `type=access` 且 `role` 为普通用户的令牌，其余一律 401 `invalid token`。宿主**应当**只把访问令牌交给客户端，这样两档行为相同。
 
+strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）、`capabilities`（字符串数组）、`vapidKey`（配置了 Web Push 时的 VAPID 公钥）：
+
+```json
+{"id": "l1", "action": "login", "code": 200, "uid": "uid_…", "protocol": 1,
+ "capabilities": ["errcode", "reply-id", "multi-device", "module:e2ee", "push:fcm"]}
+```
+
+`capabilities` 的取值：`errcode`（错误帧带 `errCode`）、`reply-id`（登录与在线快照应答带 `id`）、`multi-device`（支持第 6.2 节的多端在线）、`module:<名>`（已安装的模块：`call`、`groupjoin`、`groupai`、`e2ee`）、`push:<服务商>`（已配置的推送服务商：`fcm`、`apns`、`webpush`）。客户端**必须**忽略不认识的能力。
+
 ### 6.2 同一账号的多个连接
 
-参考服务每个账号同一时刻只保留一个连接（F20）：新连接登录成功后，旧连接被关闭。关闭前服务端**可能**给旧连接发一帧 `{"action":"login","code":401,"reason":"logged in from another device"}`，但不保证送达（F3）。
+**不带 `device` 的登录**是参考服务的全部行为（F20）：每个账号同一时刻只保留一个这样的连接，新连接登录成功后，旧连接被关闭。关闭前服务端**可能**给旧连接发一帧 `{"action":"login","code":401,"reason":"logged in from another device"}`，但不保证送达（F3）。
 
 客户端在连接被意外关闭时**不应**自动无限重连抢回会话；收到上述 401 时**应当**停止自动重连并提示用户。
 
-> ImKit v1 计划支持同一账号多设备同时在线（计划任务 1.12）。届时只有同一设备的新连接才顶替旧连接，第 6.2 节会改写；客户端照本节实现不会出错。
+**带 `device` 的登录**【测】（ImKit 服务端，计划任务 1.12）：`device` 是客户端为本机选定并持久保存的名字，1–64 个字符，只含字母、数字和 `. _ : -`。同一台设备每次登录都**必须**用同一个名字，不同设备**必须**用不同的名字。只有同名设备的新登录才顶替旧连接，不同设备的连接同时在线。不带 `device` 等于设备 `""`，所以不带它的客户端仍像参考服务那样互相顶替。一个账号最多同时在 `IMKIT_MAX_DEVICES_PER_USER` 台（默认 10）设备上在线，超出时新设备的登录得到 409 `too many devices`；这个上限在登录时检查，几台新设备同时登录时可能略微超出。
+
+多台设备同时在线时：
+
+| 方面 | 规则 | 节 |
+| --- | --- | --- |
+| 在线状态 | 每次登录都推 `on`；只有最后一台设备离开才推 `off` | 12.1 |
+| 自己发的消息 | 自己的其他在线设备收到同一条 `data`；单聊的 `topic` 写成对方 uid | 9.2 |
+| 自己的已读、撤回、清空、建群、入群、退群、改群名 | 同步到自己的其他设备；“正在输入”不同步 | 9.5、10、11、12.3 |
+| 离线补投 | 清空和群事件按设备补投、按设备回执：设备离开期间的变更，在它下次登录时补投 | 10.10、11.3 |
+| 推送 | 只推给没有连接的设备注册的推送令牌 | 17 |
+| 端到端加密 | 只属于发布身份密钥的那台设备 | 13.1 |
+| 通话 | 被叫的所有设备都响铃；接听的设备拿到通话，其余设备收到 `answered_elsewhere` | 16 |
+
+发起动作的设备不会收到自己动作的回显。服务端按设备而不是按连接判断，所以同一设备已被顶替的旧连接里迟到的帧，也不会回显给这台设备的新连接。
+
+客户端**应当**看到 `capabilities` 里有 `multi-device` 后才带 `device`。对不认识 `device` 的服务端带上它也无害：服务端忽略未知字段，照旧互相顶替。
 
 ### 6.3 登录后服务端主动补投的帧
 
@@ -231,7 +325,7 @@ legacy 档接受任何带 `sub` 的有效 HS256 令牌，包括刷新令牌、�
 2. 离线群事件（第 10.10 节）
 3. `e2e_deliver`（第 13.4 节）
 
-这些帧可能早于、也可能晚于客户端登录后发出的第一个请求的应答。
+这些帧可能早于、也可能晚于客户端登录后发出的第一个请求的应答。多端时只补投本设备还没拿到的（第 10.10、11.3、13.1 节）。
 
 ## 7. 订阅
 
@@ -310,6 +404,7 @@ legacy 档接受任何带 `sub` 的有效 HS256 令牌，包括刷新令牌、�
 - `name`：只在群消息里出现，是当前群名。
 - `forwardFromMsgId`、`forwardFromTopic`：转发来的消息才有（第 9.6 节）。
 - `ts`：广播时刻，可能与入库时刻差几毫秒；客户端排序与展示**应当**以 `get` 返回的 `ts` 为准（F34）。
+- 多端【测】：发送者自己的其他在线设备也收到这一帧（不在线的设备靠 `get` 补拉）。发给发送者自己设备的单聊帧，`topic` 是**对方** uid、`from` 是自己；客户端按“`from` 等于自己时，会话对象取 `topic`”归档。
 
 ### 9.3 `get` 拉取历史【录】
 
@@ -356,9 +451,9 @@ legacy 档接受任何带 `sub` 的有效 HS256 令牌，包括刷新令牌、�
 {"action":"recalled","topic":"…","seq":2,"from":"uid_…"}
 ```
 
-单聊时这里的 `topic` 是撤回者请求里写的值（第 5.5 节）。
+单聊时这里的 `topic` 是撤回者请求里写的值（第 5.5 节）。多端【测】：撤回者自己的其他设备也收到 `recalled`，`from` 是自己。
 
-撤回清空这条消息的正文和文件引用（`fileUrl`、`fileName`、`extra`），seq 仍占用。被撤回消息的文件如果不再被任何消息引用，服务端请求宿主删除（`POST /api/v1/internal/im/delete-media`）；仍被其他消息引用则保留（F53）。参考服务撤回视频时只回收主文件，缩略图的引用随 `extra` 一起清掉却不请求删除，成为再也回收不到的文件（读代码所得，计划任务 1.9 修复）。
+撤回清空这条消息的正文和文件引用（`fileUrl`、`fileName`、`extra`），seq 仍占用。被撤回消息的文件如果不再被任何消息引用，服务端请求宿主删除（`POST /api/v1/internal/im/delete-media`）；仍被其他消息引用则保留（F53）。参考服务撤回视频时只回收主文件，缩略图的引用随 `extra` 一起清掉却不请求删除，成为再也回收不到的文件（读代码所得）。ImKit 服务端在两档下都一并回收缩略图（计划任务 1.9）。
 
 | 错误 | 条件 |
 | --- | --- |
@@ -478,10 +573,10 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 | --- | --- |
 | 建群、邀请、入群审核通过 | `grp_sync`（带入队时的群名） |
 | 被踢、群解散 | `grp_disband` |
-| 有人申请入群（发给管理员） | `group_join_request` |
-| 自己的入群申请被处理 | `group_join_reviewed`，带 `joinStatus` |
+| 有人申请入群（发给管理员），仅 strict 档 | `group_join_request` |
+| 自己的入群申请被处理，仅 strict 档 | `group_join_reviewed`，带 `joinStatus` |
 
-改角色、改群名不入队。
+改角色、改群名不入队。参考服务也想把后两种入队，但它的存储只接受 `grp_sync`、`grp_disband`，入队总是失败，不在线的管理员和申请人从来收不到（D9，F59）；strict 档修正。
 
 补投帧比实时帧多一个 `eventId`（整数）。客户端处理完**应当**回执：
 
@@ -492,6 +587,8 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 回执无应答。不回执的事件每次登录都会重放。补投的 `grp_sync` 如果对应的群已经不再包含该成员，服务端会在补投前静默丢弃它。
 
 事件保留 30 天。
+
+多端【测】：事件实时发给成员在线的每台设备；他最近 30 天出现过、此刻不在线的设备另有一条入队，只补投给还没拿到的设备。回执只记本设备已拿到，最近 30 天出现过的设备都拿到后事件才删除。从没出现过的新设备第一次登录时也会收到尚未删除的事件，这对客户端无害：`grp_sync` 只是刷新提示，已经不在其中的群的事件会被丢弃。操作者自己的其他设备也会收到：例如自己建群时其他设备收到 `grp_sync`，自己退群时其他设备收到 `grp_disband`。
 
 ## 11. 会话清理
 
@@ -530,6 +627,8 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 
 注意这里的 `id` 不是请求关联用的 id（F9）。回执无应答。离线记录保留 30 天。
 
+多端【测】：与第 10.10 节相同，按设备补投、按设备回执。清空者自己的其他设备也收到 `topic_cleared`，`from` 是自己。同一会话再次清空时离线记录换成新的水位，所有还没拿到新水位的设备都会再收到。
+
 ## 12. 在线状态与输入中
 
 ### 12.1 在线状态推送【录】
@@ -543,6 +642,8 @@ legacy 档的缺陷：不校验调用者是否是成员，也不校验 topic 是
 下线时 `what:"off"`，`online` 省略。`presRev` 是每个用户单调递增的版本号，客户端**必须**丢弃 `presRev` 小于已知值的帧，以免乱序到达的旧状态覆盖新状态。
 
 同一账号的新连接顶替旧连接时，不产生下线推送；共享会话的在线用户反而会再收到一次 `what:"on"`，`presRev` 递增（F51）。新连接自己的订阅不受旧连接清理的影响。
+
+多端【测】：每台设备登录都推一次 `on`，只有最后一台设备离开才推 `off`，其中一台离开不产生推送。推送发到对方的每台在线设备。
 
 ### 12.2 `pres` 查询【录】
 
@@ -573,7 +674,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 {"action":"info","topic":"…","from":"uid_…","what":"read","seq":5}
 ```
 
-单聊里 `topic` 照抄发送方请求里的写法（第 5.5 节）。
+单聊里 `topic` 照抄发送方请求里的写法（第 5.5 节）。多端【测】：`read` 也发给发送者自己的其他设备（已读状态属于用户而不是设备），`kp` 不发。
 
 宿主开启已读回执时，群里的 `read` 会被存为该成员的已读游标，并在 `get` 时通过 `readCursors` 返回（第 9.3 节）。单聊的已读不存储。
 
@@ -596,6 +697,8 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 `e2eBundle` 的字段：`registrationId`、`identityKey`、`signedPreKeyId`、`signedPreKey`、`signedPreKeySignature`、`kyberPreKeyId`、`kyberPreKey`、`kyberPreKeySignature`，以及可选的 `oneTimePreKeys:[{keyId, preKey}]`。二进制一律 base64。服务端只检查 `identityKey`、`signedPreKey`、`signedPreKeySignature`、`kyberPreKey`、`kyberPreKeySignature` 非空，缺任何一个返回 `ok:false, reason:"bad_request"`；不校验密钥本身。
 
 再次发布会覆盖之前的身份密钥。每个账号只有一套密钥，`e2e_bundle` 里的 `deviceId` 恒为 1（F42）。
+
+多端【测】：发布身份密钥的那台设备是本账号的加密设备。`e2e_deliver`、它的补投、`e2e_terminated`、`e2e_cleared` 和加密消息的推送通知都只给这台设备，其他设备（例如没有密钥的网页端）收不到；另一台设备重新发布即接管。v1 不支持多设备加密。从不带 `device` 的登录发布的身份（包括 ImKit 1.12 之前发布的）属于设备 `""`：客户端开始带 `device` 登录后**必须**重新发布一次密钥包，否则加密消息一直等着设备 `""`。
 
 `e2e_fetch_bundle` 只在满足以下任一条件时返回密钥：
 
@@ -773,6 +876,8 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 通话是否允许发起由宿主决定，服务端本身不校验好友关系。
 
+多端【测】：被叫的每台在线设备都收到 `call_ring`，被叫只要有一台设备在线就不算 `offline`。主叫的其他设备不收任何通话帧。
+
 ### 16.2 应答与挂断
 
 | 请求 | 谁可以发 | 成功应答的额外字段 | 对方收到 |
@@ -790,6 +895,8 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 会话不存在、已结束或调用者不是这通电话的参与者时返回 404 `通话不存在或已结束`；状态不对（例如重复接听）返回 409。
 
+多端【测】：哪台设备发起、哪台设备接听，通话就在哪台设备上。接听成功后，被叫的其他设备收到 `call_ended`、`reason:"answered_elsewhere"`；振铃时拒接，其他设备收到 `reason:"rejected"`。`call_cancel`、`call_hangup`、`call_upgrade`、`call_upgrade_accept`、`call_upgrade_reject` 只接受通话所在的设备（振铃期间被叫的任一设备都可以接听或拒接），其他设备得到与陌生人相同的 404 `通话不存在或已结束`。对方的 `call_answered`、`call_ended` 和升级推送也只发到通话所在的设备；被叫振铃期间的 `call_ended` 发到他的所有设备。断线宽限期只看通话所在的设备，同一账号的其他设备上下线不影响通话。
+
 ### 16.3 升级为视频
 
 任一方可以在通话中发 `call_upgrade` `{callSessionId, toType:"video"}`，对方收到 `{"type":"call_upgrade_request","callSessionId":…,"toType":"video"}`。
@@ -803,22 +910,28 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 ### 16.4 `call_ended` 的原因
 
-`user_hangup`、`no_answer`、`rejected`、`cancelled`、`disconnected`（一方断线超过宽限期）、`failed`（宿主接听失败），以及宿主主动结束时的 `credit_exhausted`、`max_duration_reached`。客户端**必须**容忍未知原因。
+`user_hangup`、`no_answer`、`rejected`、`cancelled`、`disconnected`（一方断线超过宽限期）、`failed`（宿主接听失败）、`answered_elsewhere`（多端：被叫的另一台设备已接听）【测】，以及宿主主动结束时的 `credit_exhausted`、`max_duration_reached`。客户端**必须**容忍未知原因。
 
 > 断线宽限期（`disconnected`）与宿主主动结束两种情况尚未录制。
 
 ## 17. 推送令牌【录】
 
 ```json
-{"action":"reg_token","token":"<推送令牌>"}
-{"action":"unreg_token","token":"<推送令牌>"}
+{"action":"reg_token","token":"<推送令牌>","provider":"fcm"}
+{"action":"unreg_token","token":"<推送令牌>","provider":"fcm"}
 ```
 
 注意 `token` 字段在这里放的是推送令牌，不是登录令牌（F27）。两者都**无应答**，缺 `token` 时静默丢弃。客户端**应当**在每次登录后注册，退出登录前注销。
 
+`provider`（可选，ImKit 服务端）：推送服务商，`fcm`（缺省，参考服务只有它）、`apns` 或 `webpush`。Web Push 的令牌是浏览器 `PushSubscription` 的 JSON 字符串，服务端规范化后保存。不合法的令牌被静默拒绝：没有应答，服务端只记日志，不记令牌本身。各服务商的推送载荷见 `server/push/push.go` 的包文档。
+
+推送对象【测】：只推给没有连接的设备注册的令牌。一台设备都没连上时就是该用户的全部令牌，与参考服务相同。不带 `device` 登录时注册的令牌属于设备 `""`。带 `device` 登录的设备每个服务商只保留一个令牌，注册新的即删掉旧的。每次登录后重新注册，令牌就总挂在当前设备上。
+
 ## 18. 已知缺陷
 
 参考服务的下列行为是缺陷。legacy 档保留它们，strict 档按“修正后”列实现。客户端按“客户端应对”列处理，就能在两档下都正常工作。
+
+ImKit 服务端（Phase 1）的 strict 档目前修正了 D3、D4、D9；其余各项在两档下都与参考服务相同，表中“strict 档修正后”一列是它们的目标行为。
 
 | 编号 | 缺陷 | strict 档修正后 | 客户端应对 | 出处 |
 | --- | --- | --- | --- | --- |
@@ -830,6 +943,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 | D6 | 单聊的 `recalled`、`info` 的 `topic` 照抄请求，可能是接收方自己的 uid | 保持不变（改动会破坏已有客户端），留给协议 v2 | 按第 5.5 节映射 | F29 |
 | D7 | 不需审核的扫码入群既不通知群成员，也不给入群者推 `grp_sync`、不订阅 | 给入群者推 `grp_sync` 并订阅，给其余在线成员推 `grp_sync` | 收到 `joinStatus:"joined"` 后自己 `sub` 该群并刷新群列表 | F45 |
 | D8 | `group_join_review` 先把申请标为已处理，再检查它是否属于 `topic`、群是否存在、人数是否已满。后几项失败时返回 400/404/409，但申请已被消耗：从待处理列表消失，再审核得到 409，申请人没入群也没收到通知 | 所有检查放在写入之前，写入状态和加成员在同一事务里完成；任一检查失败时申请保持待处理 | 审核时用申请所属群的 `topic`；群满时先腾出名额再通过；遇到这类失败只能让申请人重新申请 | F57 |
+| D9 | 入群申请与审核结果的离线事件从不入队（存储只接受 `grp_sync`、`grp_disband` 两种），不在线的管理员和申请人收不到 | 入队，下次登录补投（第 10.10 节） | 登录后主动拉 `group_join_requests_list`，不依赖补投 | F59 |
 
 ## 19. 一致性测试
 
@@ -848,20 +962,28 @@ conformance check -bin <服务端可执行文件>
 
 帧的结构另由 JSON Schema 校验（`contract/protocol/schema/`，用法见 `tools/schema/README.md`）。服务端发出的每一帧都必须通过 `server-frames.schema.json`，该 Schema 禁止未声明字段。
 
-strict 档的实现用 legacy 黄金对话检验时，第 18 节涉及的步骤会出现预期内的差异；这些步骤将另录 strict 版本的黄金对话。
+strict 档用同一套黄金对话检验：
+
+```
+conformance check -additions strict -overlay contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict
+```
+
+`-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`）；有意偏离 legacy 的两个场景（`core/login-tokens`、`core/presence`）改用 `transcripts-strict/` 里另录的版本。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
+
+多端同时在线没有黄金对话：参考服务没有这项能力。它由 `server/multidevice_test.go` 等用例覆盖（进程内真实服务端加真实 WebSocket）。
 
 ## 附录 A. 动作一览
 
 | 动作 | 方向 | 帧族 | 应答 | 节 |
 | --- | --- | --- | --- | --- |
-| `login` | 请求 | action | 成功无 `id` | 6 |
+| `login` | 请求 | action | 成功无 `id`（strict 档带） | 6 |
 | `sub`、`leave` | 请求 | action | 有（`leave` 失败时无） | 9.4 |
 | `pub` | 请求 | action | 有 | 9.1 |
 | `get` | 请求 | action | 有 | 9.3 |
 | `del` | 请求 | action | 有 | 9.5 |
 | `del_topic` | 请求 | action | 有 | 11.2 |
 | `note` | 请求 | action | 无 | 12.3 |
-| `pres` | 请求 | action | 成功无 `id` | 12.2 |
+| `pres` | 请求 | action | 成功无 `id`（strict 档带） | 12.2 |
 | `create_grp`、`invite`、`kick`、`leave_grp`、`update_grp`、`set_member_role`、`transfer_owner`、`disband_grp`、`get_groups`、`get_members` | 请求 | action | 有 | 10 |
 | `forward_bundle`、`forward_broadcast` | 请求 | action 请求、type 应答 | 按 `reqId` | 9.6 |
 | `ack_topic_cleared`、`ack_group_event` | 请求 | action | 无 | 11.3、10.10 |

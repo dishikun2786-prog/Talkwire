@@ -6,18 +6,18 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
 ## 当前状态
 
-**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1** 已开工：1.1 把原版服务端原样搬进了 `server/`，与原版逐帧一致，还没有做任何重构。客户端代码尚未开始。完整计划见 `docs/plan.md`。
+**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1（Go 服务端核心）** 的 1.1–1.12 已全部完成（2026-10-25）：拆文件、宿主适配、推送三家、可选模块、迁移、strict 档、安全修复、并发修复、多端同时在线；默认的 legacy 档与原版逐帧一致，闸门 G1 的验收待你确认（几项待定决策列在 `docs/plan.md`）。客户端代码尚未开始。各任务的结果见 `server/README.md`，完整计划见 `docs/plan.md`。
 
 ## 目录
 
 | 目录 | 内容 | 状态 |
 | --- | --- | --- |
-| `contract/protocol/` | 线协议：JSON Schema、黄金对话 | 建设中 |
+| `contract/protocol/` | 线协议：规范、JSON Schema、黄金对话（含 strict 档的偏离场景） | 草稿，已补入 Phase 1 |
 | `contract/redlines/` | 红线对照表：每条红线对应的已录用例与计划用例 | 建设中 |
 | `contract/host-api/` | 宿主 ↔ IM 的 OpenAPI 3 | 未开始 |
 | `tools/conformance/` | 原版服务（参照）、假宿主、一致性测试台、客户端回放服务器 | 建设中 |
 | `docs/` | 计划、架构决策记录、协议规范、清单 | 建设中 |
-| `server/` | Go 服务端 | Phase 1：1.1 已完成（原样搬入） |
+| `server/` | Go 服务端 | Phase 1 完成，待验收 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 |
 | `android/`、`web/`、`ios/` | 三端 SDK | Phase 3–6 |
 | `admin-kit/`、`examples/` | 后台组件、业务示例 | Phase 7–8 |
@@ -30,6 +30,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
   ```bash
   cd tools/conformance && bash ../race.sh
+  cd server && bash ../tools/race.sh
   ```
 
   竞态检测需要 cgo 和 C 编译器。Windows 上用私有的 MinGW-w64 GCC（WinLibs GCC 16.2.0，默认在 `F:\Program Files\tools\winlibs\mingw64`，可用 `IMKIT_MINGW` 指向别处），只在这一条命令里打开 cgo，不改系统或用户 PATH：gcc 一旦出现在 PATH 上，本机其他 Go 构建都会悄悄改用 cgo。脚本里还绕过了 Windows 上的两个问题（GCC 装在带空格的目录下链接失败；地址随机化让 ThreadSanitizer 启动失败），原因写在脚本开头。Linux 和 macOS 直接用系统编译器。

@@ -3,7 +3,7 @@
 | 文件 | 作用 |
 | --- | --- |
 | `gen.py` | 从字段表生成 `contract/protocol/schema/` 下的两份 JSON Schema（2020-12 草案）。改协议时只改这里，不要手改生成的文件 |
-| `check.mjs` | 用 Schema 校验 `contract/protocol/transcripts/` 里的每一帧 |
+| `check.mjs` | 用 Schema 校验 `contract/protocol/transcripts/` 和 `transcripts-strict/`（strict 档有意偏离原版的场景，帧里保留 strict 档新增的字段）里的每一帧 |
 | `negative-cases.json` | 场景里故意发出的非法请求（按场景名和步骤号）。这些请求必须**不通过**客户端 Schema |
 
 ## 用法
@@ -23,4 +23,4 @@ node tools/schema/check.mjs --ajv <目录>
 
 ## 当前结果
 
-全部 32 个场景（核心组 25 个、模块组 7 个）的 923 帧通过（2026-10-24）。红绿验证：在副本里加一个未声明字段、把一个 `seq` 改成字符串、删掉一个请求的必填字段，三处都被报出，退出码 1。
+全部 32 个场景（核心组 25 个、模块组 7 个）的 923 帧通过（2026-10-24）。加上 strict 档的 2 个场景共 949 帧通过（2026-10-25）；用补入 strict 字段之前的 Schema 校验，strict 场景报 16 处错误，说明这些字段确实被校验到了。红绿验证：在副本里加一个未声明字段、把一个 `seq` 改成字符串、删掉一个请求的必填字段，三处都被报出，退出码 1。

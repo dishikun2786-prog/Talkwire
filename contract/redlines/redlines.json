@@ -95,7 +95,9 @@
         {"scenario": "core/login", "steps": ["5:login"], "checks": "同一用户从新连接登录，旧连接被关闭"}
       ],
       "planned": [
-        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR3_SupersedeStorm", "checks": "同一用户反复建连互相顶替：新连接订阅不丢、旁观者不收到下线、不出现持锁断开导致的死锁"}
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR3_SupersedeStorm", "checks": "同一用户反复建连互相顶替：新连接订阅不丢、旁观者不收到下线、不出现持锁断开导致的死锁"},
+        {"task": "1.11", "layer": "concurrency", "platform": "server", "name": "TestR3_LateFrameFromReplacedConnection", "checks": "被顶替连接已读入的 sub、leave、pub 在顶替之后才处理，既不抢走、也不删掉新连接在话题索引里的位置（F60）"},
+        {"task": "1.11", "layer": "unit", "platform": "server", "name": "TestR3_TopicIndexRules", "checks": "话题索引只许登录代号更新的连接覆盖，旧代号既不覆盖也不删除新连接的位置，已关闭的连接不入索引（F60）"}
       ]
     },
     {

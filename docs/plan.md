@@ -2,11 +2,25 @@
 
 权威版本在可编辑文档《ImKit 详细开发计划》：https://claude.ai/artifact/Eh89avD5BQyVK1Urfz7Lss
 
+## Phase 1 结果（2026-10-25）
+
+1.1–1.12 全部完成，各任务的内容与验证结果见 `server/README.md`。legacy 档 32/32 逐帧一致，strict 档 32/32，表结构比较 5 项通过，竞态检测三轮无报告。
+
+待你决定（G1 验收前）：
+
+1. 默认档位：服务端现在默认 legacy；计划要求新项目默认 strict。
+2. strict 档新增字段与偏离的白名单：`-additions strict`（`errCode`、`protocol`、`capabilities`、`vapidKey` 与两种应答的 `id`）和 `contract/protocol/transcripts-strict/` 的两个场景。
+3. 安装 staticcheck（1.10 计划项，本机未装）。
+4. R12 的措辞与 APNs：只发数据载荷的 APNs 推送是静默的后台推送，iOS 会限流、不保证送达，所以 APNs 载荷另带一个只由数据字段组成的 alert；“只发数据载荷”对 APNs 不成立，理由写在 `server/push/r12_test.go`。
+5. D9 只在 strict 档修正（legacy 保持原版的“从不入队”）。
+6. 多端在线的几项设计：字段名 `device`；不带它等于设备 `""`、照旧互相顶替；E2EE 只属于发布密钥的设备，客户端开始带 `device` 后要重新发布密钥包；`answered_elsewhere`；推送令牌按设备、每个服务商一个，不带设备的令牌在设备 `""` 没连上时也推；每个账号最多 10 台设备；不在通话里的设备操作通话得到 404。
+7. strict 档尚未修正 D1、D2、D5、D7、D8（计划的 1.7–1.9 没有覆盖它们），是否另排任务。
+
 ## 已定决策（2026-10-24）
 
 - 核心许可证 Apache-2.0；E2EE 客户端模块独立发布，AGPLv3。
 - v1 支持 Android、iOS、Web；协议规范按“照着就能实现”的标准写。
-- v1 做多端同时在线（Phase 1 任务 1.12），不含 E2EE 多设备。
+- v1 做多端同时在线（Phase 1 任务 1.12，已完成），不含 E2EE 多设备。
 - 清空语义按现网冻结：全员物理删除。
 - 测试库：本机 PostgreSQL 17（127.0.0.1:55432）上的 `imkit_oracle`、`imkit_new`。
 - 命名暂用占位符：`github.com/<org>/imkit`、`io.imkit`、`ImKit`、`@imkit/*`。Go 模块在代码里写作 `example.com/imkit/...`。

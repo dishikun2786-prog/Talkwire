@@ -1,6 +1,6 @@
 // Command redlines checks the red-line matrix and renders it.
 //
-//	redlines check   # matrix vs scenarios, and matrix.md is up to date
+//	redlines check   # matrix vs scenarios and server tests, and matrix.md is up to date
 //	redlines write   # regenerate matrix.md
 package main
 
@@ -16,7 +16,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 || (os.Args[1] != "check" && os.Args[1] != "write") {
-		fmt.Fprintln(os.Stderr, "usage: redlines check|write [-matrix file] [-out file] [-scenarios dir]")
+		fmt.Fprintln(os.Stderr, "usage: redlines check|write [-matrix file] [-out file] [-scenarios dir] [-tests dir]")
 		os.Exit(2)
 	}
 	cmd := os.Args[1]
@@ -24,6 +24,7 @@ func main() {
 	matrixPath := fs.String("matrix", "../../contract/redlines/redlines.json", "red-line registry")
 	outPath := fs.String("out", "../../contract/redlines/matrix.md", "rendered table")
 	scenarioDir := fs.String("scenarios", "../../contract/protocol/scenarios", "scenario directory")
+	testDir := fs.String("tests", "../../server", "server module whose tests mark cases written")
 	_ = fs.Parse(os.Args[2:])
 
 	m, err := redlines.Load(*matrixPath)
@@ -34,11 +35,15 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	problems := redlines.Check(m, scs)
+	written, err := redlines.WrittenTests(*testDir)
+	if err != nil {
+		fail(err)
+	}
+	problems := append(redlines.Check(m, scs), redlines.CheckWritten(m, written)...)
 	for _, p := range problems {
 		fmt.Println("PROBLEM", p)
 	}
-	rendered := redlines.Render(m)
+	rendered := redlines.Render(m, written)
 
 	switch cmd {
 	case "write":

@@ -93,12 +93,28 @@
                   "action": {
                     "const": "login"
                   },
+                  "id": {
+                    "type": "string"
+                  },
                   "code": {
                     "const": 200
                   },
                   "uid": {
                     "type": "string",
                     "pattern": "^(uid_[A-Za-z0-9_-]{11}|usr.+)$"
+                  },
+                  "protocol": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "vapidKey": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -124,6 +140,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -162,6 +183,11 @@
               },
               "reason": {
                 "type": "string"
+              },
+              "errCode": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "strict profile: stable machine-readable error code"
               }
             },
             "required": [
@@ -198,6 +224,11 @@
               },
               "reason": {
                 "type": "string"
+              },
+              "errCode": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "strict profile: stable machine-readable error code"
               }
             },
             "required": [
@@ -260,6 +291,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -324,6 +360,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -400,6 +441,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -509,6 +555,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -591,6 +642,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -651,6 +707,9 @@
                   "action": {
                     "const": "pres"
                   },
+                  "id": {
+                    "type": "string"
+                  },
                   "code": {
                     "const": 200
                   },
@@ -687,6 +746,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -756,6 +820,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -823,6 +892,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -899,6 +973,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -971,6 +1050,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1041,6 +1125,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1110,6 +1199,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1179,6 +1273,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1248,6 +1347,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1317,6 +1421,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1381,6 +1490,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1445,6 +1559,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1514,6 +1633,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1590,6 +1714,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1655,6 +1784,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1725,6 +1859,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1793,6 +1932,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1858,6 +2002,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1925,6 +2074,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -1999,6 +2153,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2078,6 +2237,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2149,6 +2313,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2219,6 +2388,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2290,6 +2464,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2357,6 +2536,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2424,6 +2608,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2492,6 +2681,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2563,6 +2757,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2627,6 +2826,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2705,6 +2909,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2769,6 +2978,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2831,6 +3045,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2895,6 +3114,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -2957,6 +3181,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3021,6 +3250,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3083,6 +3317,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3155,6 +3394,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3223,6 +3467,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3306,6 +3555,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3370,6 +3624,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3434,6 +3693,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3498,6 +3762,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3562,6 +3831,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3626,6 +3900,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -3690,6 +3969,11 @@
                   },
                   "reason": {
                     "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
                   }
                 },
                 "required": [
@@ -4342,6 +4626,11 @@
         },
         "reason": {
           "type": "string"
+        },
+        "errCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "strict profile: stable machine-readable error code"
         }
       },
       "required": [

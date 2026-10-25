@@ -1,6 +1,6 @@
-# 协议事实记录（Phase 0）
+# 协议事实记录
 
-这些是录制黄金对话时观察到的原版服务行为，是协议规范 v1 草稿（任务 0.6）的输入。每条注明出处：录制 = 来自 `contract/protocol/transcripts/` 中的实测帧；代码 = 读源码得到。
+这些是录制黄金对话时观察到的原版服务行为，是协议规范 v1 草稿（任务 0.6）的输入。F1–F57 来自 Phase 0 的录制；F58 起是 Phase 1 改造服务端时发现的，参考服务同样存在。每条注明出处：录制 = 来自 `contract/protocol/transcripts/` 中的实测帧；代码 = 读源码得到。
 
 | # | 事实 | 出处 | 规范里的处理 |
 | --- | --- | --- | --- |
@@ -61,4 +61,7 @@
 | F55 | `invite` 没有接受步骤，应答前对方已是成员。在线的被邀请者被订阅并收到 `grp_sync`，之后群消息直接送到；离线的在下次登录收到带 `eventId` 的 `grp_sync`；群里其余成员收不到任何通知。非成员邀请 401 `only group members can invite`，邀请非好友 401 `not friends`，对单聊邀请 400 | 录制 core/invite | R8；写入第 10.3 节 |
 | F56 | 入群审核拒绝时申请人收到 `joinStatus:"rejected"` 的 `group_join_reviewed`，不加入任何人；被拒后可以用同一个令牌再次申请，得到新的申请 id。普通成员审核 401 | 录制 module/qr-join-review | 写入第 14.3 节 |
 | F57 | `group_join_review` 先把申请标为已处理，之后才检查申请是否属于请求里的 `topic`。另一个群的管理员拿别的群的申请 id 来审核，得到 400 `请求与群聊不匹配`，但申请已被消耗：从待处理列表消失，真正的群主再审核得到 409，申请人没入群也没收到通知。通过时“群不存在”“人数已满”两项检查同样在写入之后（读代码） | 录制 module/qr-join-review + 代码 `handleGroupJoinReview` | 已知缺陷 D8；写入第 14.3、18 节 |
-| F58 | 发起通话时给 `call.ringTimer` 赋值不持 `call.mu`（`hub.go` 的 `handleCallInvite`），而取消呼叫、断线结束通话会在别的 goroutine 里调用持锁读它的 `resolve()`。`resolve()` 赶在赋值前执行时停不掉计时器，振铃超时照常触发，因状态已是结束而空转。不影响线上帧，但是数据竞争；`call_test.go` 同款写法在 `go test -race` 下失败 | `server/` 首次在竞态检测下跑原有单测 + 代码 | 计划 1.11 修：在锁内启动计时器，状态已不是振铃时不启动 |
+| F58 | 发起通话时给 `call.ringTimer` 赋值不持 `call.mu`（`hub.go` 的 `handleCallInvite`），而取消呼叫、断线结束通话会在别的 goroutine 里调用持锁读它的 `resolve()`。`resolve()` 赶在赋值前执行时停不掉计时器，振铃超时照常触发，因状态已是结束而空转。不影响线上帧，但是数据竞争；`call_test.go` 同款写法在 `go test -race` 下失败 | `server/` 首次在竞态检测下跑原有单测 + 代码 | 已修（计划 1.11）：在锁内启动计时器，状态已不是振铃时不启动；`TestCallStateStartRingTimer_OnlyWhileRinging`、`TestCallStateStartRingTimer_RaceWithResolve` |
+| F59 | 入群申请（`group_join_request`）和审核结果（`group_join_reviewed`）的离线事件从不入队：存储层只接受 `grp_sync`、`grp_disband` 两种事件，入队调用总是返回错误、只记日志，不在线的管理员和申请人从来收不到 | 代码 `EnqueuePendingGroupEvent`、`notifyGroupManagersOfJoinRequest`、`notifyRequesterOfReview` | 已知缺陷 D9；strict 档入队并补投（计划 1.10，`TestD9_JoinReviewQueuedForOfflineApplicant`），legacy 档保持原样 |
+| F60 | 被顶替的连接在被顶替前已读入、之后才处理的 `sub`、`leave`、`pub`，会抢走新连接在话题索引里的位置，或把它删掉：新连接自以为已订阅，却再也收不到该会话的推送，直到重新登录 | 竞态测试 + 代码 `subscribeTopic`、`unsubscribeTopic` | 已修（计划 1.11）：每次登录分配递增的代号，索引只许代号更新的连接覆盖，已关闭的连接不入索引，退订只删自己；`TestR3_LateFrameFromReplacedConnection`、`TestR3_TopicIndexRules` |
+| F61 | 同一个新用户在两条连接上几乎同时首次登录时，后一个插入撞上 `im_users_im_user_id_key` 唯一约束（`ON CONFLICT` 只仲裁 `app_user_id`），这次登录得到 500 `server error` | 竞态测试 + 代码 `EnsureUser` | 已修（计划 1.11）：撞上该约束时重试一次；`TestEnsureUserConcurrentFirstLogin` |

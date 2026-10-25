@@ -14,7 +14,17 @@ const (
 	matrixPath  = "../../../contract/redlines/redlines.json"
 	renderedMD  = "../../../contract/redlines/matrix.md"
 	scenarioDir = "../../../contract/protocol/scenarios"
+	serverDir   = "../../../server"
 )
+
+func writtenTests(t *testing.T) map[string]bool {
+	t.Helper()
+	written, err := WrittenTests(serverDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return written
+}
 
 func load(t *testing.T) (*Matrix, []*harness.Scenario) {
 	t.Helper()
@@ -90,16 +100,17 @@ func TestRenderedFileIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(current, Render(m)) {
+	if !bytes.Equal(current, Render(m, writtenTests(t))) {
 		t.Fatal("matrix.md is out of date: run go run ./cmd/redlines write")
 	}
 }
 
 func TestRenderIsDeterministic(t *testing.T) {
 	m, _ := load(t)
-	first := Render(m)
+	written := writtenTests(t)
+	first := Render(m, written)
 	for i := 0; i < 5; i++ {
-		if !bytes.Equal(first, Render(m)) {
+		if !bytes.Equal(first, Render(m, written)) {
 			t.Fatal("Render output differs between runs")
 		}
 	}
@@ -211,5 +222,41 @@ func TestEachRuleFires(t *testing.T) {
 				t.Errorf("want a problem containing %q, got:\n%s", tc.want, joined)
 			}
 		})
+	}
+}
+
+// The server's red-line tests are found, marked written, and one that the
+// matrix does not list is reported.
+func TestWrittenTests(t *testing.T) {
+	dir := t.TempDir()
+	src := "package main\n\nimport \"testing\"\n\n" +
+		"func TestR1_ConcurrentDuplicatePublish(t *testing.T) {}\n" +
+		"func TestR2_NotInTheMatrix(t *testing.T) {}\n" +
+		"func TestSomethingElse(t *testing.T) {}\n" +
+		"func helper(t *testing.T) {}\n"
+	if err := os.WriteFile(dir+"/a_test.go", []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/b.go", []byte("package main\n\nfunc TestR3_NotATestFile(t *testing.T) {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	written, err := WrittenTests(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(written) != 3 || !written["TestR1_ConcurrentDuplicatePublish"] || !written["TestSomethingElse"] || written["TestR3_NotATestFile"] {
+		t.Fatalf("written: %v", written)
+	}
+	m, _ := load(t)
+	problems := CheckWritten(m, written)
+	if len(problems) != 1 || !strings.Contains(problems[0], "TestR2_NotInTheMatrix") {
+		t.Fatalf("problems: %v", problems)
+	}
+	out := string(Render(m, written))
+	if !strings.Contains(out, "`TestR1_ConcurrentDuplicatePublish`：服务端 1.11 已写") {
+		t.Fatal("a written server case is not marked in the summary")
+	}
+	if strings.Contains(string(Render(m, nil)), "已写") && !strings.Contains(string(Render(m, nil)), "已写 0 个") {
+		t.Fatal("nothing is written, yet a case is marked")
 	}
 }

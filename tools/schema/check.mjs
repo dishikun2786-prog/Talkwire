@@ -1,4 +1,6 @@
-// Validate every frame in the golden transcripts against the protocol v1 schemas.
+// Validate every frame in the golden transcripts against the protocol v1 schemas:
+// contract/protocol/transcripts/ (legacy) and transcripts-strict/ (the strict
+// profile's deviating scenarios, with its additions such as errCode).
 //
 // Usage: node tools/schema/check.mjs --ajv <dir containing node_modules/ajv>
 //
@@ -50,10 +52,10 @@ function expand(v) {
   return v;
 }
 
-const dir = join(root, "contract", "protocol", "transcripts");
+const dirs = ["transcripts", "transcripts-strict"].map((d) => join(root, "contract", "protocol", d));
 let frames = 0;
 const problems = [];
-for (const file of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
+for (const [dir, file] of dirs.flatMap((d) => readdirSync(d).filter((f) => f.endsWith(".json")).sort().map((f) => [d, f]))) {
   const tr = load(join(dir, file));
   const neg = new Set(negative[tr.scenario] || []);
   for (const step of tr.steps) {

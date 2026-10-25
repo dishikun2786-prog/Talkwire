@@ -28,6 +28,11 @@ UIDS = {"type": "array", "items": UID}
 INTS = {"type": "array", "items": I}
 PROVIDER = {"type": "string", "enum": ["fcm", "apns", "webpush"],
             "description": "push service of the token; absent means fcm"}
+DEVICE = {"type": "string", "pattern": "^[A-Za-z0-9._:-]{0,64}$",
+          "description": "the device the login comes from (multi-device); absent or empty: the device \"\", "
+                         "one connection per user as with the reference server"}
+ERRCODE = {"type": "string", "pattern": "^[a-z][a-z0-9_]*$",
+           "description": "strict profile: stable machine-readable error code"}
 
 
 def ref(name):
@@ -47,7 +52,7 @@ def obj(props, required=(), extra=True):
 # ---------------------------------------------------------------- client side
 # action -> (properties, required). "id" and "action" are added to every one.
 CLIENT = {
-    "login": ({"token": NS}, ["token"]),
+    "login": ({"token": NS, "device": DEVICE}, ["token"]),
     "sub": ({"topic": NS}, ["topic"]),
     "leave": ({"topic": NS}, ["topic"]),
     "pub": ({"topic": NS, "content": S, "contentType": S, "fileUrl": S, "fileName": S,
@@ -159,7 +164,7 @@ SERVER_DEFS = {
     "forwardTargetResult": obj({"topic": S, "ok": B, "seq": POS, "reason": S}, ["topic", "ok"], extra=False),
 }
 
-E = {"id": S, "action": NS, "code": {"type": "integer", "minimum": 400}, "reason": S}
+E = {"id": S, "action": NS, "code": {"type": "integer", "minimum": 400}, "reason": S, "errCode": ERRCODE}
 ERROR = obj(E, ["action", "code"], extra=False)
 
 C200 = {"const": 200}
@@ -168,7 +173,9 @@ OKCODE = {"enum": [200, 201]}
 # action -> list of alternative shapes (properties, required). "action" added automatically.
 # Error replies (code >= 400) are handled once, generically.
 SERVER_ACTION = {
-    "login": [({"code": C200, "uid": UID}, ["code", "uid"])],
+    # id, protocol, capabilities and vapidKey: strict profile only.
+    "login": [({"id": S, "code": C200, "uid": UID, "protocol": POS, "capabilities": STRS, "vapidKey": S},
+               ["code", "uid"])],
     "error": [],
     "note": [],  # no success reply; only errors (e.g. non-member)
     "sub": [({"id": S, "code": C200, "topic": NS}, ["code", "topic"])],
@@ -183,7 +190,8 @@ SERVER_ACTION = {
               "readCursors": {"type": "array", "items": ref("readCursor")}}, ["code", "topic"])],
     "pres": [
         ({"topic": UID, "what": {"enum": ["on", "off"]}, "online": B, "presRev": I}, ["topic", "what"]),
-        ({"code": C200, "what": {"const": "snapshot"}, "states": {"type": "array", "items": ref("presenceState")}},
+        # id: strict profile only.
+        ({"id": S, "code": C200, "what": {"const": "snapshot"}, "states": {"type": "array", "items": ref("presenceState")}},
          ["code", "what"]),
     ],
     "del": [({"id": S, "code": C200, "topic": NS, "seq": POS}, ["code", "topic", "seq"])],

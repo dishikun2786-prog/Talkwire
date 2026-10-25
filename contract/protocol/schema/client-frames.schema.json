@@ -90,6 +90,11 @@
           "token": {
             "type": "string",
             "minLength": 1
+          },
+          "device": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._:-]{0,64}$",
+            "description": "the device the login comes from (multi-device); absent or empty: the device \"\", one connection per user as with the reference server"
           }
         },
         "required": [
