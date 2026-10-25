@@ -41,11 +41,11 @@ type (
 	loginHook interface {
 		afterLogin(h *Hub, c *Client)
 	}
-	// connectionHook hears about a uid coming online and about its last
-	// connection going away (not when a newer connection supersedes it).
+	// connectionHook hears about each device of a uid connecting and going
+	// away (not when a newer connection of the same device supersedes it).
 	connectionHook interface {
-		connected(h *Hub, uid string)
-		disconnected(h *Hub, uid string)
+		connected(h *Hub, uid, device string)
+		disconnected(h *Hub, uid, device string)
 	}
 	// preStoreHook can refuse a pub before it is stored; it sends the
 	// error reply itself and returns false.
@@ -274,24 +274,24 @@ func (m *modules) afterLogin(h *Hub, c *Client) {
 	}
 }
 
-func (m *modules) connected(h *Hub, uid string) {
+func (m *modules) connected(h *Hub, uid, device string) {
 	if m == nil {
 		return
 	}
 	for _, mod := range m.installed {
 		if hook, ok := mod.(connectionHook); ok {
-			hook.connected(h, uid)
+			hook.connected(h, uid, device)
 		}
 	}
 }
 
-func (m *modules) disconnected(h *Hub, uid string) {
+func (m *modules) disconnected(h *Hub, uid, device string) {
 	if m == nil {
 		return
 	}
 	for _, mod := range m.installed {
 		if hook, ok := mod.(connectionHook); ok {
-			hook.disconnected(h, uid)
+			hook.disconnected(h, uid, device)
 		}
 	}
 }

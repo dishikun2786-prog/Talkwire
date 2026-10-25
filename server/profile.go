@@ -35,11 +35,15 @@ const ProtocolVersion = 1
 const (
 	CapErrCode = "errcode"  // error frames carry errCode
 	CapReplyID = "reply-id" // login and presence snapshot replies carry the request id
+	// CapMultiDevice: a login may name its device; the user stays connected
+	// on every device, and only a new login of the same device replaces a
+	// connection (task 1.12).
+	CapMultiDevice = "multi-device"
 )
 
 // capabilities lists what this server offers, for the login reply.
 func (h *Hub) capabilities() []string {
-	caps := []string{CapErrCode, CapReplyID}
+	caps := []string{CapErrCode, CapReplyID, CapMultiDevice}
 	for _, name := range h.mods.names() {
 		caps = append(caps, "module:"+name)
 	}
@@ -72,6 +76,8 @@ var errCodes = map[string]string{
 	"token required":    "token_required",
 	"invalid token":     "invalid_token",
 	"already logged in": "already_logged_in",
+	"invalid device":    "invalid_device",
+	"too many devices":  "too_many_devices",
 	"bad request":       "bad_request",
 
 	"topic required":                          "missing_field",

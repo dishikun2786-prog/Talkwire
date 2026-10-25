@@ -18,6 +18,11 @@ import (
 // like its im_pending_clears/im_pending_group_events counterparts so a
 // slow query never delays the login ack itself.
 func (h *Hub) deliverPendingE2eEnvelopes(client *Client) {
+	// Only the device that published the identity holds the keys (task
+	// 1.12); the queue waits for it.
+	if client.Device() != h.e2eOwner(client.uid) {
+		return
+	}
 	pending, err := h.store.PopE2eEnvelopesForUID(client.uid)
 	if err != nil {
 		logf("deliverPendingE2eEnvelopes: query failed for %s: %v", client.uid, err)
@@ -81,6 +86,28 @@ func (h *Hub) e2ePeerAllowed(client *Client, peerUID string) (bool, error) {
 	return h.host.AreFriends(client.appUserID, peerAppUserID)
 }
 
+// e2eOwner returns the device that published uid's E2EE identity ("" when
+// none did). E2EE is single-device in v1 (task 1.12): envelopes are relayed
+// to, queued for and replayed to that device only, so a device without the
+// keys never takes them.
+func (h *Hub) e2eOwner(uid string) string {
+	if v, ok := h.e2eOwners.Load(uid); ok {
+		return v.(string)
+	}
+	device, err := h.store.GetE2eOwnerDevice(uid)
+	if err != nil {
+		logf("e2eOwner(%s): %v", uid, err)
+		return device
+	}
+	h.e2eOwners.LoadOrStore(uid, device)
+	return device
+}
+
+// e2eClient returns the connection of uid's E2EE device, or nil.
+func (h *Hub) e2eClient(uid string) *Client {
+	return h.clientOf(uid, h.e2eOwner(uid))
+}
+
 // relayE2eEnvelope delivers one encrypted payload to toUID: directly over
 // their live socket if they're online right now (the common case, and the
 // one that never touches disk at all — true real-time relay), or queued in
@@ -100,7 +127,7 @@ func (h *Hub) relayE2eEnvelope(topic, fromUID, toUID, kind, payload string, msgT
 	// case the connection also happens to be dead and about to reconnect
 	// anyway, in which case deliverPendingE2eEnvelopes on that reconnect
 	// picks this up exactly like any other queued envelope.
-	if target := h.GetClientByUID(toUID); target != nil {
+	if target := h.e2eClient(toUID); target != nil {
 		delivered := target.TrySendJSON(&ServerMessage{
 			Action: ActionE2eDeliver, Topic: topic, From: fromUID,
 			E2eKind: kind, E2eMsgType: msgType, Content: payload,
@@ -142,12 +169,11 @@ func (h *Hub) pushE2e(toUID, topic string) {
 	if !rc.FCMEnabled || h.pusher == nil {
 		return
 	}
-	tokensByUID, err := h.store.GetPushTokensBatch([]string{toUID})
-	if err != nil {
-		logf("pushE2e: GetPushTokensBatch failed: %v", err)
+	tokens := h.pushTargetsOn([]string{toUID}, "pushE2e", map[string]string{toUID: h.e2eOwner(toUID)})[toUID]
+	if len(tokens) == 0 {
 		return
 	}
-	h.sendPush(toUID, tokensByUID[toUID], push.Notification{
+	h.sendPush(toUID, tokens, push.Notification{
 		Kind:    push.KindE2eMessage,
 		Topic:   topic,
 		IsGroup: strings.HasPrefix(topic, "grp_"),
@@ -172,11 +198,12 @@ func (h *Hub) handleE2ePublishBundle(client *Client, msg *ClientMessage) {
 		client.SendAny(&E2ePublishBundleResult{Type: TypeE2ePublishBundleResult, ReqId: msg.ReqID, Ok: false, Reason: "bad_request"})
 		return
 	}
-	if err := h.store.UpsertE2eIdentity(client.uid, 1, b); err != nil {
+	if err := h.store.UpsertE2eIdentity(client.uid, 1, b, client.Device()); err != nil {
 		logf("handleE2ePublishBundle: %v", err)
 		client.SendAny(&E2ePublishBundleResult{Type: TypeE2ePublishBundleResult, ReqId: msg.ReqID, Ok: false, Reason: "internal_error"})
 		return
 	}
+	h.e2eOwners.Store(client.uid, client.Device())
 	client.SendAny(&E2ePublishBundleResult{Type: TypeE2ePublishBundleResult, ReqId: msg.ReqID, Ok: true})
 	logf("[E2EE] %s published a bundle (%d one-time prekeys)", client.uid, len(b.OneTimePreKeys))
 }
@@ -345,7 +372,7 @@ func (h *Hub) handleE2eTerminate(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionE2eTerminate, CodeAuth, "not authorized"))
 		return
 	}
-	if target := h.GetClientByUID(msg.User); target != nil {
+	if target := h.e2eClient(msg.User); target != nil {
 		target.SendJSON(&ServerMessage{Action: ActionE2eTerminated, Topic: msg.Topic, From: client.uid})
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionE2eTerminate, Code: CodeOK, Topic: msg.Topic})
@@ -371,7 +398,7 @@ func (h *Hub) handleE2eClear(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionE2eClear, CodeAuth, "not authorized"))
 		return
 	}
-	if target := h.GetClientByUID(msg.User); target != nil {
+	if target := h.e2eClient(msg.User); target != nil {
 		target.SendJSON(&ServerMessage{Action: ActionE2eCleared, Topic: msg.Topic, From: client.uid})
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionE2eClear, Code: CodeOK, Topic: msg.Topic})

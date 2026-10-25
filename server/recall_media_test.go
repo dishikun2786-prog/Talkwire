@@ -58,7 +58,7 @@ func TestR6_RecallReclaimsVideoThumbnail(t *testing.T) {
 	}
 
 	host := &mediaHost{}
-	h := &Hub{store: s, host: host, clients: map[string]*Client{}, topics: map[string]map[string]*Client{}}
+	h := &Hub{store: s, host: host, clients: map[string]map[string]*Client{}, topics: map[string]map[connKey]*Client{}}
 	c := &Client{hub: h, uid: a, send: make(chan []byte, 8)}
 	recall := func(seq int) {
 		h.handleDel(c, &ClientMessage{Id: "d", Action: ActionDel, Topic: topic, Seq: seq})

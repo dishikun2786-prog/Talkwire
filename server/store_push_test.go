@@ -45,12 +45,16 @@ func testStore(t *testing.T) *Store {
 
 func tokensOf(t *testing.T, s *Store, uids ...string) map[string][]push.Token {
 	t.Helper()
-	m, err := s.GetPushTokensBatch(uids)
+	byUID, err := s.GetPushTokensBatch(uids)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ts := range m {
-		sort.Slice(ts, func(i, j int) bool { return ts[i].Value < ts[j].Value })
+	m := map[string][]push.Token{}
+	for uid, ts := range byUID {
+		for _, dt := range ts {
+			m[uid] = append(m[uid], dt.Token)
+		}
+		sort.Slice(m[uid], func(i, j int) bool { return m[uid][i].Value < m[uid][j].Value })
 	}
 	return m
 }
@@ -63,7 +67,7 @@ func TestPushTokenStore(t *testing.T) {
 		{"uid_1", push.APNs, apnsToken},
 		{"uid_2", push.WebPush, `{"endpoint":"https://fcm.googleapis.com/x"}`},
 	} {
-		if err := s.SavePushToken(r.uid, r.provider, r.token); err != nil {
+		if err := s.SavePushToken(r.uid, r.provider, r.token, ""); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -76,7 +80,7 @@ func TestPushTokenStore(t *testing.T) {
 	}
 
 	// A token moves with the account that registers it last.
-	if err := s.SavePushToken("uid_2", push.FCM, "t1"); err != nil {
+	if err := s.SavePushToken("uid_2", push.FCM, "t1", ""); err != nil {
 		t.Fatal(err)
 	}
 	got := tokensOf(t, s, "uid_1", "uid_2")
@@ -174,9 +178,9 @@ func (f *fakeSender) Send(_ context.Context, token string, _ push.Notification) 
 func TestSendPushRoutesAndPrunes(t *testing.T) {
 	s := testStore(t)
 	apnsToken := strings.Repeat("cd", 32)
-	s.SavePushToken("uid_1", push.FCM, "f1")
-	s.SavePushToken("uid_1", push.APNs, apnsToken)
-	s.SavePushToken("uid_1", push.WebPush, "w1")
+	s.SavePushToken("uid_1", push.FCM, "f1", "")
+	s.SavePushToken("uid_1", push.APNs, apnsToken, "")
+	s.SavePushToken("uid_1", push.WebPush, "w1", "")
 	fcm, apns := &fakeSender{}, &fakeSender{err: push.ErrTokenGone}
 	h := &Hub{store: s, pusher: push.NewDispatcher(map[string]push.Sender{push.FCM: fcm, push.APNs: apns})}
 

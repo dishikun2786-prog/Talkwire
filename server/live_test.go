@@ -183,10 +183,45 @@ func (ls *liveServer) connectAt(path, appUser string) *liveConn {
 	return c
 }
 
+// connectDevice dials and logs appUser in from device.
+func (ls *liveServer) connectDevice(appUser, device string) *liveConn {
+	ls.t.Helper()
+	c, _, err := ls.dial("/ws")
+	if err != nil {
+		ls.t.Fatalf("dial: %v", err)
+	}
+	if reply := c.loginFrom(appUser, device); reply.num("code") != CodeOK {
+		ls.t.Fatalf("login %s from %q: %v", appUser, device, reply)
+	}
+	ls.waitRegistered(c.uid, device)
+	return c
+}
+
+// waitRegistered waits until the hub has a connection for (uid, device).
+func (ls *liveServer) waitRegistered(uid, device string) {
+	ls.t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); ls.hub.clientOf(uid, device) == nil; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			ls.t.Fatalf("%s device %q was never registered", uid, device)
+		}
+	}
+}
+
 // login sends a login and returns its reply (which carries no id).
 func (c *liveConn) login(appUser string) frame {
 	c.t.Helper()
-	c.send(frame{"action": ActionLogin, "token": accessToken(appUser)})
+	return c.loginFrom(appUser, "")
+}
+
+// loginFrom logs in from a device; "" sends no device, as clients that
+// predate several devices per user do.
+func (c *liveConn) loginFrom(appUser, device string) frame {
+	c.t.Helper()
+	f := frame{"action": ActionLogin, "token": accessToken(appUser)}
+	if device != "" {
+		f["device"] = device
+	}
+	c.send(f)
 	f, ok := c.waitFor(func(f frame) bool { return f.str("action") == ActionLogin }, 5*time.Second)
 	if !ok {
 		c.t.Fatalf("no login reply for %s", appUser)

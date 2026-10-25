@@ -82,26 +82,24 @@ func (h *Hub) handleCreateGrp(client *Client, msg *ClientMessage) {
 
 	// Notify initial members who are currently online so their conversation
 	// list picks the group up immediately instead of waiting for their next
-	// unrelated refresh/reconnect.
-	offline := make([]string, 0, len(members))
-	for _, uid := range members {
-		if target := h.GetClientByUID(uid); target != nil {
-			// DB membership alone does not put them in h.topics, which is what
-			// BroadcastToTopic actually iterates — and pushOfflineRecipients
-			// skips anyone holding a live connection, so without this an online
-			// member got the group's messages via neither WS nor FCM. Exactly
-			// the reason syncP2PPeer exists on the 1:1 path.
-			target.Subscribe(topic)
-			target.SendJSON(&ServerMessage{Action: ActionGrpSync, Topic: topic, Name: msg.Name, From: client.uid})
-			continue
-		}
-		offline = append(offline, uid)
-	}
+	// unrelated refresh/reconnect. DB membership alone does not put them in
+	// h.topics, which is what BroadcastToTopic actually iterates — and
+	// pushOfflineRecipients skips anyone holding a live connection, so without
+	// subscribing them an online member got the group's messages via neither
+	// WS nor FCM. Exactly the reason syncP2PPeer exists on the 1:1 path.
+	//
 	// F-04：建群时不在线的成员改前什么都收不到。DB 里有成员行，但端侧要等到
 	// 下一次 get_groups 才可能发现自己进了这个群；在那之前群里发的消息对他
 	// 既没有实时推送（不在 h.topics 里）也进不了会话列表。留一条持久事件，
 	// 下次登录由 deliverPendingGroupEvents 补投。
-	h.enqueueGroupEventForOffline(topic, offline, client.uid, ActionGrpSync, msg.Name)
+	//
+	// The creator's other devices learn about the group the same way (task
+	// 1.12).
+	h.deliverGroupEvent(groupEvent{
+		topic: topic, kind: ActionGrpSync, name: msg.Name, from: client.uid,
+		frame:      &ServerMessage{Action: ActionGrpSync, Topic: topic, Name: msg.Name, From: client.uid},
+		membership: 1, queue: true,
+	}, append(members, client.uid), client)
 }
 
 func (h *Hub) handleInvite(client *Client, msg *ClientMessage) {
@@ -191,21 +189,21 @@ func (h *Hub) handleInvite(client *Client, msg *ClientMessage) {
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionInvite, Code: CodeOK, Topic: msg.Topic, User: msg.User})
 	logf("[Group] %s invited %s to %s", client.uid, msg.User, msg.Topic)
 
-	// Notify the invited user immediately if they're online.
-	if target := h.GetClientByUID(msg.User); target != nil {
-		// Same gap as handleCreateGrp: AddGroupMember only wrote the DB row.
-		// The invitee stayed absent from h.topics (no BroadcastToTopic
-		// delivery) yet present in h.clients (so pushOfflineRecipients skipped
-		// them too), and the client's own handleGroupSync adds the topic to
-		// knownTopics WITHOUT subscribing — which then suppresses every
-		// client-side repair path until a full re-login.
-		target.Subscribe(msg.Topic)
-		target.SendJSON(&ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid})
-	} else {
-		// F-05：被邀请人不在线时改前什么都不留，他要等到下一次 get_groups 才
-		// 可能发现自己进了群。与 handleCreateGrp 是同一个缺口。
-		h.enqueueGroupEventForOffline(msg.Topic, []string{msg.User}, client.uid, ActionGrpSync, info.Name)
-	}
+	// Notify the invited user immediately on each device they're connected
+	// from. Same gap as handleCreateGrp: AddGroupMember only wrote the DB
+	// row. The invitee stayed absent from h.topics (no BroadcastToTopic
+	// delivery) yet present in h.clients (so pushOfflineRecipients skipped
+	// them too), and the client's own handleGroupSync adds the topic to
+	// knownTopics WITHOUT subscribing — which then suppresses every
+	// client-side repair path until a full re-login.
+	//
+	// F-05：被邀请人不在线时改前什么都不留，他要等到下一次 get_groups 才
+	// 可能发现自己进了群。与 handleCreateGrp 是同一个缺口。
+	h.deliverGroupEvent(groupEvent{
+		topic: msg.Topic, kind: ActionGrpSync, name: info.Name, from: client.uid,
+		frame:      &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid},
+		membership: 1, queue: true,
+	}, []string{msg.User}, client)
 }
 
 func (h *Hub) handleKick(client *Client, msg *ClientMessage) {
@@ -271,21 +269,31 @@ func (h *Hub) handleKick(client *Client, msg *ClientMessage) {
 	// grp_disband: from the kicked user's point of view "I'm no longer in
 	// this group" has the same client-side effect (drop it from the
 	// conversation list) as the group being disbanded.
-	if kicked := h.GetClientByUID(msg.User); kicked != nil {
-		kicked.Unsubscribe(msg.Topic)
-		kicked.SendJSON(&ServerMessage{Action: ActionGrpDisband, Topic: msg.Topic, From: client.uid})
-	} else {
-		// F-07：被踢的人不在线时改前什么都不留。他的成员行已经没了，
-		// GetTopicMemberUIDs 从此不再枚举他，所以也不会有任何后续消息或推送
-		// 顺带纠正他本地那条会话 —— 那个群会一直挂在他的会话列表里，点进去
-		// 是空的、发消息 401。
-		h.enqueueGroupEventForOffline(msg.Topic, []string{msg.User}, client.uid, ActionGrpDisband, "")
-	}
+	//
+	// F-07：被踢的人不在线时改前什么都不留。他的成员行已经没了，
+	// GetTopicMemberUIDs 从此不再枚举他，所以也不会有任何后续消息或推送
+	// 顺带纠正他本地那条会话 —— 那个群会一直挂在他的会话列表里，点进去
+	// 是空的、发消息 401。
+	h.deliverGroupEvent(groupEvent{
+		topic: msg.Topic, kind: ActionGrpDisband, from: client.uid,
+		frame:      &ServerMessage{Action: ActionGrpDisband, Topic: msg.Topic, From: client.uid},
+		membership: -1, queue: true,
+	}, []string{msg.User}, client)
 	// Nudge remaining members so an open group-info/member-list screen
 	// refreshes immediately instead of showing the kicked user until reload.
 	h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, From: client.uid}, "")
 
 	h.mods.memberRemoved(h, msg.Topic, client.uid, "member_removed", "")
+}
+
+// leftGroupOnOtherDevices takes a group off the leaver's other devices (task
+// 1.12): they get the grp_disband a kicked member gets, live or queued.
+func (h *Hub) leftGroupOnOtherDevices(client *Client, topic string) {
+	h.deliverGroupEvent(groupEvent{
+		topic: topic, kind: ActionGrpDisband, from: client.uid,
+		frame:      &ServerMessage{Action: ActionGrpDisband, Topic: topic, From: client.uid},
+		membership: -1, queue: true,
+	}, []string{client.UID()}, client)
 }
 
 func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
@@ -341,6 +349,7 @@ func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 		}
 		client.Unsubscribe(msg.Topic)
 		client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionLeaveGrp, Code: CodeOK, Topic: msg.Topic})
+		h.leftGroupOnOtherDevices(client, msg.Topic)
 		return
 	}
 	if err := h.store.RemoveGroupMember(msg.Topic, client.uid); err != nil {
@@ -349,6 +358,7 @@ func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 	}
 	client.Unsubscribe(msg.Topic)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionLeaveGrp, Code: CodeOK, Topic: msg.Topic})
+	h.leftGroupOnOtherDevices(client, msg.Topic)
 	// H9: an ordinary member leaving used to notify nobody. Remaining
 	// members' in-memory subscription (h.topics[topic]) still includes
 	// this client at the moment RemoveGroupMember's DB row disappears, so
@@ -549,7 +559,17 @@ func (h *Hub) handleDisbandGrp(client *Client, msg *ClientMessage) {
 	client.Unsubscribe(msg.Topic)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionDisbandGrp, Code: CodeOK, Topic: msg.Topic})
 	logf("[Group] %s disbanded %s", client.uid, msg.Topic)
-	h.enqueueGroupEventForOffline(msg.Topic, members, client.uid, ActionGrpDisband, "")
+	// The broadcast above reached every connected device subscribed to the
+	// group; devices that were away get the disband queued.
+	reached := make(map[string][]string, len(members))
+	for _, uid := range members {
+		reached[uid] = h.onlineDevices(uid)
+	}
+	h.queueMissing(members, reached, func(uid string, delivered []string) {
+		if err := h.store.EnqueuePendingGroupEvent(msg.Topic, uid, ActionGrpDisband, "", client.uid, delivered); err != nil {
+			logf("handleDisbandGrp: queue for %s: %v", uid, err)
+		}
+	})
 }
 
 func (h *Hub) handleUpdateGrp(client *Client, msg *ClientMessage) {
@@ -581,7 +601,7 @@ func (h *Hub) handleUpdateGrp(client *Client, msg *ClientMessage) {
 	// F-37：改前只有发起改名的那个人拿到了新群名，其余成员的会话列表要等到
 	// 下一次 get_groups 才更新 —— 群名在他们眼里可以过期几个小时。排除发起者：
 	// 他刚拿到的那条 200 ack 里已经带着新名字了。
-	h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: msg.Name, From: client.uid}, client.uid)
+	h.BroadcastToTopicExcept(msg.Topic, &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: msg.Name, From: client.uid}, client)
 }
 
 func (h *Hub) handleGetGrps(client *Client, msg *ClientMessage) {

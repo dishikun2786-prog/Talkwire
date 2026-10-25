@@ -10,12 +10,20 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			uid, device := client.UID(), client.Device()
 			var victim *Client
 			h.mu.Lock()
-			if existing, ok := h.clients[client.uid]; ok && existing != client {
+			devices := h.clients[uid]
+			if devices == nil {
+				devices = make(map[string]*Client)
+				h.clients[uid] = devices
+			}
+			// Only a login from the same device replaces a connection.
+			if existing, ok := devices[device]; ok && existing != client {
 				victim = existing
 			}
-			h.clients[client.uid] = client
+			devices[device] = client
+			total := len(h.clients)
 			h.mu.Unlock()
 
 			// This uid is live again -- cancel any scheduleForceEndCallForDisconnect
@@ -23,7 +31,7 @@ func (h *Hub) Run() {
 			// unconditionally on every register, not just reconnects with a
 			// victim below: a brand new login for a uid that was never in a
 			// call is simply a no-op inside cancelPendingCallDisconnect.
-			h.mods.connected(h, client.uid)
+			h.mods.connected(h, uid, device)
 
 			// Disconnect() blocking-sends on h.unregister, and the ONLY
 			// receiver of that channel is this very Run loop. Calling it
@@ -47,11 +55,16 @@ func (h *Hub) Run() {
 				}(victim)
 			}
 
-			h.enqueuePresence(client.uid, PresOnline)
-			logf("Client registered: %s (total: %d)", client.uid, len(h.clients))
+			// Every login announces "on", as in the reference server (a
+			// bystander sees "on" again when a connection is replaced).
+			h.enqueuePresence(uid, PresOnline)
+			logf("Client registered: %s device %q (users online: %d)", uid, device, total)
 
 		case client := <-h.unregister:
 			topics := client.drainSubscriptions()
+			uid, device := client.UID(), client.Device()
+			key := connKey{uid, device}
+			lastDevice := false
 			h.mu.Lock()
 			// A reconnecting user briefly has two live *Client objects for one
 			// uid, and the superseded one unregisters *after* the replacement
@@ -60,9 +73,14 @@ func (h *Hub) Run() {
 			// (h.clients[uid] missing entirely also lands here: either the
 			// replacement already unregistered, or this client never got in —
 			// both mean "not the live connection", which is what we want.)
-			superseded := h.clients[client.uid] != client
+			devices := h.clients[uid]
+			superseded := devices[device] != client
 			if !superseded {
-				delete(h.clients, client.uid)
+				delete(devices, device)
+				if len(devices) == 0 {
+					delete(h.clients, uid)
+					lastDevice = true
+				}
 			}
 			for _, topic := range topics {
 				if m, ok := h.topics[topic]; ok {
@@ -74,8 +92,8 @@ func (h *Hub) Run() {
 					// believing it was subscribed (its `sub` had returned 200,
 					// and the client's knownTopics guard suppresses any re-sub),
 					// with only a full re-login as repair.
-					if m[client.uid] == client {
-						delete(m, client.uid)
+					if m[key] == client {
+						delete(m, key)
 						if len(m) == 0 {
 							delete(h.topics, topic)
 						}
@@ -84,17 +102,30 @@ func (h *Hub) Run() {
 			}
 			h.mu.Unlock()
 
-			if client.uid == "" {
+			if uid == "" {
 				break
 			}
 			if superseded {
 				// Announcing "offline" here is how a user who had just
 				// reconnected got shown as offline to all their peers, with
 				// nothing in the system able to correct it afterwards.
-				logf("Client unregistered (superseded by newer session, presence unchanged): %s", client.uid)
+				logf("Client unregistered (superseded by newer session, presence unchanged): %s device %q", uid, device)
+				break
+			}
+			go func() {
+				if err := h.store.EnsureDevice(uid, device); err != nil {
+					logf("EnsureDevice(%s, %q) on logout: %v", uid, device, err)
+				}
+			}()
+			if !lastDevice {
+				// The user is still online on another device: no presence
+				// change. The modules still hear that this device left (a
+				// call on it must end).
+				logf("Client unregistered: %s device %q (other devices online)", uid, device)
+				h.mods.disconnected(h, uid, device)
 			} else {
-				h.enqueuePresence(client.uid, PresOffline)
-				logf("Client unregistered: %s (total: %d)", client.uid, len(h.clients))
+				h.enqueuePresence(uid, PresOffline)
+				logf("Client unregistered: %s device %q (users online: %d)", uid, device, len(h.clients))
 				// Deliberately inside the !superseded branch, same "connection
 				// identity, not uid string" discipline as the h.topics cleanup
 				// a few lines up (IM_VOICE_VIDEO_CALL_PLAN.md §4.3): a mere
@@ -112,7 +143,7 @@ func (h *Hub) Run() {
 				// comment for why the ~5-second-scale window this teardown/
 				// rebuild takes on some OEM skins can't be caught by the
 				// supersede check above alone.
-				h.mods.disconnected(h, client.uid)
+				h.mods.disconnected(h, uid, device)
 			}
 		}
 	}
@@ -142,6 +173,10 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeAuth, "token required"))
 		return
 	}
+	if !validDevice(msg.Device) {
+		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeBadReq, "invalid device"))
+		return
+	}
 	appUserID, err := h.auth.UserID(msg.Token)
 	if err != nil {
 		logf("Login failed: %v", err)
@@ -154,6 +189,11 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeInternal, "server error"))
 		return
 	}
+	if !h.deviceSlotFree(imUID, msg.Device) {
+		logf("Login refused: %s already connected from %d devices", imUID, maxDevicesPerUser)
+		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeConflict, "too many devices"))
+		return
+	}
 	// 本次审查顺带发现并修复：这两行此前都是绕过 c.mu 的裸字段赋值，即使
 	// UID()/setUID() 已经存在（F-39 的修复），登录处理本身却从未真正改用它——
 	// 意味着 F-39 只修了"读"，没有修"写"，读侧的锁保护不了一个仍然不加锁的
@@ -161,6 +201,12 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 	// 一并按 setUID/AppUserID() 的同款模式补上 setAppUserID()（见 client.go）。
 	client.setUID(imUID)
 	client.setAppUserID(appUserID)
+	client.setDevice(msg.Device)
+	// Known devices decide which changes are queued for a device that is
+	// away (see queueMissing). A failure here only loses that.
+	if err := h.store.EnsureDevice(imUID, msg.Device); err != nil {
+		logf("EnsureDevice(%s, %q) failed: %v", imUID, msg.Device, err)
+	}
 	client.loginTime = time.Now()
 	// The generation and the queue position are taken together, so the
 	// order Run registers connections in is the order of their generations
@@ -171,14 +217,8 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 	h.register <- client
 	h.loginMu.Unlock()
 	client.SendJSON(h.loginReply(msg.Id, imUID))
-	logf("User logged in: %s -> %s", appUserID, imUID)
+	logf("User logged in: %s -> %s device %q", appUserID, imUID, msg.Device)
 	go h.deliverPendingClears(client)
 	go h.deliverPendingGroupEvents(client)
 	h.mods.afterLogin(h, client)
-}
-
-func (h *Hub) GetClientByUID(uid string) *Client {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.clients[uid]
 }

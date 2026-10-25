@@ -264,13 +264,13 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 		h.deliverAiFallback(topic, aiQaFailureMessage(reason))
 		return
 	}
-	if _, _, _, err := h.deliverMessage(topic, AiAssistantUID, SenderKindAiAssistant, answer, MsgTypeText, "", "", nil, 0, nil, ""); err != nil {
+	if _, _, _, err := h.deliverMessage(topic, AiAssistantUID, SenderKindAiAssistant, answer, MsgTypeText, "", "", nil, 0, nil, "", nil); err != nil {
 		logf("dispatchAiQaTask: deliver AI reply failed: %v", err)
 	}
 }
 
 func (h *Hub) deliverAiFallback(topic, text string) {
-	if _, _, _, err := h.deliverMessage(topic, AiAssistantUID, SenderKindAiAssistant, text, MsgTypeText, "", "", nil, 0, nil, ""); err != nil {
+	if _, _, _, err := h.deliverMessage(topic, AiAssistantUID, SenderKindAiAssistant, text, MsgTypeText, "", "", nil, 0, nil, "", nil); err != nil {
 		logf("dispatchAiQaTask: deliver fallback failed: %v", err)
 	}
 }

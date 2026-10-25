@@ -71,6 +71,7 @@ type Client struct {
 	send       chan []byte
 	uid        string // IM user ID (uid_xxx)
 	appUserID  string // original app user UUID
+	device     string // the device from login; "" when the login named none
 	loginTime  time.Time
 	mu         sync.Mutex
 	subscribed map[string]bool // topics this client is subscribed to
@@ -290,6 +291,28 @@ func (c *Client) setAppUserID(appUserID string) {
 	c.mu.Lock()
 	c.appUserID = appUserID
 	c.mu.Unlock()
+}
+
+// Device returns the device the client logged in from, under c.mu.
+func (c *Client) Device() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.device
+}
+
+// setDevice records the device. Called once, from the login handler, before
+// the client is registered with the hub.
+func (c *Client) setDevice(device string) {
+	c.mu.Lock()
+	c.device = device
+	c.mu.Unlock()
+}
+
+// key is the client's slot in the connection table and the topic index.
+func (c *Client) key() connKey {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return connKey{c.uid, c.device}
 }
 
 // IsAuthenticated returns true if the client has logged in

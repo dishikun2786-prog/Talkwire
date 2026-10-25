@@ -11,7 +11,7 @@ import (
 // been online. Runs on a `go` goroutine off handleLogin so a slow/failing
 // query never delays the login ack itself.
 func (h *Hub) deliverPendingClears(client *Client) {
-	pending, err := h.store.GetPendingClears(client.uid)
+	pending, err := h.store.GetPendingClears(client.uid, client.Device())
 	if err != nil {
 		logf("deliverPendingClears: query failed for %s: %v", client.uid, err)
 		return
@@ -36,7 +36,7 @@ func (h *Hub) handleAckTopicCleared(client *Client, msg *ClientMessage) {
 	if err != nil {
 		return
 	}
-	if err := h.store.AckPendingClear(id, client.uid); err != nil {
+	if err := h.store.AckPendingClear(id, client.uid, client.Device()); err != nil {
 		logf("handleAckTopicCleared: %v", err)
 	}
 }
@@ -69,29 +69,17 @@ type pendingGroupEventPush struct {
 	JoinStatus string `json:"joinStatus,omitempty"`
 }
 
-// enqueueGroupEventForOffline 给此刻**不在线**的成员各留一条持久事件，等他们
-// 下次登录由 deliverPendingGroupEvents 补投。在线成员刚刚已经通过 WS 收到过
-// 同一事件，不入队。
-//
-// 与 broadcastTopicCleared 的离线分支是同一套设计：群成员关系的变化（进群、
-// 被踢、群解散）在服务端是一次性事件，成员行改完就没有任何后续流量会顺带
-// 纠正一个当时不在线的人的本地状态。
-func (h *Hub) enqueueGroupEventForOffline(topic string, uids []string, fromUID, kind, groupName string) {
-	for _, uid := range uids {
-		if uid == "" || uid == fromUID || h.GetClientByUID(uid) != nil {
-			continue
-		}
-		if err := h.store.EnqueuePendingGroupEvent(topic, uid, kind, groupName, fromUID); err != nil {
-			logf("enqueueGroupEventForOffline: topic=%s uid=%s kind=%s: %v", topic, uid, kind, err)
-		}
-	}
-}
+// Group events for devices that were away are queued by deliverGroupEvent
+// and queueMissing (devices.go): a membership change (joining, being
+// kicked, a group disbanded) is a one-off event on the server, and once the
+// member rows changed no later traffic corrects the local state of a device
+// that was not connected.
 
 // deliverPendingGroupEvents 重放这个 uid 离线期间错过的群事件。与
 // deliverPendingClears 并列，在 handleLogin 末尾以 `go` 启动，慢查询不拖累
 // 登录 ack 本身。
 func (h *Hub) deliverPendingGroupEvents(client *Client) {
-	pending, err := h.store.GetPendingGroupEvents(client.uid)
+	pending, err := h.store.GetPendingGroupEvents(client.uid, client.Device())
 	if err != nil {
 		logf("deliverPendingGroupEvents: query failed for %s: %v", client.uid, err)
 		return
@@ -109,7 +97,7 @@ func (h *Hub) deliverPendingGroupEvents(client *Client) {
 				continue
 			}
 			if !isMember {
-				if ackErr := h.store.AckPendingGroupEvent(ev.ID, client.uid); ackErr != nil {
+				if ackErr := h.store.DropPendingGroupEvent(ev.ID, client.uid); ackErr != nil {
 					logf("deliverPendingGroupEvents: drop stale event %d: %v", ev.ID, ackErr)
 				}
 				continue
@@ -148,7 +136,7 @@ func (h *Hub) deliverPendingGroupEvents(client *Client) {
 			})
 		default:
 			logf("deliverPendingGroupEvents: unknown kind %q on event %d, dropping", ev.Kind, ev.ID)
-			if ackErr := h.store.AckPendingGroupEvent(ev.ID, client.uid); ackErr != nil {
+			if ackErr := h.store.DropPendingGroupEvent(ev.ID, client.uid); ackErr != nil {
 				logf("deliverPendingGroupEvents: drop unknown event %d: %v", ev.ID, ackErr)
 			}
 		}
@@ -162,7 +150,7 @@ func (h *Hub) handleAckPendingGroupEvent(client *Client, msg *ClientMessage) {
 	if !client.IsAuthenticated() || msg.EventID <= 0 {
 		return
 	}
-	if err := h.store.AckPendingGroupEvent(msg.EventID, client.uid); err != nil {
+	if err := h.store.AckPendingGroupEvent(msg.EventID, client.uid, client.Device()); err != nil {
 		logf("handleAckPendingGroupEvent: %v", err)
 	}
 }

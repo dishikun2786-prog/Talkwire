@@ -132,7 +132,7 @@ func (h *Hub) handleForwardBundle(client *Client, msg *ClientMessage) {
 		srcTopic := msg.SourceTopic
 		h.announceMessage(msg.TargetTopic, p.seq, client.uid, SenderKindUser,
 			p.orig.Content, p.orig.ContentType, p.orig.FileURL, p.orig.FileName, p.orig.Extra, p.orig.Duration,
-			&srcSeq, &srcTopic, "")
+			&srcSeq, &srcTopic, "", client)
 	}
 	logf("[Forward] %s bundled %d message(s) from %s into %s", client.uid, len(insertedSeqs), msg.SourceTopic, msg.TargetTopic)
 }
@@ -337,7 +337,7 @@ func (h *Hub) handleForwardBroadcast(client *Client, msg *ClientMessage) {
 		seq, _, _, err := h.deliverMessage(targetTopic, client.uid, SenderKindUser,
 			original.Content, original.ContentType, original.FileURL, original.FileName,
 			original.Extra, original.Duration,
-			&ForwardMeta{FromMsgID: srcSeq, FromTopic: srcTopic, ChainDepth: original.ForwardChainDepth + 1}, "")
+			&ForwardMeta{FromMsgID: srcSeq, FromTopic: srcTopic, ChainDepth: original.ForwardChainDepth + 1}, "", client)
 		if err != nil {
 			logf("handleForwardBroadcast: deliver to %s failed: %v", targetTopic, err)
 			results = append(results, ForwardTargetResult{Topic: targetTopic, Ok: false, Reason: "internal_error"})

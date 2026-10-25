@@ -127,7 +127,7 @@ func (h *Hub) handlePresQuery(client *Client, msg *ClientMessage) {
 
 	states := make([]PresenceState, 0, len(filtered))
 	for _, u := range filtered {
-		online := h.GetClientByUID(u) != nil
+		online := h.isOnline(u)
 		states = append(states, PresenceState{
 			UID:        u,
 			Online:     online,
@@ -206,13 +206,14 @@ func (h *Hub) BroadcastPresence(uid string, status string) {
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	notified := make(map[string]bool, len(topics))
+	// Every device of every peer, once each; never the user's own devices.
+	notified := make(map[connKey]bool, len(topics))
 	for _, t := range topics {
-		for peerUID, client := range h.topics[t.Topic] {
-			if peerUID == uid || notified[peerUID] {
+		for key, client := range h.topics[t.Topic] {
+			if key.uid == uid || notified[key] {
 				continue
 			}
-			notified[peerUID] = true
+			notified[key] = true
 			client.SendRaw(data)
 		}
 	}

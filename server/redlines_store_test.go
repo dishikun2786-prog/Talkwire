@@ -218,20 +218,20 @@ func TestR5_MemberWritesNeverDowngrade(t *testing.T) {
 func TestR7_PendingClearsExpireAfter30Days(t *testing.T) {
 	s := testStore(t)
 	a, _ := s.EnsureUser("app-a")
-	if err := s.EnqueuePendingClear("p2p_x", a, "uid_x", 1, 5, "uid_x"); err != nil {
+	if err := s.EnqueuePendingClear("p2p_x", a, "uid_x", 1, 5, "uid_x", nil); err != nil {
 		t.Fatal(err)
 	}
-	expectQueued(t, "clear", func() int { l, _ := s.GetPendingClears(a); return len(l) },
+	expectQueued(t, "clear", func() int { l, _ := s.GetPendingClears(a, ""); return len(l) },
 		func(now time.Time) { s.ReapExpiredPendingClears(now) })
 }
 
 func TestR8_GroupEventsExpireAfter30Days(t *testing.T) {
 	s := testStore(t)
 	a, _ := s.EnsureUser("app-a")
-	if err := s.EnqueuePendingGroupEvent("grp_x", a, PendingGroupEventSync, "G", ""); err != nil {
+	if err := s.EnqueuePendingGroupEvent("grp_x", a, PendingGroupEventSync, "G", "", nil); err != nil {
 		t.Fatal(err)
 	}
-	expectQueued(t, "group event", func() int { l, _ := s.GetPendingGroupEvents(a); return len(l) },
+	expectQueued(t, "group event", func() int { l, _ := s.GetPendingGroupEvents(a, ""); return len(l) },
 		func(now time.Time) { s.ReapExpiredPendingGroupEvents(now) })
 }
 

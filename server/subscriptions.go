@@ -87,15 +87,16 @@ func (h *Hub) subscribeTopic(topic string, client *Client) {
 	if !client.IsOnline() {
 		return
 	}
+	key := client.key()
 	m, ok := h.topics[topic]
 	if !ok {
-		m = make(map[string]*Client)
+		m = make(map[connKey]*Client)
 		h.topics[topic] = m
 	}
-	if cur := m[client.uid]; cur != nil && cur != client && cur.gen.Load() > client.gen.Load() {
+	if cur := m[key]; cur != nil && cur != client && cur.gen.Load() > client.gen.Load() {
 		return
 	}
-	m[client.uid] = client
+	m[key] = client
 }
 
 // unsubscribeTopic removes client from the topic index, dropping the topic
@@ -105,8 +106,9 @@ func (h *Hub) subscribeTopic(topic string, client *Client) {
 func (h *Hub) unsubscribeTopic(topic string, client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if m, ok := h.topics[topic]; ok && m[client.uid] == client {
-		delete(m, client.uid)
+	key := client.key()
+	if m, ok := h.topics[topic]; ok && m[key] == client {
+		delete(m, key)
 		if len(m) == 0 {
 			delete(h.topics, topic)
 		}
@@ -147,8 +149,29 @@ func (h *Hub) broadcastRaw(topic string, v interface{}, excludeUID string) {
 	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	for uid, client := range h.topics[topic] {
-		if uid != excludeUID {
+	for key, client := range h.topics[topic] {
+		if key.uid != excludeUID {
+			client.SendRaw(data)
+		}
+	}
+}
+
+// BroadcastToTopicExcept is BroadcastToTopic skipping one device instead of
+// every device of a user: the acting device got its reply, and the user's
+// other devices see the change like everyone else (task 1.12). With one
+// device per user the two are the same. The device, not the connection, is
+// skipped: see sameDevice.
+func (h *Hub) BroadcastToTopicExcept(topic string, msg *ServerMessage, origin *Client) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		logf("BroadcastToTopicExcept: marshal failed for topic=%s: %v", topic, err)
+		return
+	}
+	skip := origin.key()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for key, client := range h.topics[topic] {
+		if key != skip {
 			client.SendRaw(data)
 		}
 	}
@@ -166,5 +189,5 @@ func (h *Hub) isSubscribedInIndex(topic string, client *Client) bool {
 	if !ok {
 		return false
 	}
-	return m[client.uid] == client
+	return m[client.key()] == client
 }

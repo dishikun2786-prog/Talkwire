@@ -72,7 +72,7 @@ func (h *Hub) handlePub(client *Client, msg *ClientMessage) {
 		extra = msg.Extra
 	}
 
-	seq, tsMillis, duplicate, err := h.deliverMessage(actualTopic, client.uid, SenderKindUser, msg.Content, msg.ContentType, msg.FileURL, msg.FileName, extra, msg.Duration, nil, msg.ClientMsgId)
+	seq, tsMillis, duplicate, err := h.deliverMessage(actualTopic, client.uid, SenderKindUser, msg.Content, msg.ContentType, msg.FileURL, msg.FileName, extra, msg.Duration, nil, msg.ClientMsgId, client)
 	if err != nil {
 		logf("Save message failed: %v", err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeInternal, "save failed"))
@@ -136,7 +136,11 @@ type ForwardMeta struct {
 // function at all: its N inserts must share a single DB transaction, so it
 // calls the *Tx store primitives directly and then reuses announceMessage
 // (this function's broadcast+push half) once per row after COMMIT.
-func (h *Hub) deliverMessage(topic, fromUID, senderKind, content, contentType, fileURL, fileName string, extra json.RawMessage, duration int, forwardMeta *ForwardMeta, clientMsgID string) (seq int, tsMillis int64, duplicate bool, err error) {
+//
+// origin is the connection that published (nil for the AI assistant): the
+// sender's other devices get their own message (task 1.12, see
+// echoToOwnDevices).
+func (h *Hub) deliverMessage(topic, fromUID, senderKind, content, contentType, fileURL, fileName string, extra json.RawMessage, duration int, forwardMeta *ForwardMeta, clientMsgID string, origin *Client) (seq int, tsMillis int64, duplicate bool, err error) {
 	var forwardFromMsgID *int
 	var forwardFromTopic *string
 	chainDepth := 0
@@ -172,7 +176,7 @@ func (h *Hub) deliverMessage(topic, fromUID, senderKind, content, contentType, f
 		}
 		tsMillis = time.Now().UnixMilli()
 	}
-	h.announceMessage(topic, seq, fromUID, senderKind, content, contentType, fileURL, fileName, extra, duration, forwardFromMsgID, forwardFromTopic, clientMsgID)
+	h.announceMessage(topic, seq, fromUID, senderKind, content, contentType, fileURL, fileName, extra, duration, forwardFromMsgID, forwardFromTopic, clientMsgID, origin)
 	return seq, tsMillis, false, nil
 }
 
@@ -180,7 +184,7 @@ func (h *Hub) deliverMessage(topic, fromUID, senderKind, content, contentType, f
 // subscribers and asynchronously pushes FCM to offline members. Split out of
 // deliverMessage purely so handleForwardBundle can reuse it after its own
 // transaction commits — see deliverMessage's doc comment.
-func (h *Hub) announceMessage(topic string, seq int, fromUID, senderKind, content, contentType, fileURL, fileName string, extra json.RawMessage, duration int, forwardFromMsgID *int, forwardFromTopic *string, clientMsgID string) {
+func (h *Hub) announceMessage(topic string, seq int, fromUID, senderKind, content, contentType, fileURL, fileName string, extra json.RawMessage, duration int, forwardFromMsgID *int, forwardFromTopic *string, clientMsgID string, origin *Client) {
 	// The `topic` argument is the CANONICAL topic id and is what the fan-out
 	// below must route on. It is not what the payload may carry for P2P.
 	//
@@ -228,7 +232,41 @@ func (h *Hub) announceMessage(topic string, seq int, fromUID, senderKind, conten
 		dataMsg.Name = h.groupNameCached(topic)
 	}
 	h.BroadcastToTopic(topic, dataMsg, fromUID)
+	if origin != nil {
+		h.echoToOwnDevices(topic, dataMsg, origin)
+	}
 	go h.pushOfflineRecipients(topic, fromUID, senderKind, content, contentType)
+}
+
+// echoToOwnDevices sends a message to the sender's other devices (task 1.12).
+// For a P2P conversation the frame names the peer: the broadcast above gives
+// each recipient the sender's uid, the key the recipient files it under, and
+// the sender's devices file it under the peer's.
+func (h *Hub) echoToOwnDevices(topic string, msg *ServerMessage, origin *Client) {
+	uid := origin.UID()
+	others := 0
+	for _, c := range h.clientsOf(uid) {
+		if !sameDevice(c, origin) {
+			others++
+		}
+	}
+	if others == 0 {
+		return
+	}
+	echo := *msg
+	if strings.HasPrefix(topic, "p2p_") {
+		members, err := h.store.GetTopicMemberUIDs(topic)
+		if err != nil {
+			logf("echoToOwnDevices: members of %s: %v", topic, err)
+			return
+		}
+		for _, m := range members {
+			if m != uid {
+				echo.Topic = m
+			}
+		}
+	}
+	h.sendToUser(uid, &echo, origin)
 }
 
 func (h *Hub) handleNote(client *Client, msg *ClientMessage) {
@@ -272,7 +310,13 @@ func (h *Hub) handleNote(client *Client, msg *ClientMessage) {
 			logf("UpsertReadCursor(%s,%s,%d): %v", topic, client.uid, msg.Seq, err)
 		}
 	}
-	h.BroadcastToTopic(topic, noteMsg, client.uid)
+	if msg.What == NoteRead {
+		// Read state is the user's, not the device's: their other devices
+		// follow it (task 1.12). Other notes (typing) stay with the peers.
+		h.BroadcastToTopicExcept(topic, noteMsg, client)
+	} else {
+		h.BroadcastToTopic(topic, noteMsg, client.uid)
+	}
 }
 
 func (h *Hub) handleGet(client *Client, msg *ClientMessage) {

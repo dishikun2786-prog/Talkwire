@@ -99,6 +99,10 @@ func TestR9_DefaultsEqualOriginalValues(t *testing.T) {
 		"env IMKIT_WEBPUSH_TTL_SEC":       "24 * time.Hour",
 		"Config.HostMode":                 `"http"`, // the reference has only the HTTP host
 		"RuntimeConfig.PushText":          "defaultPushText()",
+		// The reference allowed one connection per user (each login replaced
+		// the last); 10 devices covers phones, tablets and browsers without
+		// letting one account hold unbounded connections (task 1.12).
+		"env IMKIT_MAX_DEVICES_PER_USER": "10",
 	}
 	for k, v := range cur {
 		if _, inRef := ref[k]; inRef {

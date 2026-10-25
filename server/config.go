@@ -543,6 +543,15 @@ func setE2eeRuntimeConfig(rc E2eeRuntimeConfig) {
 // legitimate traffic; it exists purely as a burst ceiling.
 var maxConnections = envInt("IM_MAX_CONNECTIONS", 10000)
 
+// maxDevicesPerUser caps how many devices one user can be connected from at
+// once (task 1.12). Before several devices per user, each login replaced the
+// user's previous connection, so one account held one connection; with named
+// devices an account could otherwise hold any number. A login from a new
+// device beyond the cap is refused ("too many devices"); a login from a device
+// already connected replaces it as always. The check is made at login, so
+// logins of new devices racing each other can overshoot it by their number.
+var maxDevicesPerUser = envInt("IMKIT_MAX_DEVICES_PER_USER", 10)
+
 // connCount is the live count of accepted-and-not-yet-disconnected WS
 // connections. Package-level atomic rather than a Hub field so ServeWS
 // (handler.go) can check it before a Client -- and therefore a Hub

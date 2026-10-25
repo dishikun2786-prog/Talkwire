@@ -70,7 +70,8 @@ func (h *Hub) handleDel(client *Client, msg *ClientMessage) {
 	// `recalled_at IS NULL` predicate on every read path (GetMessages /
 	// GetMessagesAfter). The row staying put is the point -- it keeps the
 	// (topic, seq) series dense so gap detection does not chase it forever.
-	h.BroadcastToTopic(actualTopic, &ServerMessage{Action: ActionRecalled, Topic: msg.Topic, Seq: msg.Seq, From: client.uid}, client.uid)
+	// The recaller's other devices see the recall too (task 1.12).
+	h.BroadcastToTopicExcept(actualTopic, &ServerMessage{Action: ActionRecalled, Topic: msg.Topic, Seq: msg.Seq, From: client.uid}, client)
 	// gcMediaBlob 自己会先 CountFileRefs，被别处（转发副本）引用就不删。软删
 	// 的墓碑行虽然留在表里，但 file_url 与 extra 已被置 NULL，所以不会把自己的
 	// blob 钉住。视频的首帧缩略图（extra->>'thumbUrl'）一并回收（计划 1.9）。
@@ -132,7 +133,7 @@ func (h *Hub) handleDelTopic(client *Client, msg *ClientMessage) {
 	if memberErr != nil {
 		logf("Clear topic member lookup failed: %v", memberErr)
 	} else {
-		h.broadcastTopicCleared(actualTopic, members, client.uid, result)
+		h.broadcastTopicCleared(actualTopic, members, client, result)
 	}
 	for _, u := range result.FileURLs {
 		go h.gcMediaBlob(u)
@@ -158,7 +159,7 @@ func (h *Hub) ClearDirectTopicForAdmin(topic string) (ClearTopicResult, error) {
 	// Admin-initiated deletion reaches both participants, including users who
 	// are currently on the conversation screen. Offline clients reconcile the
 	// clear version during their next history pull.
-	h.broadcastTopicCleared(topic, info.Members, "", result)
+	h.broadcastTopicCleared(topic, info.Members, nil, result)
 	for _, u := range result.FileURLs {
 		go h.gcMediaBlob(u)
 	}
@@ -171,19 +172,27 @@ func (h *Hub) ClearDirectTopicForAdmin(topic string) (ClearTopicResult, error) {
 // P2P UI keys use the peer UID while database topics use p2p_<hash>, so each
 // target receives its own peer UID as the wire topic.
 //
-// Members who are offline at this moment get a durable per-member tombstone
-// instead (im_pending_clears) -- delivered and acked the next time they log
-// in (see handleLogin -> deliverPendingClears / handleAckTopicCleared).
-func (h *Hub) broadcastTopicCleared(topic string, members []string, excludeUID string, result ClearTopicResult) {
+// Members with a device that is away at this moment get a durable
+// tombstone instead (im_pending_clears) -- delivered and acked the next time
+// that device logs in (see handleLogin -> deliverPendingClears /
+// handleAckTopicCleared).
+//
+// actor is the connection that cleared (nil for an administrator): it got
+// the reply, so it is skipped, and the actor's other devices get the clear
+// like every other member's (task 1.12).
+func (h *Hub) broadcastTopicCleared(topic string, members []string, actor *Client, result ClearTopicResult) {
+	excludeUID := ""
+	if actor != nil {
+		excludeUID = actor.UID()
+	}
 	// Group topics are always "grp_"-prefixed (CreateGroup); P2P topics are
 	// "p2p_"-prefixed (GetP2PTopic) -- a structural fact about topic naming,
 	// not a guess from headcount. The old len(members)==2 check would
 	// misclassify a 2-person GROUP as P2P.
 	isP2P := !strings.HasPrefix(topic, "grp_")
+	reached := make(map[string][]string, len(members))
+	wireTopics := make(map[string]string, len(members))
 	for _, uid := range members {
-		if uid == excludeUID {
-			continue
-		}
 		wireTopic := topic
 		if isP2P {
 			for _, peerUID := range members {
@@ -193,18 +202,23 @@ func (h *Hub) broadcastTopicCleared(topic string, members []string, excludeUID s
 				}
 			}
 		}
-		target := h.GetClientByUID(uid)
-		if target == nil {
-			if err := h.store.EnqueuePendingClear(topic, uid, wireTopic, result.ClearVersion, result.ClearBeforeSeq, excludeUID); err != nil {
-				logf("broadcastTopicCleared: enqueue pending clear failed for topic=%s uid=%s: %v", topic, uid, err)
-			}
-			continue
+		wireTopics[uid] = wireTopic
+		var except *Client
+		var got []string
+		if uid == excludeUID {
+			except = actor
+			got = append(got, actor.Device())
 		}
-		target.SendJSON(&ServerMessage{
+		reached[uid] = append(got, h.sendToUser(uid, &ServerMessage{
 			Action: ActionTopicCleared, Topic: wireTopic, From: excludeUID,
 			ClearVersion: result.ClearVersion, ClearBeforeSeq: result.ClearBeforeSeq,
-		})
+		}, except)...)
 	}
+	h.queueMissing(members, reached, func(uid string, delivered []string) {
+		if err := h.store.EnqueuePendingClear(topic, uid, wireTopics[uid], result.ClearVersion, result.ClearBeforeSeq, excludeUID, delivered); err != nil {
+			logf("broadcastTopicCleared: enqueue pending clear failed for topic=%s uid=%s: %v", topic, uid, err)
+		}
+	})
 }
 
 // gcMediaBlob asks the main server to delete a media blob, but only once no

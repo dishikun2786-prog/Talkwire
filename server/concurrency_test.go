@@ -400,7 +400,7 @@ func TestR10_SendQueueFullDisconnects(t *testing.T) {
 	stalled.send(frame{"action": ActionSub, "id": "s", "topic": group})
 	var slow *Client
 	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) {
-		if slow = ls.hub.GetClientByUID(uidSlow); slow != nil && ls.hub.isSubscribedInIndex(group, slow) {
+		if slow = ls.hub.clientOf(uidSlow, ""); slow != nil && ls.hub.isSubscribedInIndex(group, slow) {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -411,7 +411,7 @@ func TestR10_SendQueueFullDisconnects(t *testing.T) {
 	const total, batch = 400, 50
 	for i := 0; i < total; i++ {
 		content := fmt.Sprintf("m%d", i)
-		if _, _, _, err := ls.hub.deliverMessage(group, producer, SenderKindUser, content, "text/plain", "", "", nil, 0, nil, ""); err != nil {
+		if _, _, _, err := ls.hub.deliverMessage(group, producer, SenderKindUser, content, "text/plain", "", "", nil, 0, nil, "", nil); err != nil {
 			t.Fatal(err)
 		}
 		if i%batch == batch-1 {
@@ -423,7 +423,7 @@ func TestR10_SendQueueFullDisconnects(t *testing.T) {
 	if !stalled.waitClosed(5 * time.Second) {
 		t.Fatal("the stalled connection was not closed when its queue filled")
 	}
-	for deadline := time.Now().Add(5 * time.Second); ls.hub.GetClientByUID(uidSlow) != nil; time.Sleep(5 * time.Millisecond) {
+	for deadline := time.Now().Add(5 * time.Second); ls.hub.clientOf(uidSlow, "") != nil; time.Sleep(5 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("the stalled connection is still registered")
 		}
@@ -493,7 +493,7 @@ func TestR16_CallStateCASUnderRace(t *testing.T) {
 		}
 		a, b := sideClient(h, "uid_a", "app-a"), sideClient(h, "uid_b", "app-b")
 		h.mu.Lock()
-		h.clients["uid_a"], h.clients["uid_b"] = a, b
+		h.clients["uid_a"], h.clients["uid_b"] = map[string]*Client{"": a}, map[string]*Client{"": b}
 		h.mu.Unlock()
 
 		start := make(chan struct{})
@@ -586,7 +586,7 @@ func TestR3_LateFrameFromReplacedConnection(t *testing.T) {
 			old := ls.connect("r3late-x")
 			var oldClient *Client
 			for deadline := time.Now().Add(5 * time.Second); oldClient == nil; time.Sleep(time.Millisecond) {
-				oldClient = ls.hub.GetClientByUID(uidX)
+				oldClient = ls.hub.clientOf(uidX, "")
 				if time.Now().After(deadline) {
 					t.Fatal("the first connection was never registered")
 				}
@@ -599,7 +599,7 @@ func TestR3_LateFrameFromReplacedConnection(t *testing.T) {
 			if !old.waitClosed(5 * time.Second) {
 				t.Fatal("the replaced connection was not closed")
 			}
-			for deadline := time.Now().Add(5 * time.Second); ls.hub.GetClientByUID(uidX) == oldClient; time.Sleep(time.Millisecond) {
+			for deadline := time.Now().Add(5 * time.Second); ls.hub.clientOf(uidX, "") == oldClient; time.Sleep(time.Millisecond) {
 				if time.Now().After(deadline) {
 					t.Fatal("the replacement was never registered")
 				}
@@ -628,13 +628,13 @@ func TestR3_LateFrameFromReplacedConnection(t *testing.T) {
 // F60, the index rules on their own: a connection with an older login never
 // takes or clears a newer one's slot, and a closed connection is not indexed.
 func TestR3_TopicIndexRules(t *testing.T) {
-	h := &Hub{topics: map[string]map[string]*Client{}}
+	h := &Hub{topics: map[string]map[connKey]*Client{}}
 	older, newer, closed := sideClient(h, "uid_x", "app-x"), sideClient(h, "uid_x", "app-x"), sideClient(h, "uid_x", "app-x")
 	older.gen.Store(1)
 	newer.gen.Store(2)
 	closed.gen.Store(3)
 	closed.closed = true
-	slot := func(topic string) *Client { return h.topics[topic]["uid_x"] }
+	slot := func(topic string) *Client { return h.topics[topic][connKey{"uid_x", ""}] }
 
 	newer.Subscribe("grp_t")
 	older.Subscribe("grp_t")

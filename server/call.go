@@ -89,6 +89,49 @@ type callState struct {
 	callType  string
 	status    string
 	ringTimer *time.Timer
+
+	// The devices taking part (task 1.12): callerDevice invited (set at
+	// construction, never changed); calleeDevice accepted, valid once
+	// calleeKnown (under mu). Until then every device of the callee rings.
+	callerDevice string
+	calleeDevice string
+	calleeKnown  bool
+}
+
+// answeredOn records the callee's device that accepted.
+func (c *callState) answeredOn(device string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calleeDevice, c.calleeKnown = device, true
+}
+
+// takesPart reports whether a device of participant uid may act on the
+// call: the device taking part, or any device of a callee whose call still
+// rings. Another device of the same user is told the call does not exist,
+// as a stranger would be: it never had the call, and acting on it would end
+// the call on the device that has it without that device hearing of it.
+// With one device per user every participant's device takes part.
+func (c *callState) takesPart(uid, device string) bool {
+	if uid == c.callerUID {
+		return device == c.callerDevice
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.calleeKnown {
+		return device == c.calleeDevice
+	}
+	return c.status == callStateRinging
+}
+
+// deviceOf returns the device of participant uid taking part in the call, and
+// false for a callee none of whose devices has accepted yet.
+func (c *callState) deviceOf(uid string) (string, bool) {
+	if uid == c.callerUID {
+		return c.callerDevice, true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calleeDevice, c.calleeKnown
 }
 
 // resolve is the only way callState.status is allowed to change. It
@@ -328,10 +371,51 @@ func (h *Hub) settleCallAsync(callSessionID, reason string) {
 // ordinary way any client discovers server-side state it missed (its next
 // natural interaction), same as e2e_terminate/e2e_clear's own "best-effort,
 // no queue" precedent already established in this file.
-func (h *Hub) pushCallEnded(uid, callSessionID, reason string) {
-	if c := h.GetClientByUID(uid); c != nil {
-		c.SendAny(&CallSignalMessage{Type: ActionCallEnded, CallSessionId: callSessionID, Reason: reason})
+//
+// Only the device of uid taking part in the call gets it; while a callee's
+// call still rings, every device of theirs, since all of them ring (task
+// 1.12).
+func (h *Hub) pushCallEnded(call *callState, uid, reason string) {
+	m := &CallSignalMessage{Type: ActionCallEnded, CallSessionId: call.id, Reason: reason}
+	if device, known := call.deviceOf(uid); known {
+		if c := h.clientOf(uid, device); c != nil {
+			c.SendAny(m)
+		}
+		return
 	}
+	h.sendToUser(uid, m, nil)
+}
+
+// endOnOtherDevices stops the call on the acting participant's other devices
+// (task 1.12): the callee's devices all rang, and only one answered or
+// declined. reason "answered_elsewhere" tells the others it was picked up.
+func (h *Hub) endOnOtherDevices(actor *Client, callSessionID, reason string) {
+	h.sendToUser(actor.UID(), &CallSignalMessage{Type: ActionCallEnded, CallSessionId: callSessionID, Reason: reason}, actor)
+}
+
+// callPeer returns the connection of the other participant's device in the
+// call, or nil.
+func (h *Hub) callPeer(call *callState, uid string) *Client {
+	peerUID := call.peerOf(uid)
+	device, known := call.deviceOf(peerUID)
+	if !known {
+		return nil
+	}
+	return h.clientOf(peerUID, device)
+}
+
+// participantOnline reports whether uid's side of its call is connected: the
+// device taking part, or any device of a callee still ringing. Without a
+// call, whether uid is connected at all.
+func (h *Hub) participantOnline(uid string) bool {
+	call := h.calls.getByUID(uid)
+	if call == nil {
+		return h.isOnline(uid)
+	}
+	if device, known := call.deviceOf(uid); known {
+		return h.clientOf(uid, device) != nil
+	}
+	return h.isOnline(uid)
 }
 
 // handleCallInvite starts a new call. See the file-level comment above this
@@ -361,7 +445,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 	// nobody will ever see (im_fcm_tokens' own real-world reliability
 	// history, cited in the plan, is why this isn't "ring anyway and let FCM
 	// try") is worse than an honest "offline" this instant.
-	if h.GetClientByUID(calleeUID) == nil {
+	if !h.isOnline(calleeUID) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallInvite, CodeConflict, "offline"))
 		return
 	}
@@ -381,6 +465,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		calleeAppUserID: calleeAppUserID,
 		callType:        msg.CallType,
 		status:          callStateRinging,
+		callerDevice:    client.Device(),
 	}
 	if !h.calls.reserve(call) {
 		// "busy" covers two distinct real situations under one wire reason:
@@ -458,13 +543,12 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		logf("[call] GetProfile failed, ringing with a generic caller identity: %v", err)
 	}
 
-	if callee := h.GetClientByUID(calleeUID); callee != nil {
-		callee.SendAny(&CallSignalMessage{
-			Type: ActionCallRing, CallSessionId: call.id, CallType: call.callType,
-			CallerName: callerName, CallerAvatar: callerAvatar,
-			RingTimeoutSeconds: ringTimeoutSeconds,
-		})
-	} else {
+	// Every device of the callee rings (task 1.12).
+	if rung := h.sendToUser(calleeUID, &CallSignalMessage{
+		Type: ActionCallRing, CallSessionId: call.id, CallType: call.callType,
+		CallerName: callerName, CallerAvatar: callerAvatar,
+		RingTimeoutSeconds: ringTimeoutSeconds,
+	}, nil); len(rung) == 0 {
 		// The callee disconnected in the narrow window between the
 		// reachability check above and here (their ReadPump/Disconnect runs
 		// on an independent goroutine). h.unregister's forced-end branch
@@ -500,8 +584,8 @@ func (h *Hub) handleCallRingTimeout(call *callState) {
 		return
 	}
 	h.calls.remove(call)
-	h.pushCallEnded(call.callerUID, call.id, "no_answer")
-	h.pushCallEnded(call.calleeUID, call.id, "no_answer")
+	h.pushCallEnded(call, call.callerUID, "no_answer")
+	h.pushCallEnded(call, call.calleeUID, "no_answer")
 	h.settleCallAsync(call.id, "no_answer")
 	logf("[call] session=%s ring timeout (no_answer)", call.id)
 }
@@ -535,6 +619,8 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallAccept, CodeConflict, "该通话已被处理"))
 		return
 	}
+	// This device answered; the call is on it from now on (task 1.12).
+	call.answeredOn(client.Device())
 
 	callType, _ := call.currentTypeAndStatus()
 	effectiveType := callType
@@ -562,7 +648,8 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		// with a different reason) a call someone else has already closed.
 		if call.resolve(callStateEnded, callStateAnswering) {
 			h.calls.remove(call)
-			h.pushCallEnded(call.callerUID, call.id, "failed")
+			h.pushCallEnded(call, call.callerUID, "failed")
+			h.endOnOtherDevices(client, call.id, "failed")
 			h.settleCallAsync(call.id, "failed")
 		}
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallAccept, CodeInternal, reason))
@@ -584,13 +671,16 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		ChannelId: answer.ChannelId, RtcToken: answer.CalleeToken, AppId: answer.AppId,
 		VideoQuality: answer.VideoQuality, DenoiseEnabled: answer.DenoiseEnabled,
 	})
-	if caller := h.GetClientByUID(call.callerUID); caller != nil {
+	// The answer goes to the device that invited; the callee's other
+	// devices stop ringing.
+	if caller := h.clientOf(call.callerUID, call.callerDevice); caller != nil {
 		caller.SendAny(&CallSignalMessage{
 			Type: ActionCallAnswered, CallSessionId: call.id,
 			ChannelId: answer.ChannelId, RtcToken: answer.CallerToken, AppId: answer.AppId,
 			VideoQuality: answer.VideoQuality, DenoiseEnabled: answer.DenoiseEnabled,
 		})
 	}
+	h.endOnOtherDevices(client, call.id, "answered_elsewhere")
 	logf("[call] session=%s answered by %s (type=%s)", call.id, client.uid, effectiveType)
 }
 
@@ -617,7 +707,8 @@ func (h *Hub) handleCallReject(client *Client, msg *ClientMessage) {
 	}
 	h.calls.remove(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallReject, Code: CodeOK, CallSessionId: call.id})
-	h.pushCallEnded(call.callerUID, call.id, "rejected")
+	h.pushCallEnded(call, call.callerUID, "rejected")
+	h.endOnOtherDevices(client, call.id, "rejected")
 	h.settleCallAsync(call.id, "rejected")
 	logf("[call] session=%s rejected by %s", call.id, client.uid)
 }
@@ -639,7 +730,7 @@ func (h *Hub) handleCallCancel(client *Client, msg *ClientMessage) {
 		return
 	}
 	call := h.calls.get(msg.CallSessionId)
-	if call == nil || call.callerUID != client.uid {
+	if call == nil || call.callerUID != client.uid || !call.takesPart(client.uid, client.Device()) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallCancel, CodeNotFound, "通话不存在或已结束"))
 		return
 	}
@@ -649,7 +740,7 @@ func (h *Hub) handleCallCancel(client *Client, msg *ClientMessage) {
 	}
 	h.calls.remove(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallCancel, Code: CodeOK, CallSessionId: call.id})
-	h.pushCallEnded(call.calleeUID, call.id, "cancelled")
+	h.pushCallEnded(call, call.calleeUID, "cancelled")
 	h.settleCallAsync(call.id, "cancelled")
 	logf("[call] session=%s cancelled by %s", call.id, client.uid)
 }
@@ -669,7 +760,7 @@ func (h *Hub) handleCallHangup(client *Client, msg *ClientMessage) {
 		return
 	}
 	call := h.calls.get(msg.CallSessionId)
-	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) {
+	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) || !call.takesPart(client.uid, client.Device()) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallHangup, CodeNotFound, "通话不存在或已结束"))
 		return
 	}
@@ -679,7 +770,7 @@ func (h *Hub) handleCallHangup(client *Client, msg *ClientMessage) {
 	}
 	h.calls.remove(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallHangup, Code: CodeOK, CallSessionId: call.id})
-	h.pushCallEnded(call.peerOf(client.uid), call.id, "user_hangup")
+	h.pushCallEnded(call, call.peerOf(client.uid), "user_hangup")
 	h.settleCallAsync(call.id, "user_hangup")
 	logf("[call] session=%s hung up by %s", call.id, client.uid)
 }
@@ -704,7 +795,7 @@ func (h *Hub) handleCallUpgrade(client *Client, msg *ClientMessage) {
 		return
 	}
 	call := h.calls.get(msg.CallSessionId)
-	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) {
+	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) || !call.takesPart(client.uid, client.Device()) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgrade, CodeNotFound, "通话不存在或已结束"))
 		return
 	}
@@ -717,8 +808,7 @@ func (h *Hub) handleCallUpgrade(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgrade, CodeConflict, "已经是视频通话"))
 		return
 	}
-	peerUID := call.peerOf(client.uid)
-	peer := h.GetClientByUID(peerUID)
+	peer := h.callPeer(call, client.uid)
 	if peer == nil {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgrade, CodeConflict, "对方已离线"))
 		return
@@ -743,7 +833,7 @@ func (h *Hub) handleCallUpgradeAccept(client *Client, msg *ClientMessage) {
 		return
 	}
 	call := h.calls.get(msg.CallSessionId)
-	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) {
+	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) || !call.takesPart(client.uid, client.Device()) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgradeAccept, CodeNotFound, "通话不存在或已结束"))
 		return
 	}
@@ -772,7 +862,7 @@ func (h *Hub) handleCallUpgradeAccept(client *Client, msg *ClientMessage) {
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallUpgradeAccept, Code: CodeOK, CallSessionId: call.id})
 	upgraded := &CallSignalMessage{Type: ActionCallUpgraded, CallSessionId: call.id, VideoQuality: result.VideoQuality}
 	client.SendAny(upgraded)
-	if peer := h.GetClientByUID(call.peerOf(client.uid)); peer != nil {
+	if peer := h.callPeer(call, client.uid); peer != nil {
 		peer.SendAny(upgraded)
 	}
 	logf("[call] session=%s upgraded to video (accepted by %s)", call.id, client.uid)
@@ -793,12 +883,12 @@ func (h *Hub) handleCallUpgradeReject(client *Client, msg *ClientMessage) {
 		return
 	}
 	call := h.calls.get(msg.CallSessionId)
-	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) {
+	if call == nil || (call.callerUID != client.uid && call.calleeUID != client.uid) || !call.takesPart(client.uid, client.Device()) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgradeReject, CodeNotFound, "通话不存在或已结束"))
 		return
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallUpgradeReject, Code: CodeOK, CallSessionId: call.id})
-	if peer := h.GetClientByUID(call.peerOf(client.uid)); peer != nil {
+	if peer := h.callPeer(call, client.uid); peer != nil {
 		peer.SendAny(&CallSignalMessage{Type: ActionCallUpgradeDeclined, CallSessionId: call.id})
 	}
 	logf("[call] session=%s upgrade declined by %s", call.id, client.uid)
@@ -845,7 +935,7 @@ func (h *Hub) scheduleForceEndCallForDisconnect(uid string) {
 	}
 	timer := time.AfterFunc(callDisconnectGraceDuration, func() {
 		h.pendingCallDisconnects.Delete(uid)
-		if h.GetClientByUID(uid) != nil {
+		if h.participantOnline(uid) {
 			// Reconnected in time but somehow missed cancelPendingCallDisconnect
 			// (e.g. this fired the instant the register case's own cancel ran,
 			// losing the race by a hair) -- re-check here rather than trust
@@ -884,7 +974,7 @@ func (h *Hub) forceEndCallForDisconnect(uid string) {
 		return
 	}
 	h.calls.remove(call)
-	h.pushCallEnded(call.peerOf(uid), call.id, "disconnected")
+	h.pushCallEnded(call, call.peerOf(uid), "disconnected")
 	h.settleCallAsync(call.id, "disconnected")
 	logf("[call] session=%s force-ended: %s disconnected", call.id, uid)
 }
@@ -944,12 +1034,27 @@ func (callModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
 }
 
 // connected cancels the disconnect grace timer a previous disconnect of this
-// uid left pending; a no-op when there is none.
-func (callModule) connected(h *Hub, uid string) { h.cancelPendingCallDisconnect(uid) }
+// uid left pending, when the device that connected is the one taking part in
+// the call (or the callee's call is still ringing on every device); a no-op
+// when there is none.
+func (callModule) connected(h *Hub, uid, device string) {
+	if call := h.calls.getByUID(uid); call != nil {
+		if d, known := call.deviceOf(uid); known && d != device {
+			return
+		}
+	}
+	h.cancelPendingCallDisconnect(uid)
+}
 
 // disconnected ends the uid's call after the grace period unless it
-// reconnects; see scheduleForceEndCallForDisconnect.
-func (callModule) disconnected(h *Hub, uid string) { h.scheduleForceEndCallForDisconnect(uid) }
+// reconnects; see scheduleForceEndCallForDisconnect. Only when the device
+// that left was the one taking part (or a ringing callee has no device left):
+// another device of the same user leaving does not end the call (task 1.12).
+func (callModule) disconnected(h *Hub, uid, device string) {
+	if !h.participantOnline(uid) {
+		h.scheduleForceEndCallForDisconnect(uid)
+	}
+}
 
 // hostBroadcast releases the busy slot of a call the host ended on its own
 // initiative (credit exhausted, maximum duration); see

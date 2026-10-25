@@ -277,12 +277,11 @@ func (h *Hub) handleGroupJoinReview(client *Client, msg *ClientMessage) {
 			client.SendJSON(ErrorResponse(msg.Id, ActionGroupJoinReview, CodeInternal, "处理失败"))
 			return
 		}
-		if target := h.GetClientByUID(req.RequesterUID); target != nil {
-			target.Subscribe(msg.Topic)
-			target.SendJSON(&ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid})
-		} else {
-			h.enqueueGroupEventForOffline(msg.Topic, []string{req.RequesterUID}, client.uid, ActionGrpSync, info.Name)
-		}
+		h.deliverGroupEvent(groupEvent{
+			topic: msg.Topic, kind: ActionGrpSync, name: info.Name, from: client.uid,
+			frame:      &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, Name: info.Name, From: client.uid},
+			membership: 1, queue: true,
+		}, []string{req.RequesterUID}, client)
 	}
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionGroupJoinReview, Code: CodeOK, Topic: msg.Topic, JoinStatus: status})
 	h.notifyRequesterOfReview(msg.Topic, req.RequesterUID, status)
@@ -351,29 +350,26 @@ func (h *Hub) notifyGroupManagersOfJoinRequest(topic, requesterUID, groupName st
 		logf("notifyGroupManagersOfJoinRequest: GetGroupManagerUIDs failed: %v", err)
 		return
 	}
-	var offline []string
+	var notify []string
 	for _, uid := range managers {
-		if uid == requesterUID {
-			continue
+		if uid != requesterUID {
+			notify = append(notify, uid)
 		}
-		if target := h.GetClientByUID(uid); target != nil {
-			target.SendJSON(&ServerMessage{Action: ActionGroupJoinRequestPush, Topic: topic, Name: groupName, From: requesterUID})
-			continue
-		}
-		offline = append(offline, uid)
 	}
-	if len(offline) == 0 {
+	if len(notify) == 0 {
 		return
 	}
 	// D9: the reference server tried to queue this and always failed (the
 	// store accepted only grp_sync and grp_disband), so an offline manager
 	// never heard of the request. Queued under the strict profile only, where
 	// deliverPendingGroupEvents replays it at their next login.
-	if strictProtocol {
-		h.enqueueGroupEventForOffline(topic, offline, requesterUID, PendingGroupEventJoinRequest, groupName)
-	}
+	h.deliverGroupEvent(groupEvent{
+		topic: topic, kind: PendingGroupEventJoinRequest, name: groupName, from: requesterUID,
+		frame: &ServerMessage{Action: ActionGroupJoinRequestPush, Topic: topic, Name: groupName, From: requesterUID},
+		queue: strictProtocol,
+	}, notify, nil)
 	text := CurrentRuntimeConfig().PushText
-	h.pushJoin(offline, groupName, text.group(text.JoinRequest, groupName), topic)
+	h.pushJoin(notify, groupName, text.group(text.JoinRequest, groupName), topic)
 }
 
 // notifyRequesterOfReview tells an applicant whether their request was
@@ -381,10 +377,6 @@ func (h *Hub) notifyGroupManagersOfJoinRequest(topic, requesterUID, groupName st
 // FCM otherwise.
 func (h *Hub) notifyRequesterOfReview(topic, requesterUID, status string) {
 	groupName := h.groupNameCached(topic)
-	if target := h.GetClientByUID(requesterUID); target != nil {
-		target.SendJSON(&ServerMessage{Action: ActionGroupJoinReviewed, Topic: topic, Name: groupName, JoinStatus: status})
-		return
-	}
 	kind := PendingGroupEventJoinRejected
 	text := CurrentRuntimeConfig().PushText
 	body := text.group(text.JoinRejected, groupName)
@@ -393,11 +385,11 @@ func (h *Hub) notifyRequesterOfReview(topic, requesterUID, status string) {
 		body = text.group(text.JoinApproved, groupName)
 	}
 	// D9, as in notifyGroupManagersOfJoinRequest: queued under the strict profile.
-	if strictProtocol {
-		if err := h.store.EnqueuePendingGroupEvent(topic, requesterUID, kind, groupName, ""); err != nil {
-			logf("notifyRequesterOfReview: enqueue failed: %v", err)
-		}
-	}
+	h.deliverGroupEvent(groupEvent{
+		topic: topic, kind: kind, name: groupName,
+		frame: &ServerMessage{Action: ActionGroupJoinReviewed, Topic: topic, Name: groupName, JoinStatus: status},
+		queue: strictProtocol,
+	}, []string{requesterUID}, nil)
 	h.pushJoin([]string{requesterUID}, groupName, body, topic)
 }
 
@@ -411,14 +403,12 @@ func (h *Hub) pushJoin(uids []string, groupName, body, topic string) {
 	if !rc.FCMEnabled || h.pusher == nil {
 		return
 	}
-	tokensByUID, err := h.store.GetPushTokensBatch(uids)
-	if err != nil {
-		logf("pushJoin: GetPushTokensBatch failed: %v", err)
-		return
-	}
+	targets := h.pushTargets(uids, "pushJoin")
 	n := push.Notification{Kind: push.KindGroupJoin, Topic: topic, IsGroup: true, GroupName: groupName, Body: body}
 	for _, uid := range uids {
-		h.sendPush(uid, tokensByUID[uid], n, "pushJoin")
+		if tokens := targets[uid]; len(tokens) > 0 {
+			h.sendPush(uid, tokens, n, "pushJoin")
+		}
 	}
 }
 

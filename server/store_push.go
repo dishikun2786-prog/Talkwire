@@ -7,7 +7,11 @@
 
 package main
 
-import "example.com/imkit/server/push"
+import (
+	"database/sql"
+
+	"example.com/imkit/server/push"
+)
 
 // GetPushTokensBatch resolves push tokens for many uids in one round trip.
 //
@@ -16,26 +20,33 @@ import "example.com/imkit/server/push"
 // most members offline turned one incoming message into ~200 sequential
 // queries, each taking a pooled connection, on the hot path of every single
 // group send. uids with no registered device are simply absent from the map.
-func (s *Store) GetPushTokensBatch(uids []string) (map[string][]push.Token, error) {
-	out := make(map[string][]push.Token, len(uids))
+func (s *Store) GetPushTokensBatch(uids []string) (map[string][]deviceToken, error) {
+	out := make(map[string][]deviceToken, len(uids))
 	if len(uids) == 0 {
 		return out, nil
 	}
 	ph, args := inPlaceholders(uids)
-	rows, err := s.db.Query(`SELECT uid, provider, token FROM im_fcm_tokens WHERE uid IN (`+ph+`)`, args...)
+	rows, err := s.db.Query(`SELECT uid, provider, token, device_id FROM im_fcm_tokens WHERE uid IN (`+ph+`)`, args...)
 	if err != nil {
 		return out, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var uid string
-		var t push.Token
-		if err := rows.Scan(&uid, &t.Provider, &t.Value); err != nil {
+		var t deviceToken
+		if err := rows.Scan(&uid, &t.Provider, &t.Value, &t.Device); err != nil {
 			return out, err
 		}
 		out[uid] = append(out[uid], t)
 	}
 	return out, rows.Err()
+}
+
+// deviceToken is a push token and the device that registered it ("" when the
+// login named none).
+type deviceToken struct {
+	push.Token
+	Device string
 }
 
 // SavePushToken registers a device token for push notifications, reassigning
@@ -44,12 +55,30 @@ func (s *Store) GetPushTokensBatch(uids []string) (map[string][]push.Token, erro
 // enforces "a device token belongs to one logged-in account at a time" -- the
 // previous owner's row is overwritten, not left to accumulate alongside this
 // one.
-func (s *Store) SavePushToken(uid, provider, token string) error {
-	_, err := s.db.Exec(`
-		INSERT INTO im_fcm_tokens (uid, token, provider) VALUES ($1, $2, $3)
-		ON CONFLICT (token) DO UPDATE SET uid = EXCLUDED.uid, provider = EXCLUDED.provider, updated_at = NOW()
-	`, uid, token, provider)
-	return err
+//
+// device is the device that registered it (task 1.12). A named device keeps
+// one token per provider: registering a new one (a rotated FCM token, a new
+// Web Push subscription) drops its old one, so the device is not notified
+// twice. Tokens of the device "" are never dropped this way: logins that name
+// no device cannot be told apart.
+func (s *Store) SavePushToken(uid, provider, token, device string) error {
+	return s.withTx(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`
+			INSERT INTO im_fcm_tokens (uid, token, provider, device_id) VALUES ($1, $2, $3, $4)
+			ON CONFLICT (token) DO UPDATE SET uid = EXCLUDED.uid, provider = EXCLUDED.provider,
+				device_id = EXCLUDED.device_id, updated_at = NOW()
+		`, uid, token, provider, device); err != nil {
+			return err
+		}
+		if device == "" {
+			return nil
+		}
+		_, err := tx.Exec(`
+			DELETE FROM im_fcm_tokens
+			WHERE uid = $1 AND device_id = $2 AND provider = $3 AND token <> $4
+		`, uid, device, provider, token)
+		return err
+	})
 }
 
 // DeletePushToken unregisters one device token for one uid, scoped to that

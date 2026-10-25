@@ -16,9 +16,9 @@ func TestD9_JoinReviewQueuedForOfflineApplicant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &Hub{store: s, clients: map[string]*Client{}, topics: map[string]map[string]*Client{}}
+	h := &Hub{store: s, clients: map[string]map[string]*Client{}, topics: map[string]map[connKey]*Client{}}
 	queued := func() int {
-		evs, err := s.GetPendingGroupEvents(applicant)
+		evs, err := s.GetPendingGroupEvents(applicant, "")
 		if err != nil {
 			t.Fatal(err)
 		}

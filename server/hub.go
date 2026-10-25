@@ -27,15 +27,18 @@ type Hub struct {
 	// vapidKey is the Web Push public key strict login replies carry ("" when
 	// Web Push is not configured).
 	vapidKey   string
-	host       hostAPI                       // friendship checks, profiles and media
-	mods       *modules                      // installed optional modules
-	callHost   host.CallSessions             // set by the call module
-	aiHost     host.GroupAI                  // set by the group AI module
-	clients    map[string]*Client            // uid -> client (one active session per user)
-	topics     map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
+	host       hostAPI                        // friendship checks, profiles and media
+	mods       *modules                       // installed optional modules
+	callHost   host.CallSessions              // set by the call module
+	aiHost     host.GroupAI                   // set by the group AI module
+	clients    map[string]map[string]*Client  // uid -> device -> client; see devices.go
+	topics     map[string]map[connKey]*Client // topic -> (uid, device) -> client, for O(topic size) broadcast fan-out
 	mu         sync.RWMutex
 	register   chan *Client
 	unregister chan *Client
+	// e2eOwners caches uid -> the device that published its E2EE identity
+	// (e2ee module; see e2eOwner).
+	e2eOwners sync.Map
 	// loginMu orders logins: a login takes the next loginGen and is queued on
 	// register under it, so a higher generation is always registered later.
 	loginMu  sync.Mutex
@@ -99,8 +102,8 @@ func NewHub(store *Store, auth host.Identity, pusher *push.Dispatcher, hostAPI h
 		auth:       auth,
 		pusher:     pusher,
 		host:       hostAPI,
-		clients:    make(map[string]*Client),
-		topics:     make(map[string]map[string]*Client),
+		clients:    make(map[string]map[string]*Client),
+		topics:     make(map[string]map[connKey]*Client),
 		register:   make(chan *Client, 100),
 		unregister: make(chan *Client, 100),
 		// Deep enough that ordinary mobile-network churn never reaches the

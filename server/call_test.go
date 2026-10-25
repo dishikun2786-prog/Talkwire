@@ -297,7 +297,7 @@ func TestCallHub_ReserveRejectsWhenEitherParticipantBusy(t *testing.T) {
 // later -- see scheduleForceEndCallForDisconnect's own doc comment.
 
 func newTestHubForCallDisconnect() *Hub {
-	return &Hub{clients: make(map[string]*Client), calls: newCallHub()}
+	return &Hub{clients: make(map[string]map[string]*Client), calls: newCallHub()}
 }
 
 func withShortCallDisconnectGrace(d time.Duration, fn func()) {
@@ -395,7 +395,7 @@ func TestScheduleForceEndCallForDisconnect_LiveReconnectCaughtEvenIfCancelMissed
 		// exactly the "missed the cancel" scenario the timer's own re-check
 		// exists to catch.
 		h.mu.Lock()
-		h.clients["uid_b"] = &Client{uid: "uid_b"}
+		h.clients["uid_b"] = map[string]*Client{"": {uid: "uid_b"}}
 		h.mu.Unlock()
 
 		time.Sleep(150 * time.Millisecond) // well past the 30ms grace period
@@ -500,8 +500,8 @@ func TestCallModule_ReconnectCancelsTheGraceTimer(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := reservedCall(h)
-		h.mods.disconnected(h, "uid_a")
-		h.mods.connected(h, "uid_a")
+		h.mods.disconnected(h, "uid_a", "")
+		h.mods.connected(h, "uid_a", "")
 		time.Sleep(150 * time.Millisecond)
 		if _, status := call.currentTypeAndStatus(); status != callStateActive {
 			t.Fatalf("call ended (%s) although the participant reconnected within the grace period", status)
@@ -516,7 +516,7 @@ func TestCallModule_NotInstalledLeavesCallsAlone(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := reservedCall(h)
-		h.mods.disconnected(h, "uid_a")
+		h.mods.disconnected(h, "uid_a", "")
 		h.mods.hostBroadcast(h, "uid_a", "call_ended")
 		time.Sleep(80 * time.Millisecond)
 		if _, status := call.currentTypeAndStatus(); status != callStateActive {

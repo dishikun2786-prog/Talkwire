@@ -231,9 +231,7 @@ func (h *WebSocketHandler) InternalContactSync(w http.ResponseWriter, r *http.Re
 		// DB membership alone does not populate h.topics, and h.topics is what
 		// BroadcastToTopic and BroadcastPresence actually iterate.
 		for _, uid := range []string{uidA, uidB} {
-			if c := h.hub.GetClientByUID(uid); c != nil {
-				c.Subscribe(topic)
-			}
+			h.hub.subscribeUser(uid, topic, nil)
 		}
 	} else {
 		// req.Event == ContactEventRemoved: compute the canonical topic without
@@ -250,7 +248,7 @@ func (h *WebSocketHandler) InternalContactSync(w http.ResponseWriter, r *http.Re
 		// connection that stays open across the unfriend event must stop
 		// receiving broadcasts on this topic without needing to reconnect.
 		for _, uid := range []string{uidA, uidB} {
-			if c := h.hub.GetClientByUID(uid); c != nil {
+			for _, c := range h.hub.clientsOf(uid) {
 				c.Unsubscribe(topic)
 			}
 		}
@@ -492,8 +490,9 @@ func (h *WebSocketHandler) InternalCallBroadcast(w http.ResponseWriter, r *http.
 		writeInternalJSON(w, http.StatusBadRequest, map[string]string{"error": "targetUid and payload required"})
 		return
 	}
+	// Every device of the target: a balance or a call ending concerns each.
 	delivered := false
-	if target := h.hub.GetClientByUID(targetUID); target != nil {
+	for _, target := range h.hub.clientsOf(targetUID) {
 		target.SendRaw(req.Payload)
 		delivered = true
 	}

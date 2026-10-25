@@ -33,7 +33,10 @@ type E2eIdentityRow struct {
 // published before; old one-time keys are left alone rather than wiped,
 // since a key already handed out via ConsumeOneE2eOneTimePreKey may still be
 // mid-use by a session someone is establishing right now.
-func (s *Store) UpsertE2eIdentity(uid string, deviceID int, p *E2ePublishBundlePayload) error {
+//
+// ownerDevice is the connection device that published it (task 1.12): E2EE
+// envelopes go to that device only.
+func (s *Store) UpsertE2eIdentity(uid string, deviceID int, p *E2ePublishBundlePayload, ownerDevice string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -44,10 +47,11 @@ func (s *Store) UpsertE2eIdentity(uid string, deviceID int, p *E2ePublishBundleP
 		INSERT INTO im_e2e_identities (
 			uid, device_id, registration_id, identity_key,
 			signed_pre_key_id, signed_pre_key, signed_pre_key_signature,
-			kyber_pre_key_id, kyber_pre_key, kyber_pre_key_signature, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+			kyber_pre_key_id, kyber_pre_key, kyber_pre_key_signature, updated_at, owner_device
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11)
 		ON CONFLICT (uid) DO UPDATE SET
 			device_id = EXCLUDED.device_id,
+			owner_device = EXCLUDED.owner_device,
 			registration_id = EXCLUDED.registration_id,
 			identity_key = EXCLUDED.identity_key,
 			signed_pre_key_id = EXCLUDED.signed_pre_key_id,
@@ -59,7 +63,7 @@ func (s *Store) UpsertE2eIdentity(uid string, deviceID int, p *E2ePublishBundleP
 			updated_at = NOW()
 	`, uid, deviceID, p.RegistrationId, p.IdentityKey,
 		p.SignedPreKeyId, p.SignedPreKey, p.SignedPreKeySignature,
-		p.KyberPreKeyId, p.KyberPreKey, p.KyberPreKeySignature); err != nil {
+		p.KyberPreKeyId, p.KyberPreKey, p.KyberPreKeySignature, ownerDevice); err != nil {
 		return fmt.Errorf("upsert identity: %w", err)
 	}
 
@@ -74,6 +78,17 @@ func (s *Store) UpsertE2eIdentity(uid string, deviceID int, p *E2ePublishBundleP
 	}
 
 	return tx.Commit()
+}
+
+// GetE2eOwnerDevice returns the device that published uid's identity, or ""
+// when uid never published one.
+func (s *Store) GetE2eOwnerDevice(uid string) (string, error) {
+	var device string
+	err := s.db.QueryRow(`SELECT owner_device FROM im_e2e_identities WHERE uid = $1`, uid).Scan(&device)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return device, err
 }
 
 // GetE2eIdentity returns (nil, nil) if uid has never published a bundle —

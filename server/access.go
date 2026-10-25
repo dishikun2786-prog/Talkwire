@@ -13,9 +13,7 @@ package main
 // notification for this event rode a different socket entirely.
 func (h *Hub) notifyContactSync(uidA, uidB, event string) {
 	for _, p := range [2][2]string{{uidA, uidB}, {uidB, uidA}} {
-		if c := h.GetClientByUID(p[0]); c != nil {
-			c.SendJSON(&ServerMessage{Action: ActionContactSync, What: event, From: p[1]})
-		}
+		h.sendToUser(p[0], &ServerMessage{Action: ActionContactSync, What: event, From: p[1]}, nil)
 	}
 }
 
@@ -29,7 +27,7 @@ func (h *Hub) notifyContactSync(uidA, uidB, event string) {
 // writing c.appUserID on its own goroutine. Must go through the c.mu-guarded
 // accessor, not a bare field read (see AppUserID()'s doc comment).
 func (h *Hub) resolveAppUserID(uid string) (string, error) {
-	if c := h.GetClientByUID(uid); c != nil {
+	for _, c := range h.clientsOf(uid) {
 		if appUserID := c.AppUserID(); appUserID != "" {
 			return appUserID, nil
 		}
@@ -45,12 +43,7 @@ func (h *Hub) resolveAppUserID(uid string) (string, error) {
 // the real-time push nor the offline FCM fallback (pushOfflineRecipients
 // skips anyone with a live connection). Returns whether the peer is online.
 func (h *Hub) syncP2PPeer(peerUID, topic string) bool {
-	peerClient := h.GetClientByUID(peerUID)
-	if peerClient == nil {
-		return false
-	}
-	peerClient.Subscribe(topic)
-	return true
+	return h.subscribeUser(peerUID, topic, nil)
 }
 
 // ensureTopicMember 校验请求方确实是该 topic 的成员，用于一切**非 uid 形态**的 topic
@@ -134,6 +127,8 @@ func (h *Hub) resolveP2PTopic(client *Client, reqID, action, peerUID string) (to
 		return "", false, false
 	}
 	online := h.syncP2PPeer(peerUID, actualTopic)
+	// The user's other devices follow the conversation too (task 1.12).
+	h.subscribeUser(client.UID(), actualTopic, client)
 	return actualTopic, online, true
 }
 

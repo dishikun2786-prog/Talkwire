@@ -50,7 +50,7 @@ func TestStrictLoginReply(t *testing.T) {
 		got := h.loginReply("r1", "uid_a")
 		want := &ServerMessage{
 			Id: "r1", Action: ActionLogin, Code: CodeOK, UID: "uid_a", Protocol: ProtocolVersion,
-			Capabilities: []string{CapErrCode, CapReplyID, "module:e2ee", "module:call", "push:fcm", "push:webpush"},
+			Capabilities: []string{CapErrCode, CapReplyID, CapMultiDevice, "module:e2ee", "module:call", "push:fcm", "push:webpush"},
 			VapidKey:     "BKey",
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -167,7 +167,7 @@ func TestR22_PresenceOnlyForSharedTopics(t *testing.T) {
 	if _, err := s.EnsureP2PTopic(a, b); err != nil {
 		t.Fatal(err)
 	}
-	h := &Hub{store: s, clients: map[string]*Client{}, presRev: map[string]int64{}}
+	h := &Hub{store: s, clients: map[string]map[string]*Client{}, presRev: map[string]int64{}}
 	query := func() []string {
 		c := &Client{hub: h, uid: a, send: make(chan []byte, 4)}
 		h.handlePresQuery(c, &ClientMessage{Id: "q1", Action: ActionPres, Topics: []string{b, stranger}})
@@ -263,7 +263,7 @@ func TestR18_OnlyAccessTokensLogIn(t *testing.T) {
 func TestR19_LoginAndSnapshotRepliesCarryId(t *testing.T) {
 	s := testStore(t)
 	a, _ := s.EnsureUser("app-a")
-	h := &Hub{store: s, clients: map[string]*Client{}, presRev: map[string]int64{}}
+	h := &Hub{store: s, clients: map[string]map[string]*Client{}, presRev: map[string]int64{}}
 	replies := func() (login, snapshot string) {
 		login = h.loginReply("l1", a).Id
 		c := &Client{hub: h, uid: a, send: make(chan []byte, 2)}

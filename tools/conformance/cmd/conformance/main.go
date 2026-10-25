@@ -379,8 +379,8 @@ func dropHostCalls(tr *harness.Transcript) {
 // The server's additions to the reference schema: whole tables, and columns
 // ("table.column") added to reference tables.
 var (
-	schemaAddedTables  = []string{"imkit_schema_migrations"}
-	schemaAddedColumns = []string{"im_fcm_tokens.provider"}
+	schemaAddedTables  = []string{"imkit_schema_migrations", "im_devices", "im_pending_acks"}
+	schemaAddedColumns = []string{"im_fcm_tokens.provider", "im_fcm_tokens.device_id", "im_e2e_identities.owner_device"}
 )
 
 // withoutAdditions is a catalog as the reference server would have it.

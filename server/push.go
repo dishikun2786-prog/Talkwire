@@ -50,20 +50,23 @@ func (h *Hub) pushOfflineRecipients(topic, senderUID, senderKind, content, conte
 	// appUserId。改前是在成员循环里逐个 GetFCMTokens + GetAppUserID，一条群
 	// 消息 = 2N 次数据库往返；500 人的群里发一句话就是上千次查询，而这段代码
 	// 跑在每条消息的 announceMessage 之后。
-	offline := make([]string, 0, len(memberUIDs))
+	//
+	// With several devices per user (task 1.12) a member with a connected
+	// device is still notified on the devices that are away; see pushTargets.
+	candidates := make([]string, 0, len(memberUIDs))
 	for _, uid := range memberUIDs {
-		if uid == senderUID || h.GetClientByUID(uid) != nil {
-			continue
+		if uid != senderUID {
+			candidates = append(candidates, uid)
 		}
-		offline = append(offline, uid)
+	}
+	tokensByUID := h.pushTargets(candidates, "pushOfflineRecipients")
+	offline := make([]string, 0, len(tokensByUID))
+	for _, uid := range candidates {
+		if len(tokensByUID[uid]) > 0 {
+			offline = append(offline, uid)
+		}
 	}
 	if len(offline) == 0 {
-		return
-	}
-
-	tokensByUID, err := h.store.GetPushTokensBatch(offline)
-	if err != nil {
-		logf("pushOfflineRecipients: GetPushTokensBatch failed: %v", err)
 		return
 	}
 
@@ -214,6 +217,50 @@ func previewText(content, contentType string, text PushText) string {
 	}
 }
 
+// pushTargets picks the push tokens to notify for each user: the tokens
+// registered by the user's devices that are not connected. With no device
+// connected that is every token, as in the reference server; with the device
+// "" connected (a login that names no device) its tokens are skipped, as the
+// reference server skipped every token of a connected user. Tokens stored
+// before devices were recorded have the device ""; a client re-registers its
+// token at login, which moves it to the device it names. Users left with no
+// token are omitted.
+func (h *Hub) pushTargets(uids []string, caller string) map[string][]push.Token {
+	return h.pushTargetsOn(uids, caller, nil)
+}
+
+// pushTargetsOn is pushTargets keeping, for each user in only, the tokens of
+// one device: an E2EE notice is only for the device that holds the keys.
+func (h *Hub) pushTargetsOn(uids []string, caller string, only map[string]string) map[string][]push.Token {
+	out := make(map[string][]push.Token, len(uids))
+	if len(uids) == 0 {
+		return out
+	}
+	tokens, err := h.store.GetPushTokensBatch(uids)
+	if err != nil {
+		logf("%s: GetPushTokensBatch failed: %v", caller, err)
+		return out
+	}
+	for _, uid := range uids {
+		online := map[string]bool{}
+		for _, d := range h.onlineDevices(uid) {
+			online[d] = true
+		}
+		device, oneDevice := only[uid]
+		var picked []push.Token
+		for _, t := range tokens[uid] {
+			if online[t.Device] || (oneDevice && t.Device != device) {
+				continue
+			}
+			picked = append(picked, t.Token)
+		}
+		if len(picked) > 0 {
+			out[uid] = picked
+		}
+	}
+	return out
+}
+
 // handleRegToken stores a device's push token. Fire-and-forget: there is no
 // reply, so a token that fails validation is only logged (without its value:
 // a push token addresses one device).
@@ -226,7 +273,7 @@ func (h *Hub) handleRegToken(client *Client, msg *ClientMessage) {
 		logf("reg_token from %s refused: %v", client.uid, err)
 		return
 	}
-	if err := h.store.SavePushToken(client.uid, provider, token); err != nil {
+	if err := h.store.SavePushToken(client.uid, provider, token, client.Device()); err != nil {
 		logf("SavePushToken failed: %v", err)
 	}
 }

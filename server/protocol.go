@@ -7,6 +7,8 @@ type ClientMessage struct {
 	Id     string `json:"id,omitempty"`
 	Action string `json:"action"`
 	Token  string `json:"token,omitempty"`
+	// Device names the device a login comes from (task 1.12); see devices.go.
+	Device string `json:"device,omitempty"`
 	// Provider names the push service of a reg_token/unreg_token token:
 	// "fcm" (the default when absent), "apns" or "webpush".
 	Provider    string `json:"provider,omitempty"`
