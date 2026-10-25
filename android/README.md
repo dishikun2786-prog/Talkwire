@@ -13,7 +13,7 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 | `imkit-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
 | `imkit-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `ImkitMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
 | `imkit-ui` | Android 库（Compose） | 整套聊天界面：会话列表（带搜索：会话名与本机存的文字消息）、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享；撤回后留“某某撤回了一条消息”）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口；可选模块的界面经它的 `topBarExtras`、`groupInfoExtras` 两个槽位接入）、深链接 `imkit://`。另有 `imkit-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
-| `imkit-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。 | `imkit-ui` |
+| `imkit-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。服务端同意申请后只通知申请人（F45），所以 `JoinRequestsPanel(client, engine, topic)` 要引擎：同意后调 `engine.noteGroupChanged(topic)`，本设备的成员列表随之刷新；`JoinGroupScreen` 停在“申请已发送”时会跟着审核结果变成已入群或被拒绝。 | `imkit-ui` |
 | `imkit-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、来电铃声与回铃音、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `imkit-ui`、activity-compose 1.8.1 |
 | `imkit-call-dingrtc` | RTC 适配器 | 用阿里云 ARTC 3.0（DingRTC）实现 `CallMediaEngine`，说明见 `examples/artc/README.md`。SDK 只在这里出现。 | `imkit-call`、`com.ding.rtc:dingrtc-full:3.0.0`（阿里云 Maven） |
 | `imkit-video-compress` | 可选模块 | 发送前重新编码大视频（H.264 + AAC，计划 3.9）：`Media3VideoCompressor`，交给 `MediaSender(videoCompressor = …)`。单独成模块，不发大视频的 App 不必带上编码器与 ExoPlayer。 | `imkit-android`、media3-transformer 1.4.1 |
@@ -73,7 +73,7 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 
 计划的验收条件：sample-app 在真机上跑通完整流程；红包卡片只靠注册就能显示；真机才能验证的项目单独列出，未验证的如实标注。
 
-- 真机：2026-10-25 在一台小米（Android 15）上跑通登录、单聊、输入中与在线、双向已读、前台横幅与提示音、后台通知与点开、按住说话与上滑取消、建群、红包收发与实时更新、撤回、换账号。逐项与依据见 [DEVICE_CHECKS.md](DEVICE_CHECKS.md)；这次在真机上发现 5 个问题，都已修复并补了自动化用例。
+- 真机：2026-10-25 在一台小米（Android 15）上跑通登录、单聊、输入中与在线、双向已读、前台横幅与提示音、后台通知与点开、按住说话与上滑取消、建群、红包收发与实时更新、撤回、换账号。逐项与依据见 [DEVICE_CHECKS.md](DEVICE_CHECKS.md)；这次在真机上发现 5 个问题，都已修复并补了自动化用例。2026-10-26 又在同一台手机上与网页示例互通：文字、引用回复、双向撤回（不计未读）、本地搜索、双向语音通话（来电铃声、回铃音及其停止）、扫码入群（含审批）都通过；发现 4 个问题，其中审批后入群页不变、同意后成员数不刷新、严格模式多出的通话管理器已修复并在真机上复核，网页一次没响铃没能复现，两端加了定位记录，见 DEVICE_CHECKS.md。
 - 红包：`examples/red-packet/android` 只注册了一个 `MessageType`，SDK 里没有任何红包代码；卡片、会话列表预览、领取与实时更新都在真机上看过。
 - 本机全链路：`m2/SampleStackTest` 对真实服务端与示例宿主跑通。
 - 没验证的：相册、拍摄、文件三个附件入口（系统选择器会显示私人照片，这次没用）、来电时序、FCM、多设备同账号，详见 DEVICE_CHECKS.md。
@@ -138,8 +138,8 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - **视频压缩只在 JVM 上测了发送逻辑**：`MediaSender` 对大于 50 MB（或超过上限）的视频先交给 `VideoCompressor` 重新编码，失败或没变小就发原片（放得下时），仍超限才拒绝；这些分支有单测。`Media3VideoCompressor` 真正的编码要真机，只测了“读不了的文件返回 false 且不留文件”。旋转视频编码后方向是否正确、首帧缩略图按旋转角调整宽高，都没拿真机拍的视频验证过。
 - **群助手“正在输入”**（`ai_typing`，协议第 15 节）：本人所在的群收到它时，`typingIn` 里出现 `ChatMessage.AI_ASSISTANT_UID` 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。只在单测与界面测试里验证过。
 - **新设备上单聊的历史全算未读**：已修，但要 strict 档服务端：它存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 同步时据此推进本地已读位置（只前进）。legacy 档服务端与原版一致不存，接它时照旧。没有在真机上复核，见 DEVICE_CHECKS.md。
-- **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，没有在真机上看过。
+- **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，2026-10-26 与网页示例在真机上互通也过了。
 - 保存图片与视频到相册需要 Android 10（API 29）以上，更低的系统不显示“保存”。
 - 旧库导入只用按源项目 v18 schema 构造的库测过，没有拿真实用户的旧库验证。
-- **本地消息搜索**（`ChatEngine.searchMessages`，会话列表顶上的搜索框）只搜本机存的文字消息，每个会话读最近 500 条（`scanPerConversation`），按时间倒序；点结果打开那个会话，不跳到那条消息。没有在真机上用过。
-- **来电铃声与回铃音**：`CallSystem` 默认用 `SystemCallRinger`，来电时循环播放手机的铃声（铃声流）并振动，跟随情景模式（静音不响也不振，振动只振），呼出时放系统回铃音（425 Hz，响 1 秒停 4 秒）；`ringer = null` 关掉，也可以传自己的 `CallRinger`。振动要 App 清单里有 `VIBRATE`。只在 Robolectric 里测了振动与情景模式，铃声本身没有在真机上听过。
+- **本地消息搜索**（`ChatEngine.searchMessages`，会话列表顶上的搜索框）只搜本机存的文字消息，每个会话读最近 500 条（`scanPerConversation`），按时间倒序；点结果打开那个会话，不跳到那条消息。真机上只用英文关键词试过（adb 输不了中文）。
+- **来电铃声与回铃音**：`CallSystem` 默认用 `SystemCallRinger`，来电时循环播放手机的铃声（铃声流）并振动，跟随情景模式（静音不响也不振，振动只振），呼出时放系统回铃音（425 Hz，响 1 秒停 4 秒）；`ringer = null` 关掉，也可以传自己的 `CallRinger`。振动要 App 清单里有 `VIBRATE`。Robolectric 里测了振动与情景模式；真机上从系统的音频与振动记录看到来电铃声在播、接听或结束后停，回铃音按“响 1 秒停 4 秒”出声，没有人耳听过。

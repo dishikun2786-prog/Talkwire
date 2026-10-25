@@ -299,13 +299,18 @@ export interface JoinGroupScreenProps {
   onOpen?: (topic: string) => void;
 }
 
+/** The preview once I joined: the count it showed was taken before. */
+const joinedOne = (p: QrPreview): QrPreview => ({ ...p, memberCount: p.memberCount + 1, alreadyMember: true });
+
 type JoinPhase =
   | { kind: "loading" }
   | { kind: "invalid" }
   | { kind: "preview"; preview: QrPreview; error?: string }
   | { kind: "joining"; preview: QrPreview }
-  | { kind: "member"; preview: QrPreview }
-  | { kind: "pending"; preview: QrPreview };
+  /** `note` replaces "already in this group" (an approved request). */
+  | { kind: "member"; preview: QrPreview; note?: string }
+  | { kind: "pending"; preview: QrPreview }
+  | { kind: "rejected"; preview: QrPreview };
 
 /** Where a scanned or opened link leads: the group, then joining or asking to join. */
 export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
@@ -326,6 +331,21 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
     };
   }, [api, qrToken]);
 
+  // While the request waits, the manager's decision arrives as a push: follow it here.
+  const pendingTopic = phase.kind === "pending" ? phase.preview.topic : null;
+  useEffect(() => {
+    if (!pendingTopic) return;
+    return api.events.on((ev) => {
+      if (ev.kind !== "reviewed" || ev.topic !== pendingTopic) return;
+      if (ev.status === "approved") void afterJoined(engine, pendingTopic, ev.name || undefined).catch(() => {});
+      setPhase((p) => {
+        if (p.kind !== "pending") return p;
+        if (ev.status !== "approved") return { kind: "rejected", preview: p.preview };
+        return { kind: "member", preview: joinedOne(p.preview), note: fill(strings.approvedNotice, ev.name || p.preview.name) };
+      });
+    });
+  }, [api, engine, pendingTopic, strings]);
+
   const join = async (preview: QrPreview) => {
     setPhase({ kind: "joining", preview });
     try {
@@ -335,7 +355,7 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
         return;
       }
       await afterJoined(engine, r.topic || preview.topic, preview.name);
-      setPhase({ kind: "member", preview });
+      setPhase({ kind: "member", preview: joinedOne(preview) });
     } catch (e) {
       const code = codeOf(e);
       if (code === 404) setPhase({ kind: "invalid" });
@@ -364,7 +384,7 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
       <p className="imkit-gj-muted">{fill(strings.memberCount, preview.memberCount)}</p>
       {phase.kind === "member" && (
         <>
-          <p>{strings.alreadyMember}</p>
+          <p>{phase.note ?? strings.alreadyMember}</p>
           {onOpen && (
             <button type="button" className="imkit-send" onClick={() => onOpen(preview.topic)}>
               {strings.openChat}
@@ -373,6 +393,7 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
         </>
       )}
       {phase.kind === "pending" && <p>{strings.pending}</p>}
+      {phase.kind === "rejected" && <p className="imkit-gj-error">{fill(strings.rejectedNotice, preview.name)}</p>}
       {(phase.kind === "preview" || phase.kind === "joining") && (
         <>
           {preview.isFull && <p className="imkit-gj-error">{strings.groupFull}</p>}
@@ -410,6 +431,7 @@ export interface JoinRequestsPanelProps {
 /** A group's pending join requests, with approve and decline. Managers only. */
 export function JoinRequestsPanel({ topic, nameOf = (r) => r.requesterName }: JoinRequestsPanelProps) {
   const { api, strings } = useGroupJoin();
+  const { engine } = useImKit();
   const [requests, setRequests] = useState<JoinRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
@@ -439,6 +461,8 @@ export function JoinRequestsPanel({ topic, nameOf = (r) => r.requesterName }: Jo
       await api.review(topic, r.id, approve);
       setRequests((list) => list?.filter((x) => x.id !== r.id) ?? null);
       setError(null);
+      // The server tells only the requester (F45); the member list here would stay old.
+      if (approve) engine.noteGroupChanged(topic);
     } catch (e) {
       const code = codeOf(e);
       const errCode = e instanceof RequestRefused ? e.reply.errCode : undefined;
@@ -451,6 +475,7 @@ export function JoinRequestsPanel({ topic, nameOf = (r) => r.requesterName }: Jo
         // pending: show the server's list, then say why it changed.
         await load();
         setError(strings.handledElsewhere);
+        engine.noteGroupChanged(topic);
       } else {
         setError(code === 401 ? strings.notAllowed : strings.failed);
       }

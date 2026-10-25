@@ -156,10 +156,16 @@ private sealed interface JoinPhase {
 
     data class Joining(override val preview: QrPreview) : Shown
 
-    data class Member(override val preview: QrPreview) : Shown
+    /** [approved]: joined by an approved request, said instead of "already in this group". */
+    data class Member(override val preview: QrPreview, val approved: Boolean = false) : Shown
 
     data class Pending(override val preview: QrPreview) : Shown
+
+    data class Rejected(override val preview: QrPreview) : Shown
 }
+
+/** The preview once I joined: the count it showed was taken before. */
+private fun QrPreview.joinedOne(): QrPreview = copy(memberCount = memberCount + 1, alreadyMember = true)
 
 /**
  * Where a scanned or opened code leads: the group, then joining or asking to
@@ -194,6 +200,28 @@ public fun JoinGroupScreen(
         }
     }
 
+    // While the request waits, the manager's decision arrives as a push: follow it here.
+    val pendingTopic = (phase as? JoinPhase.Pending)?.preview?.topic
+    LaunchedEffect(client, pendingTopic) {
+        if (pendingTopic == null) return@LaunchedEffect
+        client.events.collect { e ->
+            if (e !is GroupJoinEvent.Reviewed || e.topic != pendingTopic) return@collect
+            val p = phase as? JoinPhase.Pending ?: return@collect
+            if (e.approved) {
+                try {
+                    engine.afterJoined(pendingTopic, e.name.ifEmpty { p.preview.name })
+                } catch (c: CancellationException) {
+                    throw c
+                } catch (_: Exception) {
+                    // The server already added and subscribed me; the list catches up on the next sync.
+                }
+                phase = JoinPhase.Member(p.preview.joinedOne(), approved = true)
+            } else {
+                phase = JoinPhase.Rejected(p.preview)
+            }
+        }
+    }
+
     fun join(preview: QrPreview) {
         phase = JoinPhase.Joining(preview)
         scope.launch {
@@ -203,7 +231,7 @@ public fun JoinGroupScreen(
                     JoinPhase.Pending(preview)
                 } else {
                     engine.afterJoined(r.topic.ifEmpty { preview.topic }, preview.name)
-                    JoinPhase.Member(preview)
+                    JoinPhase.Member(preview.joinedOne())
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -228,10 +256,11 @@ public fun JoinGroupScreen(
                 Muted(LocalContext.current.resources.getQuantityString(R.plurals.imkit_gj_member_count, preview.memberCount, preview.memberCount))
                 when (p) {
                     is JoinPhase.Member -> {
-                        Body(stringResource(R.string.imkit_gj_already_member))
+                        Body(if (p.approved) stringResource(R.string.imkit_gj_approved_notice, preview.name) else stringResource(R.string.imkit_gj_already_member))
                         if (onOpen != null) Primary(stringResource(R.string.imkit_gj_open_chat)) { onOpen(preview.topic) }
                     }
                     is JoinPhase.Pending -> Body(stringResource(R.string.imkit_gj_pending))
+                    is JoinPhase.Rejected -> ErrorText(stringResource(R.string.imkit_gj_rejected_notice, preview.name))
                     else -> {
                         if (preview.isFull) ErrorText(stringResource(R.string.imkit_gj_group_full))
                         if (preview.requireApproval && !preview.isFull) {
@@ -270,6 +299,7 @@ public fun JoinGroupScreen(
 @Composable
 public fun JoinRequestsPanel(
     client: GroupJoinClient,
+    engine: ChatEngine,
     topic: String,
     modifier: Modifier = Modifier,
     nameOf: (JoinRequest) -> String = { it.requesterName },
@@ -302,6 +332,8 @@ public fun JoinRequestsPanel(
                 client.review(topic, r.id, approve)
                 requests = requests?.filter { it.id != r.id }
                 error = null
+                // The server tells only the requester (F45); the member list here would stay old.
+                if (approve) engine.noteGroupChanged(topic)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -315,6 +347,7 @@ public fun JoinRequestsPanel(
                         // no longer pending: show the server's list, then say why.
                         load()
                         error = R.string.imkit_gj_handled_elsewhere
+                        engine.noteGroupChanged(topic)
                     }
                     reply?.code == 401 -> error = R.string.imkit_gj_not_allowed
                     else -> error = R.string.imkit_gj_failed

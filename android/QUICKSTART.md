@@ -104,7 +104,7 @@ class MyHost(…, private val calls: CallManager, private val groupJoin: GroupJo
         Column {
             GroupQrCard(groupJoin, topic, canRefresh = role.canManage, linkFor = { token -> "https://app.example.com/join/$token" })
             JoinApprovalSetting(groupJoin, topic, editable = role == GroupRole.OWNER)
-            if (role.canManage) JoinRequestsPanel(groupJoin, topic)
+            if (role.canManage) JoinRequestsPanel(groupJoin, engine, topic)
         }
     }
 }

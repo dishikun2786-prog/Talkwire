@@ -513,6 +513,19 @@ public class ChatEngine(
         return list
     }
 
+    /**
+     * Marks a group's roster stale and emits [ChatEvent.GroupChanged], as a
+     * `grp_sync` would: for changes this device made through another module
+     * that the server does not echo back to it (approving a join request
+     * tells only the requester, F45). Screens showing the members reload on
+     * the event.
+     */
+    public fun noteGroupChanged(topic: String) {
+        rosterEpochs.merge(topic, 1L, Long::plus)
+        rosters[topic]?.stale = true
+        _events.tryEmit(ChatEvent.GroupChanged(ConversationId(topic)))
+    }
+
     /** Whether the cached roster of [topic] is marked stale; null when none is cached. */
     internal fun rosterStale(topic: String): Boolean? = rosters[topic]?.stale
 

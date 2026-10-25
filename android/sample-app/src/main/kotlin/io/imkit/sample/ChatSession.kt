@@ -94,6 +94,7 @@ class ChatSession(context: Context, val account: Account, http: OkHttpClient) {
         app.getString(R.string.sample_red_packet),
         calls,
         groupJoin,
+        engine,
     )
 
     val banners = ImBannerState()

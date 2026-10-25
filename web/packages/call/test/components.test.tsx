@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
-import { NoMediaEngine, type CallRinger } from "@imkit/call";
+import { NoMediaEngine, type CallRinger, type CallTraceEntry } from "@imkit/call";
 import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
 import { uidOf } from "@imkit/protocol";
 import { ImKitProvider, type ImUiHost } from "@imkit/react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeServer, type Frame } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";
 
@@ -29,7 +29,7 @@ function answering(handlers: Record<string, (f: Frame) => Frame[]>): FakeServer 
   return server;
 }
 
-async function setup(server: FakeServer, user = "alice", ringer: CallRinger | null = null) {
+async function setup(server: FakeServer, user = "alice", ringer: CallRinger | null = null, opts: { tabChannel?: boolean; log?: (e: CallTraceEntry) => void } = {}) {
   const client = new ImClient({ endpoints: ["ws://fake"], tokenProvider: () => "tok:" + user, transport: server, watchNetwork: false });
   const engine = new ChatEngine(client, new MemoryChatStore(), { appUserId: user, autoSync: false });
   stops.push(() => {
@@ -43,7 +43,7 @@ async function setup(server: FakeServer, user = "alice", ringer: CallRinger | nu
   const wrap = (node: ReactNode) => (
     <StrictMode>
       <ImKitProvider engine={engine} host={host} locale="zh">
-        <CallProvider media={media} channel={null} ringer={ringer}>
+        <CallProvider media={media} ringer={ringer} {...(opts.tabChannel ? {} : { channel: null })} {...(opts.log ? { log: opts.log } : {})}>
           {node}
         </CallProvider>
       </ImKitProvider>
@@ -106,6 +106,36 @@ describe("call components", () => {
 
     server.live[0]!.push({ type: "call_ended", callSessionId: "cs-2", reason: "max_duration_reached" });
     await until("ended", () => !!ui.queryByText("已达通话时长上限"));
+  });
+
+  // Found in a browser: StrictMode built the manager twice, and the dropped one kept hearing every ring.
+  it("listens once under StrictMode and closes its channel to the other tabs on unmount", async () => {
+    const open = new Set<object>();
+    class Channel {
+      onmessage: unknown = null;
+      constructor(readonly name: string) {
+        open.add(this);
+      }
+      postMessage() {}
+      close() {
+        open.delete(this);
+      }
+    }
+    vi.stubGlobal("BroadcastChannel", Channel);
+    stops.push(() => vi.unstubAllGlobals());
+    const server = answering({});
+    const traced: CallTraceEntry[] = [];
+    const { wrap } = await setup(server, "bob", null, { tabChannel: true, log: (e) => traced.push(e) });
+    const ui = render(wrap(<CallOverlay />));
+    await until("started", () => traced.some((e) => e.what === "start"));
+    expect(open.size, "one channel to the other tabs").toBe(1);
+
+    server.live[0]!.push({ type: "call_ring", callSessionId: "cs-4", callType: "voice", ringTimeoutSeconds: 45 });
+    await until("ringing", () => !!ui.queryByText("邀请你语音通话"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(traced.filter((e) => e.what === "signal"), "one manager heard it").toHaveLength(1);
+    ui.unmount();
+    expect(open.size, "closed on unmount").toBe(0);
   });
 
   it("says why an invite was refused and names an unknown end reason plainly", async () => {

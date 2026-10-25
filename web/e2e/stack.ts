@@ -99,7 +99,7 @@ export interface Stack {
 export async function startStack(): Promise<Stack> {
   const dsn = process.env.IMKIT_TEST_DSN;
   if (!dsn) throw new Error("IMKIT_TEST_DSN is not set: the end-to-end tests need a throwaway PostgreSQL database (see web/README.md).");
-  if (!existsSync(binary)) throw new Error(`${binary} is missing: build it with \`cd server && go build -o bin/ ./cmd/imkit-server\`.`);
+  if (!existsSync(binary)) throw new Error(`${binary} is missing: build it with \`cd server && go build -o bin/ .\`.`);
   for (const [what, port] of Object.entries(ports)) {
     if (!(await portFree(port))) throw new Error(`port ${port} (${what}) is in use; set E2E_${what.toUpperCase()}_PORT to another one`);
   }

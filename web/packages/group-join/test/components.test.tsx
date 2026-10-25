@@ -61,6 +61,7 @@ describe("scan-to-join components", () => {
     expect(ui.queryByLabelText("给管理员的留言（可选）"), "no message without approval").toBeNull();
     fireEvent.click(ui.getByText("加入群聊"));
     await until("joined", () => !!ui.queryByText("进入群聊"));
+    expect(ui.getByText("4 人"), "the preview's count was taken before I joined").toBeTruthy();
     expect(server.sent("group_join").map((f) => f.joinMessage)).toEqual([undefined]);
     expect(server.sent("sub").map((f) => f.topic)).toEqual([group]);
     expect(engine.conversation(group)?.title).toBe("徒步群");
@@ -83,6 +84,50 @@ describe("scan-to-join components", () => {
     await until("pending", () => !!ui.queryByText("申请已发送，管理员处理后会通知你"));
     expect(server.sent("group_join")[0]!.joinMessage).toBe("我".repeat(60)); // the server's limit, in code points
     expect(server.sent("sub"), "not a member yet").toHaveLength(0);
+  });
+
+  // Found on a phone: after the admin decided, the page still said the request was sent.
+  it("follows the admin's decision on a pending request", async () => {
+    const server = answering({
+      group_qr_resolve: () => ({ code: 200, topic: group, name: "徒步群", memberCount: 3, requireApproval: true }),
+      group_join: () => ({ code: 200, topic: group, joinStatus: "pending_approval" }),
+      get_groups: () => ({ code: 200, groups: [{ topic: group, name: "徒步群", owner: "uid_x", members: 4 }] }),
+    });
+    const { engine, wrap } = await setup(server);
+    const opened: string[] = [];
+    const ui = render(<StrictMode>{wrap(<JoinGroupScreen qrToken="qr-1" onOpen={(t) => opened.push(t)} />)}</StrictMode>);
+    await until("preview", () => !!ui.queryByText("申请加入"));
+    fireEvent.click(ui.getByText("申请加入"));
+    await until("pending", () => !!ui.queryByText("申请已发送，管理员处理后会通知你"));
+
+    // A decision on another group changes nothing.
+    server.live[0]!.push({ action: "group_join_reviewed", topic: "grp_other000000001", name: "别的群", joinStatus: "approved" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ui.getByText("申请已发送，管理员处理后会通知你")).toBeTruthy();
+
+    server.live[0]!.push({ action: "group_join_reviewed", topic: group, name: "徒步群", joinStatus: "approved" });
+    await until("approved", () => !!ui.queryByText("你的入群申请已通过，欢迎加入「徒步群」"));
+    expect(ui.getByText("4 人")).toBeTruthy();
+    await until("subscribed", () => server.sent("sub").some((f) => f.topic === group));
+    expect(engine.conversation(group)).toBeTruthy();
+    fireEvent.click(ui.getByText("进入群聊"));
+    expect(opened).toEqual([group]);
+  });
+
+  it("says when a pending request was declined", async () => {
+    const server = answering({
+      group_qr_resolve: () => ({ code: 200, topic: group, name: "徒步群", memberCount: 3, requireApproval: true }),
+      group_join: () => ({ code: 200, topic: group, joinStatus: "pending_approval" }),
+    });
+    const { wrap } = await setup(server);
+    const ui = render(wrap(<JoinGroupScreen qrToken="qr-1" />));
+    await until("preview", () => !!ui.queryByText("申请加入"));
+    fireEvent.click(ui.getByText("申请加入"));
+    await until("pending", () => !!ui.queryByText("申请已发送，管理员处理后会通知你"));
+    server.live[0]!.push({ action: "group_join_reviewed", topic: group, name: "徒步群", joinStatus: "rejected" });
+    await until("declined", () => !!ui.queryByText("你申请加入「徒步群」被拒绝"));
+    expect(ui.queryByText("进入群聊")).toBeNull();
+    expect(server.sent("sub")).toHaveLength(0);
   });
 
   it("shows an expired code and a full group", async () => {
@@ -112,13 +157,17 @@ describe("scan-to-join components", () => {
         return { code: 200, topic: group, joinStatus: f.approve ? "approved" : "rejected" };
       },
     });
-    const { wrap } = await setup(server);
+    const { engine, wrap } = await setup(server);
+    const changed: string[] = [];
+    stops.push(engine.events.on((e) => e.kind === "groupChanged" && changed.push(e.conversation)));
     const ui = render(wrap(<JoinRequestsPanel topic={group} />));
     await until("listed", () => !!ui.queryByText("Eve"));
     expect(ui.getByText("我是同事")).toBeTruthy();
     const row = (id: number) => ui.container.querySelector(`[data-join-request="${id}"]`) as HTMLElement;
     fireEvent.click(row(1).querySelector("button.imkit-send")!);
     await until("approved", () => !ui.queryByText("Eve"));
+    // The server tells only the applicant (F45): the panel tells this tab's engine, so the member list reloads.
+    expect(changed).toEqual([group]);
     fireEvent.click(row(2).querySelector("button.imkit-send")!);
     await until("refused", () => !!ui.queryByText("群成员数量已达上限"));
     expect(ui.getByText("Fay"), "still pending on a strict server").toBeTruthy();

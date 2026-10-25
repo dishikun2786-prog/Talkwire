@@ -7,7 +7,7 @@
 
 import { useImKit, useProfile, useSignal } from "@imkit/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CallManager, ToneRinger, ringWith, type CallEndReason, type CallMediaEngine, type CallRinger, type CallState, type CallType, type TabChannel } from "./index.js";
+import { CallManager, ToneRinger, ringWith, type CallEndReason, type CallMediaEngine, type CallRinger, type CallState, type CallTraceEntry, type CallType, type TabChannel } from "./index.js";
 
 // ------------------------------------------------------------------ strings
 
@@ -210,15 +210,26 @@ export interface CallProviderProps {
   strings?: Partial<CallStrings>;
   /** Plays the ring and the ringback; default a `ToneRinger`, null for silence. Keep it stable across renders. */
   ringer?: CallRinger | null;
+  /** Each trace entry as it happens, for a debug log; `manager.trace()` keeps the last 100. */
+  log?: (entry: CallTraceEntry) => void;
   children: ReactNode;
 }
 
 /** Makes calls available below; one per `<ImKitProvider>`. */
-export function CallProvider({ media, channel, strings, ringer, children }: CallProviderProps) {
+export function CallProvider({ media, channel, strings, ringer, log, children }: CallProviderProps) {
   const { engine, locale } = useImKit();
-  const manager = useMemo(() => new CallManager(engine.client, engine.me, channel === undefined ? { media } : { media, channel }), [engine, media, channel]);
+  const logRef = useRef(log);
+  useEffect(() => {
+    logRef.current = log;
+  }, [log]);
+  // Built idle and started by the effect: StrictMode builds it twice and drops
+  // one, and a dropped one that listened would keep hearing every ring.
+  const manager = useMemo(
+    () => new CallManager(engine.client, engine.me, { media, autoStart: false, log: (e) => logRef.current?.(e), ...(channel === undefined ? {} : { channel }) }),
+    [engine, media, channel],
+  );
   const sound = useMemo(() => (ringer === undefined ? new ToneRinger() : ringer), [ringer]);
-  // Start in the effect too: StrictMode runs the cleanup once before mounting again.
+  // StrictMode runs the cleanup once before mounting again: dispose, then start.
   useEffect(() => {
     manager.start();
     const off = sound ? ringWith(manager, sound) : null;

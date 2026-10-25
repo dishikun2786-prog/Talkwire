@@ -1,5 +1,5 @@
 import { ImClient } from "@imkit/client";
-import { CallManager, type CallMediaEngine, type CallState, type MediaJoin, type TabChannel } from "@imkit/call";
+import { CallManager, type CallMediaEngine, type CallState, type CallTraceEntry, type MediaJoin, type TabChannel } from "@imkit/call";
 import { uidOf } from "@imkit/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer, type Frame } from "../../client/test/fake-server.js";
@@ -226,6 +226,39 @@ describe("calls", () => {
     expect(server.sent("call_hangup").map((f) => f.callSessionId)).toContain("cs-6");
   });
 
+  // Found in a browser: a manager React built and dropped kept hearing every ring.
+  it("built with autoStart false, hears rings only between start and dispose; the trace says what it did", async () => {
+    const server = new FakeServer();
+    const client = new ImClient({ endpoints: ["ws://fake"], tokenProvider: () => "tok:bob", transport: server, requestTimeoutMs: 2_000, watchNetwork: false });
+    const log: CallTraceEntry[] = [];
+    const manager = new CallManager(client, bob, { media: new FakeMedia(), channel: null, autoStart: false, log: (e) => log.push(e) });
+    stops.push(() => {
+      manager.close();
+      client.stop();
+    });
+    client.start();
+    await client.awaitConnected(5_000);
+    const ring = (id: string) => server.live[0]!.push({ type: "call_ring", callSessionId: id, callType: "voice", ringTimeoutSeconds: 45 });
+
+    ring("cs-a");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(phase(manager)).toBe("idle");
+    expect(manager.trace().filter((e) => e.what === "signal"), "not listening yet").toEqual([]);
+
+    manager.start();
+    ring("cs-b");
+    await until("rings", () => phase(manager) === "incoming");
+    ring("cs-c");
+    await until("dropped", () => manager.trace().some((e) => e.what === "drop" && e.callSessionId === "cs-c"));
+    manager.dispose();
+    ring("cs-d");
+    await new Promise((r) => setTimeout(r, 30));
+
+    const lines = manager.trace().map((e) => [e.what, e.callSessionId, e.note].filter(Boolean).join(" "));
+    expect(lines).toEqual(["start", "state idle", "signal cs-b ring", "state cs-b incoming", "signal cs-c ring", "drop cs-c busy here (incoming)", "dispose"]);
+    expect(log).toEqual(manager.trace());
+  });
+
   it("lets one tab take a ringing call, and keeps the others out of calls meanwhile", async () => {
     const server = new FakeServer();
     server.onFrame = (conn, f) => {
@@ -249,6 +282,8 @@ describe("calls", () => {
     server.live[1]!.push({ type: "call_ring", callSessionId: "cs-8", callType: "voice", ringTimeoutSeconds: 45 });
     await new Promise((r) => setTimeout(r, 30));
     expect(phase(two.manager)).toBe("idle");
+    const dropped = two.manager.trace().find((e) => e.what === "drop" && e.callSessionId === "cs-8");
+    expect(dropped?.note, "the trace says why it did not ring").toBe("busy in another tab (cs-7)");
     // A tab that went quiet (closed mid-call) stops counting after 90 seconds.
     now += 91_000;
     server.live[1]!.push({ type: "call_ring", callSessionId: "cs-9", callType: "voice", ringTimeoutSeconds: 45 });

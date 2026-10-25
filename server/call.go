@@ -551,12 +551,15 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		logf("[call] GetProfile failed, ringing with a generic caller identity: %v", err)
 	}
 
-	// Every device of the callee rings (task 1.12).
-	if rung := h.sendToUser(calleeUID, &CallSignalMessage{
+	// Every device of the callee rings (task 1.12). The devices go in the
+	// invite's log line: when a callee says a call never rang, that line tells
+	// whether the server pushed the ring to the device at all.
+	rung := h.sendToUser(calleeUID, &CallSignalMessage{
 		Type: ActionCallRing, CallSessionId: call.id, CallType: call.callType,
 		CallerName: callerName, CallerAvatar: callerAvatar,
 		RingTimeoutSeconds: ringTimeoutSeconds,
-	}, nil); len(rung) == 0 {
+	}, nil)
+	if len(rung) == 0 {
 		// The callee disconnected in the narrow window between the
 		// reachability check above and here (their ReadPump/Disconnect runs
 		// on an independent goroutine). h.unregister's forced-end branch
@@ -568,7 +571,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 	}
 
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallInvite, Code: CodeOK, Topic: msg.Topic, CallSessionId: call.id})
-	logf("[call] %s invited %s (session=%s type=%s)", client.uid, calleeUID, call.id, call.callType)
+	logf("[call] %s invited %s (session=%s type=%s rung=%q)", client.uid, calleeUID, call.id, call.callType, rung)
 }
 
 // handleCallRingTimeout fires from call.ringTimer (time.AfterFunc, started

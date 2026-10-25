@@ -1,5 +1,5 @@
-import { NoMediaEngine } from "@imkit/call";
-import { CallButtons, CallOverlay, CallProvider, CallStyles } from "@imkit/call/react";
+import { NoMediaEngine, type CallTraceEntry } from "@imkit/call";
+import { CallButtons, CallOverlay, CallProvider, CallStyles, useCall } from "@imkit/call/react";
 import { BrowserNotifier, canManage, isGroupConversation, type ConversationId } from "@imkit/client";
 import { GroupJoinProvider, GroupJoinStyles, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel, groupJoinNotice, useGroupJoin, useGroupJoinEvents } from "@imkit/group-join/react";
 import { ChatScreen, ConnectionBanner, ContactList, ConversationInfo, ConversationList, ImKitProvider, ImKitStyles, PickPeople, useSignal } from "@imkit/react";
@@ -18,6 +18,23 @@ const ui = {
 function initialLocale(): Locale {
   const l = navigator.language.toLowerCase();
   return l.startsWith("zh") ? "zh" : l.startsWith("vi") ? "vi" : "en";
+}
+
+/** In development every call trace line goes to the console (debug level), to find out why a call did not ring. */
+const callLog = import.meta.env.DEV ? (e: CallTraceEntry) => console.debug("[imkit-call]", new Date(e.at).toISOString(), e.what, e.callSessionId ?? "", e.note ?? "") : undefined;
+
+/** In development, `imkitCallTrace()` in the console prints the last 100 trace lines. */
+function CallTraceOnWindow() {
+  const { manager } = useCall();
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const w = window as unknown as { imkitCallTrace?: () => void };
+    w.imkitCallTrace = () => console.table(manager.trace().map((e) => ({ ...e, at: new Date(e.at).toISOString() })));
+    return () => {
+      delete w.imkitCallTrace;
+    };
+  }, [manager]);
+  return null;
 }
 
 export function App() {
@@ -87,7 +104,8 @@ export function App() {
       ) : stack ? (
         <ImKitProvider engine={stack.engine} host={stack.host} locale={locale}>
           <GroupJoinProvider>
-            <CallProvider media={media}>
+            <CallProvider media={media} log={callLog}>
+              <CallTraceOnWindow />
               <GroupJoinStyles />
               <CallStyles />
               <Chats stack={stack} t={t} />

@@ -12,7 +12,7 @@
 | `@imkit/react` | 会话列表（右键或长按：置顶、免打扰、删除；顶上的搜索按会话名与本机存的文字消息找）、聊天页、气泡、输入栏（表情、按住说话）；消息操作（复制、保存、回复引用、转发、多选合并转发、撤回，撤回后留“某某撤回了一条消息”）；群里每条自己的消息显示谁已读，点开是名单；通讯录（`ContactList`）；会话信息页（群成员与角色、按权限给出的成员操作、加人、改群名、置顶、免打扰、清空、退群与解散）与选人（建群、加人）；主题、文案、消息类型注册表 |
 | `@imkit/group-join` | 可选模块：扫码入群（协议第 14 节）。`GroupJoinClient` 一个动作一个方法；`/react` 里有群二维码卡片、入群页、入群申请列表、审核开关 |
 | `@imkit/admin` | 后台页面，嵌进宿主自己的管理后台：聊天记录（查一个用户的会话与消息，为双方清空单聊）、通话记录与详情。对接 `@imkit/host-node` 的 `imkitAdminRoutes`，只依赖 React |
-| `@imkit/call` | 可选模块：音视频通话（协议第 16 节）。`CallSignaling` 一个动作一个方法；`CallManager` 管本标签页的通话状态，驱动一个 `CallMediaEngine`（RTC 适配器）；`/react` 里有标签页内来电与通话界面、单聊页的通话按钮。来电铃声与回铃音由 `ToneRinger` 用 Web Audio 合成（不带音频文件），`CallProvider` 默认启用，`ringer={null}` 关掉 |
+| `@imkit/call` | 可选模块：音视频通话（协议第 16 节）。`CallSignaling` 一个动作一个方法；`CallManager` 管本标签页的通话状态，驱动一个 `CallMediaEngine`（RTC 适配器）；`/react` 里有标签页内来电与通话界面、单聊页的通话按钮。来电铃声与回铃音由 `ToneRinger` 用 Web Audio 合成（不带音频文件），`CallProvider` 默认启用，`ringer={null}` 关掉。`manager.trace()` 保留最近 100 条记录（收到哪些推送、来电为什么没响、标签页之间的消息、状态变化，只有通话 id 与阶段，不含姓名与凭据），`CallProvider` 的 `log` 可把每条接到调试日志 |
 | `@imkit/call-dingrtc` | 通话的 RTC 适配器：阿里云 ARTC 3.0（DingRTC）Web SDK 上的 `CallMediaEngine`。SDK（npm `dingrtc`）是 peer 依赖，由应用安装后传入；宿主一侧的签令牌见 `examples/artc` |
 | `sample/` | 示例 App（Vite），连 `examples/sample-host` 与 `imkit-server` |
 | `e2e/` | Playwright 端到端用例，对真实服务端跑示例 |
@@ -102,9 +102,9 @@ import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
 </ImKitProvider>
 ```
 
-- **扫码入群**：二维码里放什么由应用决定（`linkFor`，通常是自己的入群页链接）；套件不带二维码编码器，`renderQr` 交给应用自己的库画。legacy 档的服务端不会给入群者订阅群（D7），`JoinGroupScreen` 入群后会订阅并刷新群列表；只用 `GroupJoinClient` 时调 `afterJoined(engine, topic)`。审核失败时按 strict 档的 `errCode` 区分“群已满”（申请留着）与“已被处理”，不解析 `reason`。
+- **扫码入群**：二维码里放什么由应用决定（`linkFor`，通常是自己的入群页链接）；套件不带二维码编码器，`renderQr` 交给应用自己的库画。legacy 档的服务端不会给入群者订阅群（D7），`JoinGroupScreen` 入群后会订阅并刷新群列表；只用 `GroupJoinClient` 时调 `afterJoined(engine, topic)`。审核失败时按 strict 档的 `errCode` 区分“群已满”（申请留着）与“已被处理”，不解析 `reason`。服务端同意申请后只通知申请人（F45）：`JoinRequestsPanel` 同意后调 `engine.noteGroupChanged(topic)`，本设备的成员列表随之刷新；只用 `GroupJoinClient` 审核时自己调它。申请人的 `JoinGroupScreen` 停在“申请已发送”时会跟着审核结果变成已入群或被拒绝。
 - **通话**：媒体不经过 IM 服务端，走宿主的 RTC 服务；`CallMediaEngine` 是 RTC 适配器要实现的接口（加入频道、开摄像头、静音、离开、挂视频画面）。用阿里云 ARTC 时直接用 `new DingRtcMediaEngine(DingRTC)`（`@imkit/call-dingrtc`），其他 RTC 服务照它的样子写一个。每一方只拿到自己的 `rtcToken`，客户端不把它发给对方。同一账号的多个标签页：来电在所有标签页响铃，在哪个标签页接听或拒绝，其他标签页就停止响铃；一个标签页在通话中时，其他标签页不响铃也不能发起（在通话中的标签页每 30 秒告知一次，关掉的标签页 90 秒后不再算数）。未知的结束原因按“通话已结束”显示。
-- **React StrictMode**：开发模式下效果会先卸载一次再挂上；两个 Provider 都在效果里重新开始监听，模块客户端的 `dispose()` 之后可以再 `start()`。
+- **React StrictMode**：开发模式下效果会先卸载一次再挂上；两个 Provider 都在效果里重新开始监听，模块客户端的 `dispose()` 之后可以再 `start()`。严格模式还会把 `useMemo` 的工厂调两次并丢掉一个结果，所以 `CallProvider` 用 `autoStart: false` 建 `CallManager`、只在效果里 `start()`，丢掉的那个从不监听；它自己开的标签页频道在 `dispose()` 时关闭、`start()` 时重开。
 
 ### 后台页面
 
@@ -154,4 +154,6 @@ npm run sample
 
 ## 未做
 
-通话的 RTC 适配器 `@imkit/call-dingrtc` 只用模拟的 SDK 测过，没有接真实的 ARTC 服务打过一通有声音画面的电话（需要 ARTC 账号）。Web Push 只做了订阅与显示，没有接推送服务；只在 Edge（Chromium）上跑过，Firefox、Safari 未测。与 Android 示例在真机上互发、同一账号手机与网页同时在线，已在一台小米（Android 15）上验收，见 `docs/plan.md` 的 Phase 5 结果。
+通话的 RTC 适配器 `@imkit/call-dingrtc` 只用模拟的 SDK 测过，没有接真实的 ARTC 服务打过一通有声音画面的电话（需要 ARTC 账号）。Web Push 只做了订阅与显示，没有接推送服务；只在 Edge（Chromium）上跑过，Firefox、Safari 未测。与 Android 示例在真机上互发、同一账号手机与网页同时在线，已在一台小米（Android 15）上验收，见 `docs/plan.md` 的 Phase 5 结果；2026-10-26 又与 Android 示例互通了撤回、引用回复、双向语音通话（信令与铃声）和扫码入群（含审批），见 `android/DEVICE_CHECKS.md`。
+
+已知问题：网页有一次没有对手机的回拨响铃，之后三次都正常，没能复现；现在服务端的邀请日志写明振铃推给了哪些设备，`CallManager.trace()` 记下收到的推送与来电被丢弃的原因（网页示例开发模式下打到控制台，`imkitCallTrace()` 可看表格），再遇到时能看出停在哪一步，见 `android/DEVICE_CHECKS.md`。同一次互通发现的“同意入群申请后成员数不刷新”“严格模式多出的 `CallManager` 一直收推送”“审批后入群页不变”已修复并在真机上复核。

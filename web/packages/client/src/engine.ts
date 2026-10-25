@@ -565,6 +565,19 @@ export class ChatEngine {
     return members?.find((m) => m.uid === this.me)?.role ?? "member";
   }
 
+  /**
+   * Marks a group's roster stale and emits `groupChanged`, as a `grp_sync`
+   * would: for changes this device made through another module that the
+   * server does not echo back to it (approving a join request tells only the
+   * requester, F45). Screens showing the members reload on the event.
+   */
+  noteGroupChanged(topic: string): void {
+    const r = this.rosters.get(topic);
+    if (r) r.stale = true;
+    this.rosterEpochs.set(topic, this.rosterEpoch(topic) + 1);
+    this.events.emit({ kind: "groupChanged", conversation: topic });
+  }
+
   /** Whether the cached roster is stale; null when none is cached. */
   rosterStale(topic: string): boolean | null {
     return this.rosters.get(topic)?.stale ?? null;

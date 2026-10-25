@@ -9,6 +9,7 @@ import io.imkit.android.media.MediaSender
 import io.imkit.call.CallButtons
 import io.imkit.call.CallManager
 import io.imkit.core.client.TokenProvider
+import io.imkit.core.engine.ChatEngine
 import io.imkit.core.json.Json
 import io.imkit.core.json.JsonObject
 import io.imkit.core.model.ConversationId
@@ -43,6 +44,7 @@ class SampleHost(
     private val redPacketLabel: String,
     private val calls: CallManager,
     private val groupJoin: GroupJoinClient,
+    private val engine: ChatEngine,
 ) : ImUiHost {
     private val _contacts = MutableStateFlow<List<ImProfile>>(emptyList())
     override val contacts: StateFlow<List<ImProfile>> = _contacts
@@ -84,7 +86,7 @@ class SampleHost(
         Column {
             GroupQrCard(groupJoin, topic, canRefresh = role.canManage, linkFor = ::joinLink)
             JoinApprovalSetting(groupJoin, topic, editable = role == GroupRole.OWNER)
-            if (role.canManage) JoinRequestsPanel(groupJoin, topic)
+            if (role.canManage) JoinRequestsPanel(groupJoin, engine, topic)
         }
     }
 

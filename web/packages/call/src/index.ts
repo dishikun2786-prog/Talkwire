@@ -70,9 +70,12 @@ export class CallSignaling {
   readonly signals = new Emitter<CallSignal>();
   private off: Unsubscribe | null = null;
 
-  /** Listens to the client's pushes from the start. */
-  constructor(readonly client: ImClient) {
-    this.start();
+  /** Listens to the client's pushes from the start, unless `autoStart` is false. */
+  constructor(
+    readonly client: ImClient,
+    opts: { autoStart?: boolean } = {},
+  ) {
+    if (opts.autoStart !== false) this.start();
   }
 
   /** Listens again after `dispose`; does nothing while listening. */
@@ -252,7 +255,31 @@ export interface CallManagerOptions {
   /** How long an ended call stays on screen before the state goes back to idle. */
   endedHoldMs?: number;
   clock?: () => number;
+  /**
+   * Listen from construction; default true. False waits for `start()`: for a
+   * framework that may build an instance and drop it unused (React StrictMode
+   * runs `useMemo` twice), so the dropped one never hears a ring.
+   */
+  autoStart?: boolean;
+  /** Called with each trace entry as it happens (see `trace()`); for a debug log. */
+  log?: (entry: CallTraceEntry) => void;
 }
+
+/**
+ * One line of a manager's trace: what it heard and what it did with it, for
+ * finding out afterwards why a call did not ring. Holds call ids and phases,
+ * never names or credentials.
+ */
+export interface CallTraceEntry {
+  at: number;
+  what: "start" | "dispose" | "connection" | "signal" | "drop" | "tab" | "state";
+  callSessionId?: string;
+  /** The signal kind, the reason for a drop, the tab message, the new phase. */
+  note?: string;
+}
+
+/** How many trace entries a manager keeps. */
+const TRACE_SIZE = 100;
 
 type TabMessage = { t: "took"; callSessionId: string } | { t: "busy"; callSessionId: string } | { t: "free"; callSessionId: string };
 
@@ -268,8 +295,13 @@ export class CallManager {
   readonly state: ReadonlySignal<CallState> = this._state;
   /** The RTC adapter, for the call screen to attach video elements. */
   readonly media: CallMediaEngine;
-  private readonly channel: TabChannel | null;
+  /** Null until `start` when the manager opens its own (the default), and again after `dispose`. */
+  private channel: TabChannel | null;
+  private readonly ownChannel: boolean;
   private readonly clock: () => number;
+  private readonly log: ((entry: CallTraceEntry) => void) | undefined;
+  private readonly traced: CallTraceEntry[] = [];
+  private offConnection: Unsubscribe | null = null;
   private readonly endedHoldMs: number;
   private readonly offSignals: Unsubscribe;
   private readonly early: { at: number; signal: CallSignal }[] = [];
@@ -279,30 +311,39 @@ export class CallManager {
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** cancel() came before the server told the call's id. */
   private cancelBeforeAck = false;
-  private disposed = false;
+  private disposed = true;
 
   constructor(
     readonly client: ImClient,
     readonly me: string,
     options: CallManagerOptions,
   ) {
-    this.signaling = new CallSignaling(client);
+    this.signaling = new CallSignaling(client, { autoStart: false });
     this.media = options.media;
     this.clock = options.clock ?? Date.now;
+    this.log = options.log;
     this.endedHoldMs = options.endedHoldMs ?? 3_000;
-    this.channel = options.channel === undefined ? defaultChannel(me) : options.channel;
-    this.listenToTabs(true);
+    this.ownChannel = options.channel === undefined;
+    this.channel = options.channel ?? null;
     this.offSignals = this.signaling.signals.on((s) => void this.onSignal(s));
     this.offState = this._state.subscribe((s) => this.onState(s));
+    if (options.autoStart !== false) this.start();
   }
 
   private readonly offState: Unsubscribe;
+  private lastPhase: CallState["phase"] | null = null;
 
   /** Listens again after `dispose`; does nothing while listening (React StrictMode mounts twice). */
   start(): void {
+    if (this.disposed) this.note("start");
     this.disposed = false;
     this.signaling.start();
+    if (this.ownChannel) this.channel ??= defaultChannel(this.me);
     this.listenToTabs(true);
+    this.offConnection ??= this.client.events.on((ev) => {
+      if (ev.kind === "connected") this.note("connection", undefined, "connected");
+      else if (ev.kind === "disconnected") this.note("connection", undefined, ev.willReconnect ? "lost, reconnecting" : "lost");
+    });
     this.onState(this.current);
   }
 
@@ -312,9 +353,16 @@ export class CallManager {
    * undoes it.
    */
   dispose(): void {
+    if (!this.disposed) this.note("dispose");
     this.disposed = true;
     this.signaling.dispose();
     this.listenToTabs(false);
+    if (this.ownChannel) {
+      this.channel?.close?.();
+      this.channel = null;
+    }
+    this.offConnection?.();
+    this.offConnection = null;
     this.clearTimer();
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
@@ -328,6 +376,24 @@ export class CallManager {
     this.channel?.close?.();
   }
 
+  /** The last 100 things this manager heard and did, oldest first. */
+  trace(): CallTraceEntry[] {
+    return [...this.traced];
+  }
+
+  private note(what: CallTraceEntry["what"], callSessionId?: string, note?: string): void {
+    const e: CallTraceEntry = { at: this.clock(), what };
+    if (callSessionId) e.callSessionId = callSessionId;
+    if (note) e.note = note;
+    this.traced.push(e);
+    if (this.traced.length > TRACE_SIZE) this.traced.shift();
+    try {
+      this.log?.(e);
+    } catch {
+      // a debug log must not break calls
+    }
+  }
+
   private listenToTabs(on: boolean): void {
     if (this.channel) this.channel.onmessage = on ? (ev) => this.onTabMessage(ev.data as TabMessage) : null;
   }
@@ -337,14 +403,24 @@ export class CallManager {
   }
 
   private get free(): boolean {
-    if (this.current.phase !== "idle" && this.current.phase !== "ended") return false;
+    return this.whyBusy() === null;
+  }
+
+  /** Why this tab cannot take a call now; null when it can. */
+  private whyBusy(): string | null {
+    const phase = this.current.phase;
+    if (phase !== "idle" && phase !== "ended") return `busy here (${phase})`;
     const now = this.clock();
     for (const [id, at] of this.busyElsewhere) if (now - at >= BUSY_EXPIRY_MS) this.busyElsewhere.delete(id);
-    return this.busyElsewhere.size === 0;
+    return this.busyElsewhere.size === 0 ? null : `busy in another tab (${[...this.busyElsewhere.keys()].join(", ")})`;
   }
 
   /** While this tab is in a call with a known id, the account's other tabs hear so every 30 seconds. */
   private onState(s: CallState): void {
+    if (s.phase !== this.lastPhase) {
+      this.lastPhase = s.phase;
+      this.note("state", "callSessionId" in s ? s.callSessionId : undefined, s.phase === "ended" ? `ended: ${s.reason}` : s.phase);
+    }
     if (this.disposed) return;
     const id = s.phase === "active" || (s.phase === "outgoing" && s.callSessionId) ? s.callSessionId! : null;
     if (id && !this.heartbeat) {
@@ -509,11 +585,19 @@ export class CallManager {
   // ---------------------------------------------------------------- pushes
 
   private async onSignal(sig: CallSignal): Promise<void> {
-    if (this.disposed) return;
+    this.note("signal", sig.callSessionId, sig.kind);
+    if (this.disposed) {
+      this.note("drop", sig.callSessionId, "stopped");
+      return;
+    }
     const s = this.current;
     const mine = "callSessionId" in s && s.callSessionId === sig.callSessionId;
     if (sig.kind === "ring") {
-      if (!this.free) return;
+      const busy = this.whyBusy();
+      if (busy) {
+        this.note("drop", sig.callSessionId, busy);
+        return;
+      }
       this.clearTimer();
       const ring: CallState = { phase: "incoming", callSessionId: sig.callSessionId, callType: sig.callType, ringTimeoutSeconds: sig.ringTimeoutSeconds, since: this.clock() };
       if (sig.callerName) ring.callerName = sig.callerName;
@@ -528,6 +612,9 @@ export class CallManager {
       if (s.phase === "outgoing" && !s.callSessionId) {
         this.early.push({ at: this.clock(), signal: sig });
         if (this.early.length > 20) this.early.shift();
+        this.note("drop", sig.callSessionId, "kept until the invite reply");
+      } else {
+        this.note("drop", sig.callSessionId, "not this tab's call");
       }
       return;
     }
@@ -561,6 +648,7 @@ export class CallManager {
 
   private onTabMessage(m: TabMessage): void {
     if (!m || typeof m !== "object") return;
+    this.note("tab", m.callSessionId, m.t);
     const s = this.current;
     if (m.t === "took") {
       // Another tab answered or declined the call ringing here too.
