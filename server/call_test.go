@@ -20,7 +20,7 @@ func TestCallStateResolve_TimerStoppedOnEarlyResolution(t *testing.T) {
 	call := &callState{status: callStateRinging}
 	// Long enough relative to the sleep below that "the cancellation won the
 	// race" isn't a fluke of scheduling, short enough to keep the test fast.
-	call.ringTimer = time.AfterFunc(50*time.Millisecond, func() {
+	call.startRingTimer(50*time.Millisecond, func() {
 		atomic.AddInt32(&fired, 1)
 	})
 
@@ -48,7 +48,7 @@ func TestCallStateResolve_RingTimeoutFiringIsItselfAResolve(t *testing.T) {
 	// case called out in resolve()'s doc comment.
 	resolvedInsideCallback := make(chan bool, 1)
 	call := &callState{status: callStateRinging}
-	call.ringTimer = time.AfterFunc(10*time.Millisecond, func() {
+	call.startRingTimer(10*time.Millisecond, func() {
 		resolvedInsideCallback <- call.resolve(callStateEnded, callStateRinging)
 	})
 
@@ -60,8 +60,60 @@ func TestCallStateResolve_RingTimeoutFiringIsItselfAResolve(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("ring timer never fired")
 	}
-	if call.status != callStateEnded {
-		t.Fatalf("status = %q, want %q", call.status, callStateEnded)
+	if _, status := call.currentTypeAndStatus(); status != callStateEnded {
+		t.Fatalf("status = %q, want %q", status, callStateEnded)
+	}
+}
+
+// F58: the timer is armed only while the call rings, and its callback cannot
+// observe the call before the timer is recorded on it.
+func TestCallStateStartRingTimer_OnlyWhileRinging(t *testing.T) {
+	ended := &callState{status: callStateEnded}
+	if ended.startRingTimer(time.Millisecond, func() { t.Error("timer armed on an ended call fired") }) {
+		t.Fatal("startRingTimer armed a timer on a call that is no longer ringing")
+	}
+	if ended.ringTimer != nil {
+		t.Fatal("a refused startRingTimer left a timer on the call")
+	}
+	time.Sleep(20 * time.Millisecond)
+
+	// A zero delay lets the callback race the assignment; under -race this
+	// fails if ringTimer is written outside the lock.
+	for i := 0; i < 200; i++ {
+		call := &callState{status: callStateRinging}
+		done := make(chan bool, 1)
+		if !call.startRingTimer(0, func() { done <- call.resolve(callStateEnded, callStateRinging) }) {
+			t.Fatal("startRingTimer refused a ringing call")
+		}
+		if !<-done {
+			t.Fatal("the callback's resolve lost to nobody")
+		}
+	}
+}
+
+// F58 again, from the other side: a disconnect resolving the call while the
+// invite arms the timer. Either the arm is refused, or the resolve stops the
+// armed timer: no round leaves a running timer behind.
+func TestCallStateStartRingTimer_RaceWithResolve(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		call := &callState{status: callStateRinging}
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			call.startRingTimer(time.Hour, func() {})
+		}()
+		go func() {
+			defer wg.Done()
+			call.resolve(callStateEnded, callStateRinging)
+		}()
+		wg.Wait()
+		call.mu.Lock()
+		armed := call.ringTimer != nil && call.ringTimer.Stop()
+		call.mu.Unlock()
+		if armed {
+			t.Fatalf("round %d: a timer armed on a call resolved at the same moment was left running", i)
+		}
 	}
 }
 

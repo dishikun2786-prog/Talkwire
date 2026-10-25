@@ -162,7 +162,14 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 	client.setUID(imUID)
 	client.setAppUserID(appUserID)
 	client.loginTime = time.Now()
+	// The generation and the queue position are taken together, so the
+	// order Run registers connections in is the order of their generations
+	// (F60, see subscribeTopic).
+	h.loginMu.Lock()
+	h.loginGen++
+	client.gen.Store(h.loginGen)
 	h.register <- client
+	h.loginMu.Unlock()
 	client.SendJSON(h.loginReply(msg.Id, imUID))
 	logf("User logged in: %s -> %s", appUserID, imUID)
 	go h.deliverPendingClears(client)

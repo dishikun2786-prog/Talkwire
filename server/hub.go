@@ -36,6 +36,10 @@ type Hub struct {
 	mu         sync.RWMutex
 	register   chan *Client
 	unregister chan *Client
+	// loginMu orders logins: a login takes the next loginGen and is queued on
+	// register under it, so a higher generation is always registered later.
+	loginMu  sync.Mutex
+	loginGen uint64
 
 	// presenceCh serializes presence fan-out through a single worker. See
 	// runPresenceWorker for why two bare `go BroadcastPresence(...)` calls

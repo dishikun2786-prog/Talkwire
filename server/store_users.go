@@ -9,18 +9,30 @@ import (
 )
 
 // EnsureUser creates or returns the IM user ID for a given app user
+//
+// F61: ON CONFLICT handles only its arbiter, app_user_id. When two first
+// logins of one user insert at the same moment, the loser hits the other
+// unique key, im_user_id, before it can see the winner's row, and the
+// reference server failed that login. One retry finds the row and takes the
+// DO UPDATE path. The constraint is matched by name, as in
+// CreateGroupJoinRequest: lib/pq is imported only for its driver.
 func (s *Store) EnsureUser(appUserID string) (string, error) {
 	imUID := IMUserID(appUserID)
-	_, err := s.db.Exec(`
-		INSERT INTO im_users (app_user_id, im_user_id)
-		VALUES ($1, $2)
-		ON CONFLICT (app_user_id) DO UPDATE
-			SET im_user_id = EXCLUDED.im_user_id
-	`, appUserID, imUID)
-	if err != nil {
+	for attempt := 0; ; attempt++ {
+		_, err := s.db.Exec(`
+			INSERT INTO im_users (app_user_id, im_user_id)
+			VALUES ($1, $2)
+			ON CONFLICT (app_user_id) DO UPDATE
+				SET im_user_id = EXCLUDED.im_user_id
+		`, appUserID, imUID)
+		if err == nil {
+			return imUID, nil
+		}
+		if attempt == 0 && strings.Contains(err.Error(), "im_users_im_user_id_key") {
+			continue
+		}
 		return "", fmt.Errorf("ensure user: %w", err)
 	}
-	return imUID, nil
 }
 
 // GetIMUserID returns the IM user ID for an app user

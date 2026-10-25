@@ -73,23 +73,39 @@ func (h *Hub) handleLeave(client *Client, msg *ClientMessage) {
 // subscribeTopic registers client under topic in the hub's topic index, so
 // BroadcastToTopic can reach it in O(topic size) instead of scanning every
 // connected client.
+//
+// F60: the reference server let any connection take the uid's slot. A
+// replaced connection's frame that was already read when it was replaced (a
+// sub, or a pub, which subscribes) then put the dead connection in the slot,
+// and its unregister removed it: the replacement silently stopped receiving
+// that topic while still believing it was subscribed. Now an older login
+// never displaces a newer one, and a closed connection is not indexed (Run
+// has drained, or is draining, its subscriptions).
 func (h *Hub) subscribeTopic(topic string, client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if !client.IsOnline() {
+		return
+	}
 	m, ok := h.topics[topic]
 	if !ok {
 		m = make(map[string]*Client)
 		h.topics[topic] = m
 	}
+	if cur := m[client.uid]; cur != nil && cur != client && cur.gen.Load() > client.gen.Load() {
+		return
+	}
 	m[client.uid] = client
 }
 
 // unsubscribeTopic removes client from the topic index, dropping the topic
-// entry entirely once its last subscriber leaves.
+// entry entirely once its last subscriber leaves. Only the client's own entry:
+// a replaced connection's late leave must not unsubscribe its replacement
+// (F60).
 func (h *Hub) unsubscribeTopic(topic string, client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if m, ok := h.topics[topic]; ok {
+	if m, ok := h.topics[topic]; ok && m[client.uid] == client {
 		delete(m, client.uid)
 		if len(m) == 0 {
 			delete(h.topics, topic)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -74,6 +75,9 @@ type Client struct {
 	mu         sync.Mutex
 	subscribed map[string]bool // topics this client is subscribed to
 	closed     bool
+	// gen orders the logins of one hub; a connection that replaced another
+	// has the higher generation. Set once at login.
+	gen atomic.Uint64
 }
 
 func NewClient(hub *Hub, conn *websocket.Conn) *Client {

@@ -127,6 +127,27 @@ func (c *callState) resolve(to string, from ...string) bool {
 	return true
 }
 
+// startRingTimer arms the ring timeout, under the lock and only while the call
+// is still ringing. It reports false when the call was already resolved: a
+// disconnect can end it while CreateCallSession is in flight.
+//
+// F58: the reference server assigned ringTimer without the lock, so a
+// resolve() on another goroutine (the timer's own callback, or a disconnect
+// or cancel arriving at the same moment) read the field while it was being
+// written, and the "still ringing?" check and the assignment were two steps
+// with a window between them. Holding the lock across AfterFunc also orders
+// the assignment before the callback's own resolve(): the callback blocks on
+// the lock until ringTimer is set.
+func (c *callState) startRingTimer(d time.Duration, f func()) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.status != callStateRinging {
+		return false
+	}
+	c.ringTimer = time.AfterFunc(d, f)
+	return true
+}
+
 // currentTypeAndStatus is a small convenience for the handlers that need to
 // read both without racing a concurrent resolve() -- e.g. handleCallUpgrade
 // checking "is this call active, and is it not already video" before it
@@ -422,15 +443,15 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 	// again. This is the same class of gap CreateCallSession's own doc
 	// comment already accepts for V1 (see internal_client.go) -- not
 	// reintroducing it here, just re-flagging where else it surfaces.
-	if _, status := call.currentTypeAndStatus(); status != callStateRinging {
+	//
+	// The check and the timer start are one step (startRingTimer, F58).
+	ringTimeoutSeconds := CurrentRuntimeConfig().CallRingTimeoutSeconds
+	if !call.startRingTimer(time.Duration(ringTimeoutSeconds)*time.Second, func() {
+		h.handleCallRingTimeout(call)
+	}) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallInvite, CodeConflict, "对方已离线"))
 		return
 	}
-
-	ringTimeoutSeconds := CurrentRuntimeConfig().CallRingTimeoutSeconds
-	call.ringTimer = time.AfterFunc(time.Duration(ringTimeoutSeconds)*time.Second, func() {
-		h.handleCallRingTimeout(call)
-	})
 
 	callerName, callerAvatar, err := h.host.GetProfile(calleeAppUserID, call.callerAppUserID)
 	if err != nil {
