@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -15,16 +17,24 @@ const (
 	renderedMD  = "../../../contract/redlines/matrix.md"
 	scenarioDir = "../../../contract/protocol/scenarios"
 	serverDir   = "../../../server"
+	androidDir  = "../../../android"
 )
 
-func writtenTests(t *testing.T) map[string]bool {
+func writtenTests(t *testing.T) Written {
 	t.Helper()
-	written, err := WrittenTests(serverDir)
+	server, err := WrittenTests(serverDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return written
+	android, err := AndroidTests(androidDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Written{"server": server, "android": android}
 }
+
+// marked matches an "已写" mark in the summary or the details, not the legend.
+var marked = regexp.MustCompile(`[0-9] 已写|，已写）`)
 
 func load(t *testing.T) (*Matrix, []*harness.Scenario) {
 	t.Helper()
@@ -248,15 +258,62 @@ func TestWrittenTests(t *testing.T) {
 		t.Fatalf("written: %v", written)
 	}
 	m, _ := load(t)
-	problems := CheckWritten(m, written)
+	problems := CheckWritten(m, Written{"server": written})
 	if len(problems) != 1 || !strings.Contains(problems[0], "TestR2_NotInTheMatrix") {
 		t.Fatalf("problems: %v", problems)
 	}
-	out := string(Render(m, written))
+	out := string(Render(m, Written{"server": written}))
 	if !strings.Contains(out, "`TestR1_ConcurrentDuplicatePublish`：服务端 1.11 已写") {
 		t.Fatal("a written server case is not marked in the summary")
 	}
-	if strings.Contains(string(Render(m, nil)), "已写") && !strings.Contains(string(Render(m, nil)), "已写 0 个") {
+	if nothing := string(Render(m, nil)); marked.MatchString(nothing) || !strings.Contains(nothing, "服务端 0/") {
 		t.Fatal("nothing is written, yet a case is marked")
+	}
+}
+
+// Android red-line tests are found in src/test only, marked written per
+// platform, and one that the matrix does not list is reported.
+func TestAndroidTests(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, src string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("mod/src/test/kotlin/a/ATest.kt", "class ATest {\n"+
+		"    @Test\n    fun C1_IgnoresDuplicatedFrames() {}\n"+
+		"    @Test\n    fun C1_NotInTheMatrix() = runBlocking {}\n"+
+		"    @Test\n    fun c1_lowerCaseIsNotARedLineTest() {}\n"+
+		"    private fun helper() {}\n}\n")
+	write("mod/src/main/kotlin/a/Main.kt", "fun C2_NotATest() {}\n")
+	write("mod/src/testFixtures/kotlin/a/Fixture.kt", "fun C3_NotATestEither() {}\n")
+	write("mod/build/tmp/src/test/kotlin/Gen.kt", "fun C4_Generated() {}\n")
+	android, err := AndroidTests(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(android) != 2 || !android["C1_IgnoresDuplicatedFrames"] || !android["C1_NotInTheMatrix"] {
+		t.Fatalf("android: %v", android)
+	}
+	m, _ := load(t)
+	written := Written{"android": android}
+	problems := CheckWritten(m, written)
+	if len(problems) != 1 || !strings.Contains(problems[0], "android test C1_NotInTheMatrix") {
+		t.Fatalf("problems: %v", problems)
+	}
+	out := string(Render(m, written))
+	if !strings.Contains(out, "`C1_IgnoresDuplicatedFrames`：Android 3.10 已写") {
+		t.Fatal("a written Android case is not marked in the summary")
+	}
+	if strings.Contains(out, "`C1_ReconnectAfterInjectedDisconnect`：Android 3.10 已写") {
+		t.Fatal("an Android case is marked without its test")
+	}
+	if strings.Contains(out, "Web 5.8 已写") {
+		t.Fatal("the same name on another platform is marked")
 	}
 }

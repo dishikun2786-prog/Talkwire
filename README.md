@@ -6,7 +6,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
 ## 当前状态
 
-**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1（Go 服务端核心）** 的 1.1–1.13 已全部完成（2026-10-25）：拆文件、宿主适配、推送三家、可选模块、迁移、strict 档、安全修复、并发修复、多端同时在线，以及 strict 档补修的 D1、D2、D5、D7、D8；legacy 档与原版逐帧一致，默认档位为 strict，闸门 G1 已通过。**Phase 2（宿主契约与 Node 宿主 SDK）** 已完成（2026-10-25）：宿主双向的 OpenAPI 契约、uid 黄金向量、Node 宿主 SDK、宿主卡片更新接口 `custom-broadcast` 与红包示例；用 Node SDK（Prisma 连测试库）替换假宿主后黄金对话 33/33 全绿，契约测试双向通过，“用其他语言实现宿主”的说明在 `contract/host-api/README.md`。客户端代码尚未开始。各任务的结果见 `server/README.md`、`host-sdk-node/README.md`，完整计划见 `docs/plan.md`。
+**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1（Go 服务端核心）** 的 1.1–1.13 已全部完成（2026-10-25）：拆文件、宿主适配、推送三家、可选模块、迁移、strict 档、安全修复、并发修复、多端同时在线，以及 strict 档补修的 D1、D2、D5、D7、D8；legacy 档与原版逐帧一致，默认档位为 strict，闸门 G1 已通过。**Phase 2（宿主契约与 Node 宿主 SDK）** 已完成（2026-10-25）：宿主双向的 OpenAPI 契约、uid 黄金向量、Node 宿主 SDK、宿主卡片更新接口 `custom-broadcast` 与红包示例；用 Node SDK（Prisma 连测试库）替换假宿主后黄金对话 33/33 全绿，契约测试双向通过，“用其他语言实现宿主”的说明在 `contract/host-api/README.md`。**Phase 3（Android 核心 SDK，无 UI）** 已完成，M1 达成：JVM 集成测试对独立运行的服务端（strict、legacy 两档）跑通登录到在线状态的整条流程，C1–C5、C9 各有用例，`imkit-core` 不依赖 Compose 和 Room；真机未验证，视频压缩与缩略图未做。各任务的结果见 `server/README.md`、`host-sdk-node/README.md`、`android/README.md`，完整计划见 `docs/plan.md`。
 
 ## 目录
 
@@ -19,7 +19,8 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | `docs/` | 计划、架构决策记录、协议规范、清单 | 建设中 |
 | `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
-| `android/`、`web/`、`ios/` | 三端 SDK | Phase 3–6 |
+| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM | Phase 3 完成（M1），UI 属 Phase 4 |
+| `web/`、`ios/` | Web、iOS SDK | Phase 5–6 |
 | `examples/` | 业务示例：红包卡（宿主自定义消息类型） | 红包示例已有 |
 | `admin-kit/` | 后台组件 | Phase 8 |
 
@@ -27,6 +28,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
 - Go 1.26.4 及以上（本机验证用的是 1.27.0）。
 - Node.js 22 及以上（`host-sdk-node/`、`examples/`、`tools/schema/check.mjs`；本机验证用的是 24.19.0）。依赖版本钉死，lockfile 已提交。
+- JDK 17 与 Android SDK（platform 34），用于 `android/`；Gradle 8.7 由 wrapper 下载。见 `android/README.md`。
 - 文本文件一律 LF（见 `.gitattributes`）。Git for Windows 默认 `core.autocrlf=true`，不加这条，Go 源码检出后是 CRLF，哈希对不上冻结的源码，gofmt 也会报整份文件。
 - 竞态检测用 `tools/race.sh`，参数原样传给 `go test -race`（默认 `./...`）：
 

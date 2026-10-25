@@ -54,8 +54,8 @@ type Golden struct {
 	Checks   string   `json:"checks"`
 }
 
-// Planned is an automated test: one still to be written, or, for the server,
-// one found among the server's tests (see WrittenTests).
+// Planned is an automated test: one still to be written, or, for the server
+// and Android, one found among their tests (see Written).
 type Planned struct {
 	Task     string `json:"task"`
 	Layer    string `json:"layer"`
@@ -260,6 +260,16 @@ func checkRedline(m *Matrix, rl *Redline, byName map[string]*harness.Scenario, u
 	}
 }
 
+// Written lists, per platform, the tests found in the code: which planned
+// cases exist. Only the server and Android are scanned so far.
+type Written map[string]map[string]bool
+
+// Has reports whether the platform's test of that name exists.
+func (w Written) Has(platform, name string) bool { return w[platform][name] }
+
+// ScannedPlatforms are the platforms whose tests Written can hold, in display order.
+var ScannedPlatforms = []string{"server", "android"}
+
 var testFunc = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\)`)
 
 // WrittenTests returns the names of the Go test functions in the *_test.go
@@ -291,32 +301,72 @@ func WrittenTests(dir string) (map[string]bool, error) {
 	return out, err
 }
 
-var redlineTest = regexp.MustCompile(`^Test(R[1-9][0-9]*)_`)
+var kotlinRedlineTest = regexp.MustCompile(`(?m)^\s*fun ([RC][1-9][0-9]*_\w+)\(\)`)
 
-// CheckWritten reports server tests named after a red line (TestR<n>_...)
-// that the matrix does not list as a server case: a red-line test written
-// without its row in the matrix.
-func CheckWritten(m *Matrix, written map[string]bool) []string {
-	listed := map[string]bool{}
-	for _, rl := range m.Redlines {
-		for _, p := range rl.Planned {
-			if p.Platform == "server" {
-				listed[p.Name] = true
+// AndroidTests returns the Kotlin test functions named after a red line
+// (R<n>_... or C<n>_...) in the unit-test sources (src/test) of the modules
+// under dir: which Android cases of the matrix exist.
+func AndroidTests(dir string) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if name := d.Name(); path != dir && (strings.HasPrefix(name, ".") || name == "build") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		slashed := filepath.ToSlash(path)
+		if !strings.HasSuffix(slashed, ".kt") || !strings.Contains(slashed, "/src/test/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range kotlinRedlineTest.FindAllStringSubmatch(string(src), -1) {
+			out[m[1]] = true
+		}
+		return nil
+	})
+	return out, err
+}
+
+// redlineTestPatterns tell, per scanned platform, which test names are named
+// after a red line; the group is the red line's id.
+var redlineTestPatterns = map[string]*regexp.Regexp{
+	"server":  regexp.MustCompile(`^Test(R[1-9][0-9]*)_`),
+	"android": regexp.MustCompile(`^([RC][1-9][0-9]*)_`),
+}
+
+// CheckWritten reports tests named after a red line (server TestR<n>_...,
+// Android R<n>_... or C<n>_...) that the matrix does not list as a case of
+// that platform: a red-line test written without its row in the matrix.
+func CheckWritten(m *Matrix, written Written) []string {
+	var problems []string
+	for _, platform := range ScannedPlatforms {
+		listed := map[string]bool{}
+		for _, rl := range m.Redlines {
+			for _, p := range rl.Planned {
+				if p.Platform == platform {
+					listed[p.Name] = true
+				}
 			}
 		}
-	}
-	names := make([]string, 0, len(written))
-	for name := range written {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	var problems []string
-	for _, name := range names {
-		match := redlineTest.FindStringSubmatch(name)
-		if match == nil || listed[name] {
-			continue
+		names := make([]string, 0, len(written[platform]))
+		for name := range written[platform] {
+			names = append(names, name)
 		}
-		problems = append(problems, fmt.Sprintf("server test %s is not in the matrix: list it as a server case of %s", name, match[1]))
+		sort.Strings(names)
+		for _, name := range names {
+			match := redlineTestPatterns[platform].FindStringSubmatch(name)
+			if match == nil || listed[name] {
+				continue
+			}
+			problems = append(problems, fmt.Sprintf("%s test %s is not in the matrix: list it as a %s case of %s", platform, name, platform, match[1]))
+		}
 	}
 	return problems
 }

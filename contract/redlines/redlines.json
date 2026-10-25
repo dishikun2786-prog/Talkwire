@@ -373,7 +373,8 @@
       "planned": [
         {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "回放在第 9 步注入断线：重连带抖动、建连前清空身份、先登录再发请求、旧连接的迟到应答被世代号丢弃"},
         {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"},
-        {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"}
+        {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"},
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_IgnoresDuplicatedFrames", "scenario": "core/p2p", "checks": "每一步的帧都发两遍、应答排在最后：重复的应答、登录应答与推送都被忽略，连接不中断，请求不重发"}
       ]
     },
     {
@@ -381,10 +382,11 @@
       "title": "回执超时但连接仍在时保持“发送中”、不自动重发；媒体按 URL 对账",
       "platforms": ["android", "web", "ios"],
       "reference": "n/a",
+      "note": "core/clear-media 里发送方收不到自己消息的回显，媒体按 URL 对账在回放里验证不了：Android 改为单测（进程内服务端丢掉回执后从历史拉回），Web、iOS 到对应阶段同样处理。",
       "golden": [],
       "planned": [
         {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "回放丢弃第 8 步的帧：消息停在发送中，不自动重发（重发会被回放判为脚本外请求）"},
-        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C2_MediaReconciledByUrl", "scenario": "core/clear-media", "checks": "媒体消息按 fileUrl 与回显对账"},
+        {"task": "3.7", "layer": "unit", "platform": "android", "name": "C2_MediaReconciledByUrl", "checks": "媒体消息的回执丢失后，从历史拉回的同一条按 fileUrl 与“发送中”的那条对账：不重发、不重复"},
         {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "同上"},
         {"task": "5.8", "layer": "replay", "platform": "web", "name": "C2_MediaReconciledByUrl", "scenario": "core/clear-media", "checks": "同上"},
         {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C2_LostPublishReplyStaysSending", "scenario": "core/group-messaging", "checks": "同上"},
@@ -471,9 +473,10 @@
       "reference": "n/a",
       "golden": [],
       "planned": [
-        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
-        {"task": "5.8", "layer": "replay", "platform": "web", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "同上"},
-        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "同上"}
+        {"task": "3.10", "layer": "replay", "platform": "android", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新"},
+        {"task": "5.8", "layer": "replay", "platform": "web", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
+        {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C9_UnknownRosterMeansMember", "scenario": "core/group-guards", "checks": "回放丢弃第 18 步的名册应答：本人角色按普通成员处理，下一次名册拉取成功后恢复"}
       ]
     },
     {

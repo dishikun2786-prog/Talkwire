@@ -8,9 +8,9 @@ import (
 )
 
 // Render produces matrix.md. The output depends only on the matrix and on
-// which server cases are written (WrittenTests), so it can be compared byte
-// for byte with the committed file.
-func Render(m *Matrix, written map[string]bool) []byte {
+// which cases are written (Written), so it can be compared byte for byte with
+// the committed file.
+func Render(m *Matrix, written Written) []byte {
 	var b strings.Builder
 	w := func(format string, a ...any) { fmt.Fprintf(&b, format, a...) }
 
@@ -19,7 +19,9 @@ func Render(m *Matrix, written map[string]bool) []byte {
 	w("%s\n\n", m.About)
 
 	w("## 概况\n\n")
-	var server, client, withGolden, steps, planned, serverCases, serverWritten int
+	var server, client, withGolden, steps, planned int
+	cases := map[string]int{}
+	done := map[string]int{}
 	scenarios := map[string]bool{}
 	byPlatform := map[string]int{}
 	byLayer := map[string]int{}
@@ -42,11 +44,9 @@ func Render(m *Matrix, written map[string]bool) []byte {
 			planned++
 			byPlatform[p.Platform]++
 			byLayer[p.Layer]++
-			if p.Platform == "server" {
-				serverCases++
-				if written[p.Name] {
-					serverWritten++
-				}
+			cases[p.Platform]++
+			if written.Has(p.Platform, p.Name) {
+				done[p.Platform]++
 			}
 		}
 	}
@@ -55,12 +55,16 @@ func Render(m *Matrix, written map[string]bool) []byte {
 	w("- R 类红线在参照服务上的现状：%s。\n", joinCounts(byRef, m.References, ordered(m.References, referenceOrder)))
 	w("- 计划用例 %d 个。按平台：%s。\n", planned, joinCounts(byPlatform, m.Platforms, ordered(m.Platforms, platformOrder)))
 	w("- 按测试层：%s。\n", joinCounts(byLayer, m.Layers, ordered(m.Layers, layerOrder)))
-	w("- 服务端用例 %d 个，已写 %d 个。\n\n", serverCases, serverWritten)
+	var counts []string
+	for _, p := range ScannedPlatforms {
+		counts = append(counts, fmt.Sprintf("%s %d/%d", m.Platforms[p], done[p], cases[p]))
+	}
+	w("- 已写用例（已写/计划）：%s。\n\n", strings.Join(counts, "、"))
 
 	w("图例：\n\n")
 	w("- 参照服务：小桃子原版服务（源提交 33e23250）在黄金对话里的表现。“违反”的红线在 legacy 档按原样录、在 strict 档由计划用例修正；“未观测”是黄金对话录不到，只能靠计划用例。\n")
 	w("- 已录用例：已经录成黄金对话的场景与步号，ImKit 服务端用一致性测试台逐帧比对，三端 SDK 用回放服务器重放。\n")
-	w("- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端已经写好的标“已写”：`redlines check` 扫描 `server/` 下的测试函数得出，按红线命名（`TestR<n>_…`）却不在本表里的测试会被报出来。\n\n")
+	w("- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端与 Android 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数和 `android/` 各模块 `src/test` 下的 Kotlin 测试函数得出；按红线命名（服务端 `TestR<n>_…`，Android `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。Web 与 iOS 还没有代码，不扫描。\n\n")
 
 	w("## 总表\n\n")
 	w("| 编号 | 红线 | 平台 | 参照服务 | 已录用例 | 计划用例 |\n")
@@ -96,7 +100,7 @@ func Render(m *Matrix, written map[string]bool) []byte {
 				if p.Scenario != "" {
 					extra = fmt.Sprintf("，用 `%s`", p.Scenario)
 				}
-				if p.Platform == "server" && written[p.Name] {
+				if written.Has(p.Platform, p.Name) {
 					extra += "，已写"
 				}
 				w("  - `%s`（%s，%s %s，%s%s）：%s\n", p.Name, m.Platforms[p.Platform], p.Task, m.Tasks[p.Task], m.Layers[p.Layer], extra, p.Checks)
@@ -169,9 +173,9 @@ func goldenSummary(rl Redline) string {
 }
 
 // plannedSummary lists each test name once with the platforms and tasks that
-// carry it, e.g. "C1_X：Android 3.10、Web 5.8、iOS 6.6"; a written server case
-// reads "服务端 1.11 已写".
-func plannedSummary(m *Matrix, rl Redline, written map[string]bool) string {
+// carry it, e.g. "C1_X：Android 3.10、Web 5.8、iOS 6.6"; a written case reads
+// "服务端 1.11 已写".
+func plannedSummary(m *Matrix, rl Redline, written Written) string {
 	if len(rl.Planned) == 0 {
 		return "—"
 	}
@@ -182,7 +186,7 @@ func plannedSummary(m *Matrix, rl Redline, written map[string]bool) string {
 			order = append(order, p.Name)
 		}
 		place := m.Platforms[p.Platform] + " " + p.Task
-		if p.Platform == "server" && written[p.Name] {
+		if written.Has(p.Platform, p.Name) {
 			place += " 已写"
 		}
 		where[p.Name] = append(where[p.Name], place)
