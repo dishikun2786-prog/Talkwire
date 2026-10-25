@@ -528,8 +528,13 @@ func (e2eeModule) afterStore(h *Hub, c *Client, msg *ClientMessage, topic string
 	// literally just got flagged encrypted moments ago is effectively closed.
 	if strings.HasPrefix(topic, "grp_") {
 		if encrypted, err := h.store.IsGroupEncrypted(topic); err == nil && encrypted {
-			if _, _, delErr := h.store.SoftDeleteMessage(topic, seq, c.uid); delErr != nil {
+			urls, _, delErr := h.store.SoftDeleteMessage(topic, seq, c.uid)
+			if delErr != nil {
 				logf("handlePub: TOCTOU self-correction failed to recall seq=%d topic=%s: %v", seq, topic, delErr)
+			}
+			// The plaintext message's media goes with it, as on any recall.
+			for _, u := range urls {
+				go h.gcMediaBlob(u)
 			}
 			c.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeConflict, "group_encrypted"))
 			return false

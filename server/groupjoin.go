@@ -366,7 +366,8 @@ func (h *Hub) notifyGroupManagersOfJoinRequest(topic, requesterUID, groupName st
 		return
 	}
 	h.enqueueGroupEventForOffline(topic, offline, requesterUID, PendingGroupEventJoinRequest, groupName)
-	h.pushJoin(offline, groupName, "有人申请加入「"+groupName+"」，点击查看详情并审核", topic)
+	text := CurrentRuntimeConfig().PushText
+	h.pushJoin(offline, groupName, text.group(text.JoinRequest, groupName), topic)
 }
 
 // notifyRequesterOfReview tells an applicant whether their request was
@@ -379,10 +380,11 @@ func (h *Hub) notifyRequesterOfReview(topic, requesterUID, status string) {
 		return
 	}
 	kind := PendingGroupEventJoinRejected
-	body := "你申请加入「" + groupName + "」被拒绝"
+	text := CurrentRuntimeConfig().PushText
+	body := text.group(text.JoinRejected, groupName)
 	if status == "approved" {
 		kind = PendingGroupEventJoinApproved
-		body = "你的入群申请已通过，欢迎加入「" + groupName + "」"
+		body = text.group(text.JoinApproved, groupName)
 	}
 	if err := h.store.EnqueuePendingGroupEvent(topic, requesterUID, kind, groupName, ""); err != nil {
 		logf("notifyRequesterOfReview: enqueue failed: %v", err)

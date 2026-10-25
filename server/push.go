@@ -25,7 +25,7 @@ const fcmPushConcurrency = 8
 // the last offline member got notified.
 //
 // senderKind == SenderKindAiAssistant skips the im_users lookup entirely and
-// uses a fixed "小桃子" name — the reserved AI uid is never written to
+// uses the configured assistant name — the reserved AI uid is never written to
 // im_users, so GetAppUserID(senderUID) would fail every time otherwise (this
 // is exactly what made offline push for AI replies silently no-op before —
 // see plan §9.2.1).
@@ -67,7 +67,8 @@ func (h *Hub) pushOfflineRecipients(topic, senderUID, senderKind, content, conte
 		return
 	}
 
-	body := previewText(content, contentType)
+	text := rc.PushText
+	body := previewText(content, contentType, text)
 	isGroup := strings.HasPrefix(topic, "grp")
 	groupName := ""
 	if isGroup {
@@ -130,10 +131,10 @@ func (h *Hub) pushOfflineRecipients(topic, senderUID, senderKind, content, conte
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			senderName := "用户"
+			senderName := text.Sender
 			senderAvatar := ""
 			if senderKind == SenderKindAiAssistant {
-				senderName = "小桃子"
+				senderName = text.Assistant
 			} else if senderAppUserID != "" {
 				if viewerAppUserID := appUserIDs[uid]; viewerAppUserID != "" {
 					name, avatar, gerr := h.host.GetProfile(viewerAppUserID, senderAppUserID)
@@ -191,7 +192,9 @@ func (h *Hub) sendPush(uid string, tokens []push.Token, n push.Notification, cal
 	}
 }
 
-func previewText(content, contentType string) string {
+// previewText is a message's text, cut to 60 characters, or the configured
+// placeholder of its content type.
+func previewText(content, contentType string, text PushText) string {
 	if content != "" {
 		runes := []rune(content)
 		if len(runes) > 60 {
@@ -201,13 +204,13 @@ func previewText(content, contentType string) string {
 	}
 	switch {
 	case strings.HasPrefix(contentType, "image/"):
-		return "[图片]"
+		return text.Image
 	case strings.HasPrefix(contentType, "video/"):
-		return "[视频]"
+		return text.Video
 	case strings.HasPrefix(contentType, "audio/"):
-		return "[语音]"
+		return text.Audio
 	default:
-		return "[附件]"
+		return text.File
 	}
 }
 

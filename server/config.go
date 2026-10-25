@@ -282,6 +282,67 @@ type RuntimeConfig struct {
 	// without needing a second config round trip to be wired up first.
 	CallRingTimeoutSeconds int `json:"callRingTimeoutSeconds"`
 	CallMaxDurationMinutes int `json:"callMaxDurationMinutes"`
+
+	// PushText is the wording of offline push notifications (plan 1.9).
+	PushText PushText `json:"pushText"`
+}
+
+// PushText is the wording of offline push notifications. An empty or missing
+// entry keeps its default, the reference deployment's Chinese wording, so a
+// host that sends nothing gets exactly the old notifications.
+type PushText struct {
+	// Placeholders for a message without text, by content type.
+	Image string `json:"image"`
+	Video string `json:"video"`
+	Audio string `json:"audio"`
+	File  string `json:"file"`
+	// Sender names the author when the host cannot resolve their name;
+	// Assistant is the group AI's name.
+	Sender    string `json:"sender"`
+	Assistant string `json:"assistant"`
+	// Join-flow notices; "{group}" is replaced with the group's name.
+	JoinRequest  string `json:"joinRequest"`
+	JoinApproved string `json:"joinApproved"`
+	JoinRejected string `json:"joinRejected"`
+}
+
+// defaultPushText is the reference deployment's wording.
+func defaultPushText() PushText {
+	return PushText{
+		Image:        "[图片]",
+		Video:        "[视频]",
+		Audio:        "[语音]",
+		File:         "[附件]",
+		Sender:       "用户",
+		Assistant:    "小桃子",
+		JoinRequest:  "有人申请加入「{group}」，点击查看详情并审核",
+		JoinApproved: "你的入群申请已通过，欢迎加入「{group}」",
+		JoinRejected: "你申请加入「{group}」被拒绝",
+	}
+}
+
+// withDefaults fills every empty entry from def.
+func (p PushText) withDefaults(def PushText) PushText {
+	keep := func(v *string, d string) {
+		if *v == "" {
+			*v = d
+		}
+	}
+	keep(&p.Image, def.Image)
+	keep(&p.Video, def.Video)
+	keep(&p.Audio, def.Audio)
+	keep(&p.File, def.File)
+	keep(&p.Sender, def.Sender)
+	keep(&p.Assistant, def.Assistant)
+	keep(&p.JoinRequest, def.JoinRequest)
+	keep(&p.JoinApproved, def.JoinApproved)
+	keep(&p.JoinRejected, def.JoinRejected)
+	return p
+}
+
+// group fills a join-flow notice.
+func (p PushText) group(template, groupName string) string {
+	return strings.ReplaceAll(template, "{group}", groupName)
 }
 
 // defaultRuntimeConfig is what the service runs on before the first
@@ -311,6 +372,7 @@ func defaultRuntimeConfig() RuntimeConfig {
 		// / im_call.max_duration_minutes (IM_VOICE_VIDEO_CALL_PLAN.md §5).
 		CallRingTimeoutSeconds: 45,
 		CallMaxDurationMinutes: 60,
+		PushText:               defaultPushText(),
 	}
 }
 
@@ -388,6 +450,7 @@ func setRuntimeConfig(rc RuntimeConfig) {
 	rc.PublishRateLimitPer10s = fix(rc.PublishRateLimitPer10s, def.PublishRateLimitPer10s)
 	rc.CallRingTimeoutSeconds = fix(rc.CallRingTimeoutSeconds, def.CallRingTimeoutSeconds)
 	rc.CallMaxDurationMinutes = fix(rc.CallMaxDurationMinutes, def.CallMaxDurationMinutes)
+	rc.PushText = rc.PushText.withDefaults(def.PushText)
 	// FCMEnabled and ReadReceiptEnabled are deliberately not repaired: false
 	// is a legitimate value an operator sets on purpose, and there is no way
 	// to tell it apart from "field missing" in Go's zero-value JSON decoding.

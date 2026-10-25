@@ -45,7 +45,7 @@ func (h *Hub) handleDel(client *Client, msg *ClientMessage) {
 	//
 	// Own-messages-only recall: scoped to from_uid = caller, so a client can
 	// never recall the other party's messages.
-	fileURL, deleted, err := h.store.SoftDeleteMessage(actualTopic, msg.Seq, client.uid)
+	mediaURLs, deleted, err := h.store.SoftDeleteMessage(actualTopic, msg.Seq, client.uid)
 	if err != nil {
 		logf("Delete failed: %v", err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionDel, CodeInternal, "delete failed"))
@@ -72,12 +72,10 @@ func (h *Hub) handleDel(client *Client, msg *ClientMessage) {
 	// (topic, seq) series dense so gap detection does not chase it forever.
 	h.BroadcastToTopic(actualTopic, &ServerMessage{Action: ActionRecalled, Topic: msg.Topic, Seq: msg.Seq, From: client.uid}, client.uid)
 	// gcMediaBlob 自己会先 CountFileRefs，被别处（转发副本）引用就不删。软删
-	// 的墓碑行虽然留在表里，但 file_url 已被置 NULL，所以不会把自己的 blob 钉住。
-	// ⚠️ 与硬删时期的 H10 修复不对等：视频消息的首帧缩略图存在 extra->>'thumbUrl'
-	// 里，SoftDeleteMessage 按跨端契约只返回一个 URL，那个缩略图 blob 因此收不
-	// 回来（详见 store.go 上该函数的注释）。
-	if fileURL != "" {
-		go h.gcMediaBlob(fileURL)
+	// 的墓碑行虽然留在表里，但 file_url 与 extra 已被置 NULL，所以不会把自己的
+	// blob 钉住。视频的首帧缩略图（extra->>'thumbUrl'）一并回收（计划 1.9）。
+	for _, u := range mediaURLs {
+		go h.gcMediaBlob(u)
 	}
 }
 

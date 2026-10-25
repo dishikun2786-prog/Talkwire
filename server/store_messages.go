@@ -532,8 +532,9 @@ func (s *Store) CountFileRefs(fileURL string) (int, error) {
 // picked up again, and a deprecation comment does not stop that.
 //
 // It keeps the row -- and therefore the (topic, seq) slot --
-// while wiping everything the row carried, and returns the media URL the
-// message referenced so the caller can garbage-collect the blob.
+// while wiping everything the row carried, and returns the media URLs the
+// message referenced (its file and, for a video, the thumbnail in
+// extra->>'thumbUrl') so the caller can garbage-collect the blobs.
 //
 // Why a tombstone instead of a DELETE. Seq numbers come from
 // im_topics.last_seq and are never reissued, so a hard delete punches a
@@ -554,17 +555,16 @@ func (s *Store) CountFileRefs(fileURL string) (int, error) {
 // run to completion regardless of whether the outer query reads their
 // output, so the update is not conditional on the SELECT.
 //
-// ⚠️ 已知缺口（此前那个硬删版本的 H10 修复覆盖了这一点，本函数没有）：
-// 视频消息的首帧缩略图是
-// 另一个独立上传的 blob，只存在于 extra->>'thumbUrl' 里。本函数按跨端契约只
-// 返回一个 URL，缩略图 blob 因此不会被调用方回收，会继续留在 MinIO/本地盘上
-// 且可通过未鉴权的 /images/:filename 下载。要补齐需要把返回值改成 []string，
-// 属于跨端契约变更，不在本轮范围内。
-func (s *Store) SoftDeleteMessage(topic string, seq int, fromUID string) (string, bool, error) {
-	var fileURL string
+// The thumbnail used to be left behind (plan 1.9): the hard-delete
+// predecessor reclaimed it (H10), this function returned only file_url, and
+// the thumbnail blob stayed in storage, downloadable without authentication
+// through /images/:filename.
+func (s *Store) SoftDeleteMessage(topic string, seq int, fromUID string) ([]string, bool, error) {
+	var fileURL, thumbURL string
 	err := s.db.QueryRow(`
 		WITH victim AS (
-			SELECT topic, seq, COALESCE(file_url, '') AS old_file_url
+			SELECT topic, seq, COALESCE(file_url, '') AS old_file_url,
+			       COALESCE(extra->>'thumbUrl', '') AS old_thumb_url
 			FROM im_messages
 			WHERE topic = $1 AND seq = $2 AND from_uid = $3 AND recalled_at IS NULL
 		), wiped AS (
@@ -578,18 +578,24 @@ func (s *Store) SoftDeleteMessage(topic string, seq int, fromUID string) (string
 			WHERE m.topic = v.topic AND m.seq = v.seq
 			RETURNING 1
 		)
-		SELECT old_file_url FROM victim
-	`, topic, seq, fromUID).Scan(&fileURL)
+		SELECT old_file_url, old_thumb_url FROM victim
+	`, topic, seq, fromUID).Scan(&fileURL, &thumbURL)
 	if err == sql.ErrNoRows {
 		// Not found, not this caller's message, or already recalled. All
 		// three are "nothing to do", not failures -- a duplicate recall from
 		// a retrying client must stay idempotent.
-		return "", false, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return nil, false, err
 	}
-	return fileURL, true, nil
+	var urls []string
+	for _, u := range []string{fileURL, thumbURL} {
+		if u != "" && (len(urls) == 0 || urls[0] != u) {
+			urls = append(urls, u)
+		}
+	}
+	return urls, true, nil
 }
 
 // ReadCursor is one member's read position in a group topic: everything up
