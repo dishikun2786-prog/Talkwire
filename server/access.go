@@ -115,7 +115,7 @@ func (h *Hub) resolveP2PTopic(client *Client, reqID, action, peerUID string) (to
 			client.SendJSON(ErrorResponse(reqID, action, CodeAuth, "cannot verify friendship"))
 			return "", false, false
 		}
-		friends, err := h.internalAPI.AreFriends(client.appUserID, peerAppUserID)
+		friends, err := h.host.AreFriends(client.appUserID, peerAppUserID)
 		if err != nil {
 			logf("AreFriends check failed: %v", err)
 			client.SendJSON(ErrorResponse(reqID, action, CodeInternal, "friendship check failed"))

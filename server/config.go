@@ -19,6 +19,12 @@ type Config struct {
 	JWTSecret             string
 	FCMServiceAccountPath string
 	MainAPIBaseURL        string
+	// HostMode is how the host is reached: "http" (MainAPIBaseURL) or
+	// "standalone" (no host process; see package standalone).
+	HostMode string
+	// StandaloneConfig is the standalone host's JSON file. Empty means
+	// allow-all relations, no profiles and built-in configuration.
+	StandaloneConfig string
 }
 
 // LoadConfig builds the config from defaults plus environment overrides.
@@ -33,6 +39,7 @@ func LoadConfig() *Config {
 		DBName:         "xiaotaozi",
 		DBSSLMode:      "disable",
 		MainAPIBaseURL: "http://127.0.0.1:6001",
+		HostMode:       "http",
 	}
 	if v := os.Getenv("IM_PORT"); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {
@@ -74,6 +81,16 @@ func LoadConfig() *Config {
 	}
 	if v := os.Getenv("MAIN_API_BASE_URL"); v != "" {
 		cfg.MainAPIBaseURL = v
+	}
+	if v := os.Getenv("IMKIT_HOST_MODE"); v != "" {
+		cfg.HostMode = v
+	}
+	cfg.StandaloneConfig = os.Getenv("IMKIT_STANDALONE_CONFIG")
+	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
+		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
+	}
+	if cfg.StandaloneConfig != "" && cfg.HostMode != "standalone" {
+		log.Fatal("IMKIT_STANDALONE_CONFIG is set but IMKIT_HOST_MODE is not standalone")
 	}
 	if cfg.DBPassword == "" {
 		log.Fatal("DB_PASSWORD is required: set it in the service environment")

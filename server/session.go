@@ -142,7 +142,7 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeAuth, "token required"))
 		return
 	}
-	appUserID, err := h.auth.GetAppUserID(msg.Token)
+	appUserID, err := h.auth.UserID(msg.Token)
 	if err != nil {
 		logf("Login failed: %v", err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionLogin, CodeAuth, "invalid token"))

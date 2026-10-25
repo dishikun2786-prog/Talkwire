@@ -5,6 +5,11 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"example.com/imkit/server/host"
+	"example.com/imkit/server/host/hmacjwt"
+	"example.com/imkit/server/host/httpadapter"
+	"example.com/imkit/server/host/standalone"
 )
 
 // runtimeConfigRefreshInterval is how often the group-chat limits are
@@ -36,8 +41,8 @@ func main() {
 		log.Fatalf("Failed to initialize tables: %v", err)
 	}
 
-	// Initialize auth service
-	auth := NewAuthService(cfg.JWTSecret)
+	// End-user and internal tokens are signed with the secret shared with the host.
+	auth := hmacjwt.New(cfg.JWTSecret)
 
 	// Load FCM service account key for offline push, if configured
 	var fcmKey *ServiceAccountKey
@@ -56,11 +61,15 @@ func main() {
 		log.Println("FCM not configured (set FCM_SERVICE_ACCOUNT_KEY_PATH); push notifications disabled")
 	}
 
-	// Initialize internal API client (friendship checks against the main server)
-	internalAPI := NewInternalAPIClient(cfg.MainAPIBaseURL, cfg.JWTSecret)
+	// The host: over HTTP (friendship checks, profiles, media, config and the
+	// modules' calls against the main server), or in-process.
+	hostImpl, err := newHost(cfg)
+	if err != nil {
+		log.Fatalf("Host setup failed: %v", err)
+	}
 
 	// Initialize hub
-	hub := NewHub(store, auth, fcmKey, internalAPI)
+	hub := NewHub(store, auth, fcmKey, hostImpl)
 	go hub.Run()
 	// Presence transitions are fanned out by a single serializing worker, not
 	// by one goroutine per event — see hub.runPresenceWorker for why the
@@ -82,10 +91,10 @@ func main() {
 	// Started after the hub is already running: the service is fully
 	// functional on the built-in defaults, so a slow or unreachable main
 	// server must not hold up accepting connections.
-	go internalAPI.StartRuntimeConfigRefresh(runtimeConfigRefreshInterval)
+	go StartRuntimeConfigRefresh(hostImpl, runtimeConfigRefreshInterval)
 	// Same rationale, separate cycle — see E2eeRuntimeConfig's doc comment
 	// for why this isn't folded into the group-chat one above.
-	go internalAPI.StartE2eeConfigRefresh(runtimeConfigRefreshInterval)
+	go StartE2eeConfigRefresh(hostImpl, runtimeConfigRefreshInterval)
 
 	// Initialize WebSocket handler
 	wsHandler := NewWebSocketHandler(hub)
@@ -140,4 +149,25 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// hostWithConfig is a host the server can run against: everything the hub
+// asks of it plus the configuration documents main keeps applied.
+type hostWithConfig interface {
+	hostAPI
+	host.Config
+}
+
+// newHost builds the host adapter the configuration asks for.
+func newHost(cfg *Config) (hostWithConfig, error) {
+	if cfg.HostMode == "standalone" {
+		if cfg.StandaloneConfig == "" {
+			log.Println("Host: standalone, allow-all relations, built-in configuration")
+			return standalone.New(standalone.Options{})
+		}
+		log.Printf("Host: standalone, from %s", cfg.StandaloneConfig)
+		return standalone.Load(cfg.StandaloneConfig)
+	}
+	log.Printf("Host: %s", cfg.MainAPIBaseURL)
+	return httpadapter.New(cfg.MainAPIBaseURL, cfg.JWTSecret), nil
 }

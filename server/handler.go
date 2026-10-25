@@ -72,7 +72,7 @@ func (h *WebSocketHandler) RegisterUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	token := authHeader[7:]
-	appUserID, err := h.hub.auth.GetAppUserID(token)
+	appUserID, err := h.hub.auth.UserID(token)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
@@ -107,7 +107,7 @@ func (h *WebSocketHandler) GetTopics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := authHeader[7:]
-	appUserID, err := h.hub.auth.GetAppUserID(token)
+	appUserID, err := h.hub.auth.UserID(token)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
@@ -136,7 +136,7 @@ func (h *WebSocketHandler) GetTopics(w http.ResponseWriter, r *http.Request) {
 // so a mistakenly exposed IM port cannot become a message-history backdoor.
 func (h *WebSocketHandler) requireInternalService(w http.ResponseWriter, r *http.Request) bool {
 	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") || h.hub.auth.ValidateInternalToken(strings.TrimPrefix(authHeader, "Bearer ")) != nil {
+	if !strings.HasPrefix(authHeader, "Bearer ") || h.hub.auth.CheckInternalToken(strings.TrimPrefix(authHeader, "Bearer ")) != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return false
 	}

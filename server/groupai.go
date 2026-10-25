@@ -257,7 +257,7 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 		return
 	}
 
-	answer, ok, reason := h.internalAPI.AskGroupAiQa(topic, askerUID, question, ownerAppUserID, settings.AiKbIds, settings.AiDocIds)
+	answer, ok, reason := h.host.AskGroupAiQa(topic, askerUID, question, ownerAppUserID, settings.AiKbIds, settings.AiDocIds)
 	if !ok {
 		h.deliverAiFallback(topic, aiQaFailureMessage(reason))
 		return

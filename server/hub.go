@@ -4,19 +4,31 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"example.com/imkit/server/host"
 )
+
+// hostAPI is what the hub asks of the host: the core contract plus the host
+// side of the call and group-AI modules (they move out with their modules).
+type hostAPI interface {
+	host.Relations
+	host.Profiles
+	host.Media
+	host.CallSessions
+	host.GroupAI
+}
 
 // Hub maintains the set of active clients and routes messages between them
 type Hub struct {
-	store       *Store
-	auth        *AuthService
-	fcm         *ServiceAccountKey            // nil disables push notifications
-	internalAPI *InternalAPIClient            // friendship checks + sender profile lookups against the main server
-	clients     map[string]*Client            // uid -> client (one active session per user)
-	topics      map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
-	mu          sync.RWMutex
-	register    chan *Client
-	unregister  chan *Client
+	store      *Store
+	auth       host.Identity
+	fcm        *ServiceAccountKey            // nil disables push notifications
+	host       hostAPI                       // friendship checks, profiles, media and the modules' host calls
+	clients    map[string]*Client            // uid -> client (one active session per user)
+	topics     map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
+	mu         sync.RWMutex
+	register   chan *Client
+	unregister chan *Client
 
 	// presenceCh serializes presence fan-out through a single worker. See
 	// runPresenceWorker for why two bare `go BroadcastPresence(...)` calls
@@ -70,16 +82,16 @@ type Hub struct {
 	pendingCallDisconnects sync.Map
 }
 
-func NewHub(store *Store, auth *AuthService, fcm *ServiceAccountKey, internalAPI *InternalAPIClient) *Hub {
+func NewHub(store *Store, auth host.Identity, fcm *ServiceAccountKey, hostAPI hostAPI) *Hub {
 	return &Hub{
-		store:       store,
-		auth:        auth,
-		fcm:         fcm,
-		internalAPI: internalAPI,
-		clients:     make(map[string]*Client),
-		topics:      make(map[string]map[string]*Client),
-		register:    make(chan *Client, 100),
-		unregister:  make(chan *Client, 100),
+		store:      store,
+		auth:       auth,
+		fcm:        fcm,
+		host:       hostAPI,
+		clients:    make(map[string]*Client),
+		topics:     make(map[string]map[string]*Client),
+		register:   make(chan *Client, 100),
+		unregister: make(chan *Client, 100),
 		// Deep enough that ordinary mobile-network churn never reaches the
 		// drop path; enqueuePresence deliberately drops rather than blocking
 		// the hub loop if it ever does.

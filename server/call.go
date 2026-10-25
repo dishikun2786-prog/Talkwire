@@ -293,7 +293,7 @@ func (h *Hub) settleCallAsync(callSessionID, reason string) {
 				logf("settleCallAsync: recovered panic for session=%s reason=%s: %v", callSessionID, reason, r)
 			}
 		}()
-		if err := h.internalAPI.SettleCallSession(callSessionID, reason); err != nil {
+		if err := h.host.SettleCallSession(callSessionID, reason); err != nil {
 			logf("[call] SettleCallSession(%s) failed for session=%s: %v", reason, callSessionID, err)
 		}
 	}()
@@ -377,7 +377,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	ok, reason, err := h.internalAPI.CreateCallSession(call.id, call.callerAppUserID, call.calleeAppUserID, call.callType)
+	ok, reason, err := h.host.CreateCallSession(call.id, call.callerAppUserID, call.calleeAppUserID, call.callType)
 	if err != nil {
 		logf("[call] CreateCallSession failed: %v", err)
 		h.calls.remove(call)
@@ -432,7 +432,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		h.handleCallRingTimeout(call)
 	})
 
-	callerName, callerAvatar, err := h.internalAPI.GetProfile(calleeAppUserID, call.callerAppUserID)
+	callerName, callerAvatar, err := h.host.GetProfile(calleeAppUserID, call.callerAppUserID)
 	if err != nil {
 		logf("[call] GetProfile failed, ringing with a generic caller identity: %v", err)
 	}
@@ -521,7 +521,7 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		effectiveType = CallTypeVoice
 	}
 
-	answer, err := h.internalAPI.AnswerCallSession(call.id, effectiveType)
+	answer, err := h.host.AnswerCallSession(call.id, effectiveType)
 	if err != nil || !answer.Ok {
 		reason := "internal_error"
 		if err != nil {
@@ -731,7 +731,7 @@ func (h *Hub) handleCallUpgradeAccept(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	result, err := h.internalAPI.UpgradeCallSession(call.id, CallTypeVideo)
+	result, err := h.host.UpgradeCallSession(call.id, CallTypeVideo)
 	if err != nil {
 		logf("[call] UpgradeCallSession failed for session=%s: %v", call.id, err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgradeAccept, CodeInternal, "升级失败，请重试"))

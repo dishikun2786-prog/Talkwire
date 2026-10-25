@@ -207,7 +207,7 @@ func (h *Hub) handleGroupJoinRequestsList(client *Client, msg *ClientMessage) {
 		name := r.RequesterUID
 		if verr == nil && viewerAppUserID != "" {
 			if requesterAppUserID, aerr := h.store.GetAppUserID(r.RequesterUID); aerr == nil && requesterAppUserID != "" {
-				if resolvedName, _, gerr := h.internalAPI.GetProfile(viewerAppUserID, requesterAppUserID); gerr == nil && resolvedName != "" {
+				if resolvedName, _, gerr := h.host.GetProfile(viewerAppUserID, requesterAppUserID); gerr == nil && resolvedName != "" {
 					name = resolvedName
 				}
 			}

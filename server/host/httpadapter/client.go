@@ -1,22 +1,27 @@
-package main
+// Package httpadapter reaches the host over HTTP: the endpoints, timeouts and
+// one-minute internal_service token of the reference deployment. It
+// implements host.Host and the host side of the calls and group-AI modules.
+package httpadapter
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
+	"example.com/imkit/server/host"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// InternalAPIClient calls the main Node server's internal-only endpoints.
+// Client calls the main Node server's internal-only endpoints.
 // im-go's own Postgres connection points at the legacy `xiaotaozi` database
 // (see config.go), while tables like `contacts` live in the main server's
 // database — so friendship lookups have to go over HTTP instead of SQL.
-type InternalAPIClient struct {
+type Client struct {
 	baseURL string
 	secret  []byte
 	client  *http.Client
@@ -57,8 +62,8 @@ const callAnswerHTTPTimeout = 8 * time.Second
 // explicit {ok:false,reason:"timeout"} response body would.
 const aiQaHTTPTimeout = 10 * time.Second
 
-func NewInternalAPIClient(baseURL, jwtSecret string) *InternalAPIClient {
-	return &InternalAPIClient{
+func New(baseURL, jwtSecret string) *Client {
+	return &Client{
 		baseURL:          baseURL,
 		secret:           []byte(jwtSecret),
 		client:           &http.Client{Timeout: 3 * time.Second},
@@ -70,7 +75,7 @@ func NewInternalAPIClient(baseURL, jwtSecret string) *InternalAPIClient {
 // mintToken signs a short-lived internal_service JWT with the secret shared
 // with the main server (see server/src/utils/jwt.ts createInternalServiceToken
 // / verifyInternalServiceToken — same claim shape, same secret).
-func (c *InternalAPIClient) mintToken() (string, error) {
+func (c *Client) mintToken() (string, error) {
 	claims := jwt.MapClaims{
 		"role": "internal_service",
 		"exp":  time.Now().Add(1 * time.Minute).Unix(),
@@ -80,7 +85,7 @@ func (c *InternalAPIClient) mintToken() (string, error) {
 }
 
 // AreFriends checks whether two app users have an accepted contact relationship.
-func (c *InternalAPIClient) AreFriends(appUserA, appUserB string) (bool, error) {
+func (c *Client) AreFriends(appUserA, appUserB string) (bool, error) {
 	token, err := c.mintToken()
 	if err != nil {
 		return false, fmt.Errorf("mint internal token: %w", err)
@@ -111,115 +116,6 @@ func (c *InternalAPIClient) AreFriends(appUserA, appUserB string) (bool, error) 
 	return body.Friends, nil
 }
 
-// FetchRuntimeConfig pulls the group-chat limits the main Node server owns
-// (GET /api/v1/internal/im/runtime-config, same internal_service JWT as
-// every other call on this client).
-//
-// The caller decides what to do with a failure; this function deliberately
-// does not touch the cached config itself. Keeping the last good values on
-// a failed fetch is the whole point -- a main-server restart or a momentary
-// network blip must not reset every limit, and it must certainly not leave
-// im-go running on zeros.
-func (c *InternalAPIClient) FetchRuntimeConfig() (RuntimeConfig, error) {
-	var rc RuntimeConfig
-	token, err := c.mintToken()
-	if err != nil {
-		return rc, fmt.Errorf("mint internal token: %w", err)
-	}
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v1/internal/im/runtime-config", nil)
-	if err != nil {
-		return rc, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return rc, fmt.Errorf("runtime-config request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return rc, fmt.Errorf("runtime-config request status %d", resp.StatusCode)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
-		return rc, fmt.Errorf("runtime-config decode: %w", err)
-	}
-	return rc, nil
-}
-
-// StartRuntimeConfigRefresh fetches the runtime config once synchronously,
-// then keeps it fresh on a ticker. Launch with `go` from main.go.
-//
-// The first fetch is inside this goroutine rather than blocking startup on
-// purpose: the defaults are already a working configuration, so an
-// unreachable main server should delay config accuracy, not the IM service
-// coming up. Failures are logged and the previous snapshot kept.
-func (c *InternalAPIClient) StartRuntimeConfigRefresh(interval time.Duration) {
-	refresh := func() {
-		rc, err := c.FetchRuntimeConfig()
-		if err != nil {
-			logf("runtime-config refresh failed (keeping previous values): %v", err)
-			return
-		}
-		setRuntimeConfig(rc)
-	}
-	refresh()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		refresh()
-	}
-}
-
-// FetchE2eeConfig pulls the E2EE feature flags the main Node server owns
-// (GET /api/v1/internal/im/e2ee-config, same internal_service JWT as every
-// other call on this client). Mirrors FetchRuntimeConfig exactly — see its
-// doc comment for why a failed fetch never touches the cached config itself.
-func (c *InternalAPIClient) FetchE2eeConfig() (E2eeRuntimeConfig, error) {
-	var rc E2eeRuntimeConfig
-	token, err := c.mintToken()
-	if err != nil {
-		return rc, fmt.Errorf("mint internal token: %w", err)
-	}
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v1/internal/im/e2ee-config", nil)
-	if err != nil {
-		return rc, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return rc, fmt.Errorf("e2ee-config request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return rc, fmt.Errorf("e2ee-config request status %d", resp.StatusCode)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
-		return rc, fmt.Errorf("e2ee-config decode: %w", err)
-	}
-	return rc, nil
-}
-
-// StartE2eeConfigRefresh mirrors StartRuntimeConfigRefresh exactly — see its
-// doc comment for the startup-ordering and failure-handling rationale, both
-// identical here.
-func (c *InternalAPIClient) StartE2eeConfigRefresh(interval time.Duration) {
-	refresh := func() {
-		rc, err := c.FetchE2eeConfig()
-		if err != nil {
-			logf("e2ee-config refresh failed (keeping previous values): %v", err)
-			return
-		}
-		setE2eeRuntimeConfig(rc)
-	}
-	refresh()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		refresh()
-	}
-}
-
 // profileCache holds recently resolved sender display name/avatar lookups,
 // keyed by "viewer|sender" (the display name can differ per viewer via their
 // own contact alias for the sender). Without it, a group message with many
@@ -240,7 +136,7 @@ const profileCacheTTL = 5 * time.Minute
 // GetProfile resolves how `viewerAppUserID` should see `senderAppUserID`:
 // their remark name for the sender if set, else the sender's own display
 // name, plus avatar URL.
-func (c *InternalAPIClient) GetProfile(viewerAppUserID, senderAppUserID string) (string, string, error) {
+func (c *Client) GetProfile(viewerAppUserID, senderAppUserID string) (string, string, error) {
 	key := viewerAppUserID + "|" + senderAppUserID
 	profileCache.mu.Lock()
 	if entry, ok := profileCache.entries[key]; ok && time.Now().Before(entry.expiresAt) {
@@ -300,7 +196,7 @@ func (c *InternalAPIClient) GetProfile(viewerAppUserID, senderAppUserID string) 
 //
 // Callers must run this from an independent goroutine (see
 // Hub.dispatchAiQaTask) — never from the hot message-broadcast path.
-func (c *InternalAPIClient) AskGroupAiQa(groupTopic, askerImUID, question, groupOwnerAppUserID string, kbIds, docIds []string) (answer string, ok bool, reason string) {
+func (c *Client) AskGroupAiQa(groupTopic, askerImUID, question, groupOwnerAppUserID string, kbIds, docIds []string) (answer string, ok bool, reason string) {
 	token, err := c.mintToken()
 	if err != nil {
 		return "", false, "internal_error"
@@ -366,7 +262,7 @@ func (c *InternalAPIClient) AskGroupAiQa(groupTopic, askerImUID, question, group
 // exactly the way resolveP2PTopic already blocks a handler on AreFriends.
 
 // CreateCallSessionResult is CreateCallSession's own response shape. Not
-// asymmetric with UpgradeCallSessionResult/AnswerCallSessionResult's
+// asymmetric with host.UpgradeCallSessionResult/host.AnswerCallSessionResult's
 // struct-vs-tuple choice by accident: this one carries exactly two pieces of
 // information over the wire (Ok/Reason) that map directly onto the same
 // two-value shape AskGroupAiQa already returns as a bare tuple, so a tuple
@@ -400,7 +296,7 @@ func (c *InternalAPIClient) AskGroupAiQa(groupTopic, askerImUID, question, group
 // that it is being accepted rather than engineered around for V1, consistent
 // with this codebase's existing tolerance for similar best-effort internal
 // call failure modes elsewhere (e.g. AskGroupAiQa's timeout handling).
-func (c *InternalAPIClient) CreateCallSession(callSessionID, callerAppUserID, calleeAppUserID, callType string) (ok bool, reason string, err error) {
+func (c *Client) CreateCallSession(callSessionID, callerAppUserID, calleeAppUserID, callType string) (ok bool, reason string, err error) {
 	token, err := c.mintToken()
 	if err != nil {
 		return false, "", fmt.Errorf("mint internal token: %w", err)
@@ -439,26 +335,6 @@ func (c *InternalAPIClient) CreateCallSession(callSessionID, callerAppUserID, ca
 	return body.Ok, body.Reason, nil
 }
 
-// AnswerCallSessionResult is AnswerCallSession's response shape. A struct
-// rather than a tuple (unlike CreateCallSession above) purely because seven
-// positional return values (ok, reason, channelId, two distinct tokens,
-// videoQuality, denoiseEnabled) is exactly the kind of call site a
-// transposition bug hides in silently -- naming every field removes that
-// class of mistake at the one call site (handleCallAccept) that consumes it.
-type AnswerCallSessionResult struct {
-	Ok             bool
-	Reason         string
-	ChannelId      string
-	CallerToken    string
-	CalleeToken    string
-	VideoQuality   string
-	DenoiseEnabled bool
-	// AppId is the same global ARTC AppId for both participants -- see this
-	// function's own doc comment above for why it must now be forwarded to
-	// the client at all (2026-09-10 real-device finding).
-	AppId string
-}
-
 // AnswerCallSession settles the "someone actually answered" transition:
 // generates a fresh ARTC channel id, mints one single-parameter join
 // credential per participant (never the same token for both -- each encodes
@@ -486,8 +362,8 @@ type AnswerCallSessionResult struct {
 // im_call.video_quality / im_call.intelligent_denoise_enabled config at the
 // moment of answering, not any cached bootstrap value -- an operator's
 // change takes effect on the very next call to be answered (plan §4.4).
-func (c *InternalAPIClient) AnswerCallSession(callSessionID, effectiveType string) (AnswerCallSessionResult, error) {
-	var result AnswerCallSessionResult
+func (c *Client) AnswerCallSession(callSessionID, effectiveType string) (host.AnswerCallSessionResult, error) {
+	var result host.AnswerCallSessionResult
 	token, err := c.mintToken()
 	if err != nil {
 		return result, fmt.Errorf("mint internal token: %w", err)
@@ -527,7 +403,7 @@ func (c *InternalAPIClient) AnswerCallSession(callSessionID, effectiveType strin
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return result, err
 	}
-	result = AnswerCallSessionResult{
+	result = host.AnswerCallSessionResult{
 		Ok: body.Ok, Reason: body.Reason, ChannelId: body.ChannelId,
 		CallerToken: body.CallerToken, CalleeToken: body.CalleeToken,
 		VideoQuality: body.VideoQuality, DenoiseEnabled: body.DenoiseEnabled,
@@ -557,7 +433,7 @@ func (c *InternalAPIClient) AnswerCallSession(callSessionID, effectiveType strin
 // "credit_exhausted"/"max_duration_reached", both of which roubao decides
 // and settles on its own initiative (its billing tick), then reports back to
 // im-go via POST /api/v1/internal/im/call-broadcast instead.
-func (c *InternalAPIClient) SettleCallSession(callSessionID, reason string) error {
+func (c *Client) SettleCallSession(callSessionID, reason string) error {
 	token, err := c.mintToken()
 	if err != nil {
 		return fmt.Errorf("mint internal token: %w", err)
@@ -587,19 +463,6 @@ func (c *InternalAPIClient) SettleCallSession(callSessionID, reason string) erro
 	return nil
 }
 
-// UpgradeCallSessionResult is UpgradeCallSession's response shape -- a
-// struct rather than a tuple for the same "name every field" reasoning as
-// AnswerCallSessionResult, even though it is only three fields: Ok/Reason
-// alone would read fine as a tuple (matching CreateCallSession), but adding
-// VideoQuality as a third positional value is exactly where a future edit
-// (reordering, or adding a fourth field) starts risking silent
-// transposition at the one call site that unpacks it.
-type UpgradeCallSessionResult struct {
-	Ok           bool
-	Reason       string
-	VideoQuality string
-}
-
 // UpgradeCallSession commits a voice->video upgrade both sides have already
 // agreed to over the WS handshake (call_upgrade + call_upgrade_accept) --
 // updates roubao's billing tick to the video per-minute rate and persists
@@ -619,8 +482,8 @@ type UpgradeCallSessionResult struct {
 // the Ok/Reason shape is kept anyway for forward compatibility: if roubao
 // ever does add one (mid-call insufficient balance for the higher video
 // rate, say), no wire change is needed to surface it.
-func (c *InternalAPIClient) UpgradeCallSession(callSessionID, toType string) (UpgradeCallSessionResult, error) {
-	var result UpgradeCallSessionResult
+func (c *Client) UpgradeCallSession(callSessionID, toType string) (host.UpgradeCallSessionResult, error) {
+	var result host.UpgradeCallSessionResult
 	token, err := c.mintToken()
 	if err != nil {
 		return result, fmt.Errorf("mint internal token: %w", err)
@@ -655,7 +518,7 @@ func (c *InternalAPIClient) UpgradeCallSession(callSessionID, toType string) (Up
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return result, err
 	}
-	result = UpgradeCallSessionResult{Ok: body.Ok, Reason: body.Reason, VideoQuality: body.VideoQuality}
+	result = host.UpgradeCallSessionResult{Ok: body.Ok, Reason: body.Reason, VideoQuality: body.VideoQuality}
 	return result, nil
 }
 
@@ -663,7 +526,7 @@ func (c *InternalAPIClient) UpgradeCallSession(callSessionID, toType string) (Up
 // blobs (MinIO object + local disk copy) for the given file URLs. Called when a
 // recall/clear leaves a blob that no remaining message references, so the
 // server keeps nothing behind.
-func (c *InternalAPIClient) DeleteMedia(urls []string) error {
+func (c *Client) DeleteMedia(urls []string) error {
 	if len(urls) == 0 {
 		return nil
 	}
@@ -692,3 +555,49 @@ func (c *InternalAPIClient) DeleteMedia(urls []string) error {
 	}
 	return nil
 }
+
+// RuntimeConfig fetches the group-chat limits the host owns
+// (GET /api/v1/internal/im/runtime-config, same internal_service JWT as
+// every other call on this client). The body is returned undecoded; the
+// server parses it and keeps its previous values on any failure.
+func (c *Client) RuntimeConfig() (json.RawMessage, error) {
+	return c.getConfig("/api/v1/internal/im/runtime-config", "runtime-config")
+}
+
+// E2eeConfig fetches the E2EE feature flags the host owns
+// (GET /api/v1/internal/im/e2ee-config). See RuntimeConfig.
+func (c *Client) E2eeConfig() (json.RawMessage, error) {
+	return c.getConfig("/api/v1/internal/im/e2ee-config", "e2ee-config")
+}
+
+func (c *Client) getConfig(path, name string) (json.RawMessage, error) {
+	token, err := c.mintToken()
+	if err != nil {
+		return nil, fmt.Errorf("mint internal token: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s request failed: %w", name, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s request status %d", name, resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%s read: %w", name, err)
+	}
+	return body, nil
+}
+
+var (
+	_ host.Host         = (*Client)(nil)
+	_ host.CallSessions = (*Client)(nil)
+	_ host.GroupAI      = (*Client)(nil)
+)

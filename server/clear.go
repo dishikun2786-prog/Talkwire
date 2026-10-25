@@ -213,7 +213,7 @@ func (h *Hub) broadcastTopicCleared(topic string, members []string, excludeUID s
 // remaining message references it (media can be shared across chats via
 // forwarding, which reuses the same file URL).
 func (h *Hub) gcMediaBlob(fileURL string) {
-	if h.internalAPI == nil || fileURL == "" {
+	if h.host == nil || fileURL == "" {
 		return
 	}
 	n, err := h.store.CountFileRefs(fileURL)
@@ -224,7 +224,7 @@ func (h *Hub) gcMediaBlob(fileURL string) {
 	if n > 0 {
 		return // still referenced by another message
 	}
-	if err := h.internalAPI.DeleteMedia([]string{fileURL}); err != nil {
+	if err := h.host.DeleteMedia([]string{fileURL}); err != nil {
 		logf("gcMediaBlob DeleteMedia failed: %v", err)
 	}
 }

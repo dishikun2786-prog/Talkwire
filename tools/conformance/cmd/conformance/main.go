@@ -35,6 +35,8 @@ type options struct {
 	only      string
 	source    string
 	logDir    string
+	// standalone runs the server with no host process (IMKIT_HOST_MODE=standalone).
+	standalone bool
 }
 
 func main() {
@@ -55,6 +57,7 @@ func main() {
 	fs.StringVar(&o.only, "only", "", "run only scenarios whose name contains this")
 	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
 	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
+	fs.BoolVar(&o.standalone, "standalone", false, "check: run the server without a host (friends, profiles and runtime config from the scenario); host calls are not compared")
 	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
 	golden := fs.String("golden", "../../contract/protocol/transcripts", "check: golden directory")
 	n := fs.Int("n", 3, "repeat: number of runs")
@@ -101,7 +104,18 @@ func main() {
 				continue
 			}
 			got, err := runOne(o, host, sc)
-			must(err)
+			if err != nil {
+				// A server that answers differently can make a later step
+				// impossible (nothing to capture); that is a failure of this
+				// scenario, not of the run.
+				fmt.Printf("FAIL     %-40s %v\n", sc.Name, err)
+				failed++
+				continue
+			}
+			if o.standalone {
+				dropHostCalls(want)
+				dropHostCalls(got)
+			}
 			if diffs := harness.Compare(want, got); len(diffs) > 0 {
 				failed++
 				fmt.Printf("FAIL     %-40s %d difference(s)\n", sc.Name, len(diffs))
@@ -166,14 +180,25 @@ func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Tran
 	if len(sc.Host.RuntimeConfig) > 0 {
 		host.SetRuntimeConfig(json.RawMessage(sc.Host.RuntimeConfig))
 	}
-	srv, err := harness.StartServer(harness.ServerConfig{
+	cfg := harness.ServerConfig{
 		Bin:     o.bin,
 		Port:    o.port,
 		DB:      o.db,
 		Secret:  testSecret,
 		HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort),
 		LogPath: filepath.Join(o.logDir, fileName(sc.Name)+".log"),
-	})
+	}
+	if o.standalone {
+		path, err := writeStandaloneConfig(o.logDir, sc)
+		if err != nil {
+			return nil, err
+		}
+		// Nothing listens on port 1: a host call the server should not make
+		// fails loudly instead of being answered by the fake host.
+		cfg.HostURL = "http://127.0.0.1:1"
+		cfg.Env = []string{"IMKIT_HOST_MODE=standalone", "IMKIT_STANDALONE_CONFIG=" + path}
+	}
+	srv, err := harness.StartServer(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -253,4 +278,48 @@ func coverage(scenarios []*harness.Scenario, golden, schemaDir, negative string)
 		return 1
 	}
 	return 0
+}
+
+// writeStandaloneConfig turns the scenario's host setup into the standalone
+// host's JSON file. Relationship changes made by later steps are not
+// reflected: a standalone whitelist is fixed at startup.
+func writeStandaloneConfig(dir string, sc *harness.Scenario) (string, error) {
+	type profile struct {
+		DisplayName string `json:"displayName"`
+		AvatarURL   string `json:"avatarUrl"`
+	}
+	doc := struct {
+		Relations     string             `json:"relations"`
+		Friends       [][2]string        `json:"friends"`
+		Profiles      map[string]profile `json:"profiles,omitempty"`
+		RuntimeConfig json.RawMessage    `json:"runtimeConfig,omitempty"`
+	}{Relations: "whitelist", Friends: [][2]string{}}
+	for _, f := range sc.Host.Friends {
+		doc.Friends = append(doc.Friends, [2]string{harness.AppUserID(f[0]), harness.AppUserID(f[1])})
+	}
+	for u, p := range sc.Host.Profiles {
+		if doc.Profiles == nil {
+			doc.Profiles = map[string]profile{}
+		}
+		doc.Profiles[harness.AppUserID(u)] = profile{DisplayName: p.DisplayName, AvatarURL: p.AvatarURL}
+	}
+	if len(sc.Host.RuntimeConfig) > 0 {
+		doc.RuntimeConfig = json.RawMessage(sc.Host.RuntimeConfig)
+	}
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	path, err := filepath.Abs(filepath.Join(dir, fileName(sc.Name)+".standalone.json"))
+	if err != nil {
+		return "", err
+	}
+	return path, os.WriteFile(path, data, 0o644)
+}
+
+// dropHostCalls removes the recorded host calls; a standalone server makes none.
+func dropHostCalls(tr *harness.Transcript) {
+	for i := range tr.Steps {
+		tr.Steps[i].HostCalls = nil
+	}
 }

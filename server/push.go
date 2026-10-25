@@ -133,7 +133,7 @@ func (h *Hub) pushOfflineRecipients(topic, senderUID, senderKind, content, conte
 				senderName = "小桃子"
 			} else if senderAppUserID != "" {
 				if viewerAppUserID := appUserIDs[uid]; viewerAppUserID != "" {
-					name, avatar, gerr := h.internalAPI.GetProfile(viewerAppUserID, senderAppUserID)
+					name, avatar, gerr := h.host.GetProfile(viewerAppUserID, senderAppUserID)
 					if gerr != nil {
 						logf("pushOfflineRecipients: GetProfile failed: %v", gerr)
 					} else {

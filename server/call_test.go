@@ -237,7 +237,7 @@ func TestCallHub_ReserveRejectsWhenEitherParticipantBusy(t *testing.T) {
 
 // These exercise scheduleForceEndCallForDisconnect / cancelPendingCallDisconnect
 // directly on a bare *Hub (no real WebSocket/Store/AuthService/InternalAPI
-// wiring -- settleCallAsync's own recover() makes a nil h.internalAPI safe,
+// wiring -- settleCallAsync's own recover() makes a nil h.host safe,
 // same reasoning as the callState-only tests above). This is the actual fix
 // for "接通后立刻挂断" on VIVO: forceEndCallForDisconnect used to run
 // instantly on any real disconnect, with zero allowance for the reconnect

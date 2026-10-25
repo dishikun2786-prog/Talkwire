@@ -57,7 +57,7 @@ func (h *Hub) handleCreateGrp(client *Client, msg *ClientMessage) {
 			client.SendJSON(ErrorResponse(msg.Id, ActionCreateGrp, CodeAuth, "cannot verify relationship"))
 			return
 		}
-		friends, err := h.internalAPI.AreFriends(client.appUserID, memberAppUserID)
+		friends, err := h.host.AreFriends(client.appUserID, memberAppUserID)
 		if err != nil {
 			logf("AreFriends check failed: %v", err)
 			client.SendJSON(ErrorResponse(msg.Id, ActionCreateGrp, CodeInternal, "relationship check failed"))
@@ -162,7 +162,7 @@ func (h *Hub) handleInvite(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionInvite, CodeAuth, "cannot verify relationship"))
 		return
 	}
-	friends, err := h.internalAPI.AreFriends(client.appUserID, inviteeAppUserID)
+	friends, err := h.host.AreFriends(client.appUserID, inviteeAppUserID)
 	if err != nil {
 		logf("AreFriends check failed: %v", err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionInvite, CodeInternal, "relationship check failed"))

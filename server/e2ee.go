@@ -75,7 +75,7 @@ func (h *Hub) e2ePeerAllowed(client *Client, peerUID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return h.internalAPI.AreFriends(client.appUserID, peerAppUserID)
+	return h.host.AreFriends(client.appUserID, peerAppUserID)
 }
 
 // relayE2eEnvelope delivers one encrypted payload to toUID: directly over
