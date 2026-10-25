@@ -85,7 +85,7 @@ type Hub struct {
 	// for groupAiSettingsCache/forwardReqCache/pubRateLimiter/aiCooldownMap.
 	calls *callHub
 
-	// pendingCallDisconnects (uid -> *time.Timer) backs
+	// pendingCallDisconnects (uid -> *pendingDisconnect) backs
 	// scheduleForceEndCallForDisconnect's reconnect grace period: a real
 	// disconnect while a call is ringing/answering/active does not
 	// immediately force-end it, it schedules the force-end and remembers

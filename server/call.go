@@ -27,6 +27,14 @@ import (
 // (save/restore around the test) instead of waiting out a real 10s timer.
 var callDisconnectGraceDuration = envDuration("IM_CALL_DISCONNECT_GRACE_SEC", 10*time.Second)
 
+// callTimer is what the call module needs of a timer: the ring timeout and
+// the disconnect grace period are both made by callAfterFunc. Production
+// uses time.AfterFunc; tests swap in a clock they move by hand, so the grace
+// period is checked at its real length without waiting (R16).
+type callTimer interface{ Stop() bool }
+
+var callAfterFunc = func(d time.Duration, f func()) callTimer { return time.AfterFunc(d, f) }
+
 // ---------------------------------------------------------------------------
 // IM 语音/视频通话 (IM_VOICE_VIDEO_CALL_PLAN.md §4)
 //
@@ -88,7 +96,7 @@ type callState struct {
 	// state to clean up here.
 	callType  string
 	status    string
-	ringTimer *time.Timer
+	ringTimer callTimer
 
 	// The devices taking part (task 1.12): callerDevice invited (set at
 	// construction, never changed); calleeDevice accepted, valid once
@@ -187,7 +195,7 @@ func (c *callState) startRingTimer(d time.Duration, f func()) bool {
 	if c.status != callStateRinging {
 		return false
 	}
-	c.ringTimer = time.AfterFunc(d, f)
+	c.ringTimer = callAfterFunc(d, f)
 	return true
 }
 
@@ -486,12 +494,12 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 	ok, reason, err := h.callHost.CreateCallSession(call.id, call.callerAppUserID, call.calleeAppUserID, call.callType)
 	if err != nil {
 		logf("[call] CreateCallSession failed: %v", err)
-		h.calls.remove(call)
+		h.removeCall(call)
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallInvite, CodeInternal, "发起通话失败，请稍后重试"))
 		return
 	}
 	if !ok {
-		h.calls.remove(call)
+		h.removeCall(call)
 		// "not_friends" gets CodeAuth, matching resolveP2PTopic's own
 		// existing "not friends" rejection elsewhere in this file --
 		// everything else roubao can return here ("insufficient_credits",
@@ -583,7 +591,7 @@ func (h *Hub) handleCallRingTimeout(call *callState) {
 		// reachable, and entirely expected no-op, not a bug.
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	h.pushCallEnded(call, call.callerUID, "no_answer")
 	h.pushCallEnded(call, call.calleeUID, "no_answer")
 	h.settleCallAsync(call.id, "no_answer")
@@ -647,7 +655,7 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		// SettleCallSession call and a second, confusing call_ended push
 		// with a different reason) a call someone else has already closed.
 		if call.resolve(callStateEnded, callStateAnswering) {
-			h.calls.remove(call)
+			h.removeCall(call)
 			h.pushCallEnded(call, call.callerUID, "failed")
 			h.endOnOtherDevices(client, call.id, "failed")
 			h.settleCallAsync(call.id, "failed")
@@ -705,7 +713,7 @@ func (h *Hub) handleCallReject(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallReject, CodeConflict, "该通话已被处理"))
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallReject, Code: CodeOK, CallSessionId: call.id})
 	h.pushCallEnded(call, call.callerUID, "rejected")
 	h.endOnOtherDevices(client, call.id, "rejected")
@@ -738,7 +746,7 @@ func (h *Hub) handleCallCancel(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallCancel, CodeConflict, "该通话已被接听或结束"))
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallCancel, Code: CodeOK, CallSessionId: call.id})
 	h.pushCallEnded(call, call.calleeUID, "cancelled")
 	h.settleCallAsync(call.id, "cancelled")
@@ -768,7 +776,7 @@ func (h *Hub) handleCallHangup(client *Client, msg *ClientMessage) {
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallHangup, CodeConflict, "通话已结束"))
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionCallHangup, Code: CodeOK, CallSessionId: call.id})
 	h.pushCallEnded(call, call.peerOf(client.uid), "user_hangup")
 	h.settleCallAsync(call.id, "user_hangup")
@@ -920,7 +928,8 @@ func (h *Hub) handleCallUpgradeReject(client *Client, msg *ClientMessage) {
 // comes, callDisconnectGraceDuration later the call ends exactly as before,
 // just delayed by a bounded, short window.
 func (h *Hub) scheduleForceEndCallForDisconnect(uid string) {
-	if h.calls.getByUID(uid) == nil {
+	call := h.calls.getByUID(uid)
+	if call == nil {
 		// No call in flight for this uid -- by far the common case for any
 		// disconnect. Nothing to protect, nothing to schedule.
 		return
@@ -931,10 +940,12 @@ func (h *Hub) scheduleForceEndCallForDisconnect(uid string) {
 		// again before the first timer fired). Replace it with a fresh
 		// full-length grace period rather than letting the stale one fire
 		// early against the current gap.
-		existing.(*time.Timer).Stop()
+		existing.(*pendingDisconnect).timer.Stop()
 	}
-	timer := time.AfterFunc(callDisconnectGraceDuration, func() {
-		h.pendingCallDisconnects.Delete(uid)
+	p := &pendingDisconnect{call: call}
+	p.timer = callAfterFunc(callDisconnectGraceDuration, func() {
+		// Only this timer's own entry: a replacement stored meanwhile stays.
+		h.pendingCallDisconnects.CompareAndDelete(uid, p)
 		if h.participantOnline(uid) {
 			// Reconnected in time but somehow missed cancelPendingCallDisconnect
 			// (e.g. this fired the instant the register case's own cancel ran,
@@ -942,9 +953,40 @@ func (h *Hub) scheduleForceEndCallForDisconnect(uid string) {
 			// the cancellation alone.
 			return
 		}
+		if h.calls.getByUID(uid) != p.call {
+			// The call this grace period guarded already ended some other
+			// way; a later call of the same uid is not this timer's to end.
+			return
+		}
 		h.forceEndCallForDisconnect(uid)
 	})
-	h.pendingCallDisconnects.Store(uid, timer)
+	h.pendingCallDisconnects.Store(uid, p)
+}
+
+// pendingDisconnect is a participant's disconnect grace timer and the call it
+// guards. The call is kept so that the timer is stopped when that call ends
+// another way (removeCall), and never stops or ends a later call of the uid.
+type pendingDisconnect struct {
+	timer callTimer
+	call  *callState
+}
+
+// removeCall takes an ended call out of the hub and stops the disconnect
+// grace timer either participant still has pending for it. Every way a call
+// ends goes through here (hangup, cancel, reject, a failed answer or invite,
+// the ring timeout, a disconnect, the host ending it), so no timer outlives
+// its call (R16).
+func (h *Hub) removeCall(call *callState) {
+	h.calls.remove(call)
+	for _, uid := range []string{call.callerUID, call.calleeUID} {
+		v, ok := h.pendingCallDisconnects.Load(uid)
+		if !ok {
+			continue
+		}
+		if p := v.(*pendingDisconnect); p.call == call && h.pendingCallDisconnects.CompareAndDelete(uid, p) {
+			p.timer.Stop()
+		}
+	}
 }
 
 // cancelPendingCallDisconnect is Hub.Run's register branch's hook back into
@@ -955,7 +997,7 @@ func (h *Hub) scheduleForceEndCallForDisconnect(uid string) {
 // never had a call-disconnect timer pending in the first place.
 func (h *Hub) cancelPendingCallDisconnect(uid string) {
 	if pending, ok := h.pendingCallDisconnects.LoadAndDelete(uid); ok {
-		pending.(*time.Timer).Stop()
+		pending.(*pendingDisconnect).timer.Stop()
 	}
 }
 
@@ -973,7 +1015,7 @@ func (h *Hub) forceEndCallForDisconnect(uid string) {
 	if !call.resolve(callStateEnded, callStateRinging, callStateAnswering, callStateActive) {
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	h.pushCallEnded(call, call.peerOf(uid), "disconnected")
 	h.settleCallAsync(call.id, "disconnected")
 	logf("[call] session=%s force-ended: %s disconnected", call.id, uid)
@@ -1010,7 +1052,7 @@ func (h *Hub) releaseCallSlotForBroadcastEnd(uid string) {
 	if !call.resolve(callStateEnded, callStateRinging, callStateAnswering, callStateActive) {
 		return
 	}
-	h.calls.remove(call)
+	h.removeCall(call)
 	logf("[call] session=%s call slot released via broadcast (roubao-initiated end)", call.id)
 }
 

@@ -11,7 +11,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
 - 计划用例 77 个。按平台：服务端 25、宿主 8、Android 20、Web 12、iOS 12。
 - 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 21/25、Android 16/20、Web 12/12。
+- 已写用例（已写/计划）：服务端 23/25、Android 16/20、Web 12/12。
 
 图例：
 
@@ -38,7 +38,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R13](#r13) | 内部接口鉴权；后台清空二次确认加审计 | 服务端、宿主 | 未观测 | — | `TestR13_InternalEndpointsRejectBadTokens`：服务端 2.1<br>`TestR13_HostEndpointsRejectBadTokens`：宿主 2.1<br>`TestR13_AdminClearNeedsConfirmAndAudit`：宿主 2.5 |
 | [R14](#r14) | 群成员不能互看资料；加好友需一次性令牌 | 宿主 | 未观测 | — | `TestR14_GroupMembersCannotViewProfiles`：宿主 2.3<br>`TestR14_AddContactRequiresOneTimeToken`：宿主 2.3 |
 | [R15](#r15) | 媒体带 Content-Length；删前查引用；私密媒体不进 CDN | 宿主 | 未观测 | — | `TestR15_MediaResponsesCarryContentLength`：宿主 2.4<br>`TestR15_DeleteChecksReferences`：宿主 2.4<br>`TestR15_PrivateMediaBypassesCDN`：宿主 2.4 |
-| [R16](#r16) | 通话状态用比较后替换；断线宽限；计时器显式停；用宿主用户 id | 服务端 | 符合 | `module/call` 11、13、14、19、21、25、27<br>`module/call-timeout` 6、7 | `TestR16_CallStateCASUnderRace`：服务端 1.11 已写<br>`TestR16_DisconnectGraceEndsCall`：服务端 7.2<br>`TestR16_TimersStoppedOnEveryPath`：服务端 7.2 |
+| [R16](#r16) | 通话状态用比较后替换；断线宽限；计时器显式停；用宿主用户 id | 服务端 | 符合 | `module/call` 11、13、14、19、21、25、27<br>`module/call-timeout` 6、7 | `TestR16_CallStateCASUnderRace`：服务端 1.11 已写<br>`TestR16_DisconnectGraceEndsCall`：服务端 7.2 已写<br>`TestR16_TimersStoppedOnEveryPath`：服务端 7.2 已写 |
 | [R17](#r17) | E2EE 只存转不透明信封；补投；本机身份初始化互斥 | 服务端、Android、iOS | 符合 | `module/e2ee-p2p` 16、20、22、25<br>`module/e2ee-group` 17、18 | `R17_IdentityInitIsMutuallyExclusive`：Android 7.1、iOS 7.1 |
 | [R18](#r18) | 用户令牌只接受 type=access，刷新、代理、管理员令牌一律拒绝 | 服务端 | 违反 | `core/login-tokens` 2、4、6、8、10、12、14 | `TestR18_OnlyAccessTokensLogIn`：服务端 1.8 已写 |
 | [R19](#r19) | 登录与在线快照应答带 id；客户端只对旧服务端按 action 关联这两种 | 服务端、Android、Web、iOS | 违反 | `core/login` 2、6<br>`core/p2p` 11<br>`core/presence` 10 | `TestR19_LoginAndSnapshotRepliesCarryId`：服务端 1.7 已写<br>`R19_CorrelateLegacyRepliesByAction`：Android 3.4 已写、Web 5.2 已写、iOS 6.1 |
@@ -263,8 +263,8 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
   - `module/call-timeout` 第 6、7 步（wait、call_accept）：振铃计时器到点结束通话并通知双方，超时后接听返回 404
 - 计划用例：
   - `TestR16_CallStateCASUnderRace`（服务端，1.11 并发压力用例，并发压力，已写）：接听、挂断、断线同时发生，状态只推进一次、宿主只结算一次
-  - `TestR16_DisconnectGraceEndsCall`（服务端，7.2 通话服务端，单测）：注入时钟，断线超过 10 秒宽限期结束通话，宽限内重连则保留
-  - `TestR16_TimersStoppedOnEveryPath`（服务端，7.2 通话服务端，单测）：每条非超时的结束路径都停掉振铃与宽限计时器
+  - `TestR16_DisconnectGraceEndsCall`（服务端，7.2 通话服务端，单测，已写）：注入时钟，断线超过 10 秒宽限期结束通话，宽限内重连则保留
+  - `TestR16_TimersStoppedOnEveryPath`（服务端，7.2 通话服务端，单测，已写）：每条非超时的结束路径都停掉振铃与宽限计时器
 
 <a id="r17"></a>
 
