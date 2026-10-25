@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app declares its subclass of ImkitMessagingService with the
+     com.google.firebase.MESSAGING_EVENT intent filter, and google-services.json. -->
+<manifest />

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permissions are the app's to declare: POST_NOTIFICATIONS, USE_FULL_SCREEN_INTENT (calls), VIBRATE. -->
+<manifest />

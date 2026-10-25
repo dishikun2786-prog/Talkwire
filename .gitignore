@@ -20,3 +20,9 @@ pgpass.conf
 *.keystore
 keystore.properties
 google-services.json
+
+# Gradle (android/)
+build/
+.gradle/
+.kotlin/
+local.properties
