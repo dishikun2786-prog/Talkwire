@@ -88,4 +88,4 @@ npm run sample
 
 ## 未做
 
-Web Push 只做了订阅与显示，没有接推送服务；只在 Edge（Chromium）上跑过，Firefox、Safari 未测；与 Android 示例在真机上互发还没验收。
+Web Push 只做了订阅与显示，没有接推送服务；只在 Edge（Chromium）上跑过，Firefox、Safari 未测。与 Android 示例在真机上互发、同一账号手机与网页同时在线，已在一台小米（Android 15）上验收，见 `docs/plan.md` 的 Phase 5 结果。
