@@ -598,8 +598,10 @@ func (s *Store) SoftDeleteMessage(topic string, seq int, fromUID string) ([]stri
 	return urls, true, nil
 }
 
-// ReadCursor is one member's read position in a group topic: everything up
-// to and including Seq is considered read by UID.
+// ReadCursor is one member's read position in a topic: everything up to and
+// including Seq is considered read by UID. Group topics keep one per member
+// (read receipts); direct-chat topics keep only the owners' own positions,
+// for their new devices (UpsertOwnReadCursor).
 type ReadCursor struct {
 	UID string
 	Seq int
@@ -645,6 +647,38 @@ func (s *Store) GetReadCursors(topic string) ([]ReadCursor, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// UpsertOwnReadCursor advances uid's read cursor in a direct-chat topic to
+// seq, monotonically like UpsertReadCursor, and also clamps it to the topic's
+// last_seq. The cursor only ever serves its owner (handleGet's readSeq), and
+// a client that reported a seq beyond the end of the conversation would
+// otherwise make every message that later arrives count as read on that
+// user's next new device, for good: the cursor never moves back. A topic
+// that has no row in im_topics yet stores nothing.
+func (s *Store) UpsertOwnReadCursor(topic, uid string, seq int) error {
+	_, err := s.db.Exec(`
+		INSERT INTO im_read_cursors (topic, uid, last_read_seq, updated_at)
+		SELECT t.topic, $2, LEAST($3, t.last_seq), NOW()
+		FROM im_topics t WHERE t.topic = $1 AND t.last_seq > 0
+		ON CONFLICT (topic, uid) DO UPDATE SET
+			last_read_seq = GREATEST(im_read_cursors.last_read_seq, EXCLUDED.last_read_seq),
+			updated_at = NOW()
+		WHERE EXCLUDED.last_read_seq > im_read_cursors.last_read_seq
+	`, topic, uid, seq)
+	return err
+}
+
+// GetReadCursor returns uid's own read cursor in topic, 0 when there is none.
+func (s *Store) GetReadCursor(topic, uid string) (int, error) {
+	var seq int
+	err := s.db.QueryRow(`
+		SELECT last_read_seq FROM im_read_cursors WHERE topic = $1 AND uid = $2
+	`, topic, uid).Scan(&seq)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return seq, err
 }
 
 // TopicExists checks whether a topic (P2P or group) has already been

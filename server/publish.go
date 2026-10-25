@@ -310,6 +310,19 @@ func (h *Hub) handleNote(client *Client, msg *ClientMessage) {
 			logf("UpsertReadCursor(%s,%s,%d): %v", topic, client.uid, msg.Seq, err)
 		}
 	}
+	// Strict profile: a direct chat's "read" is stored too, as the sender's
+	// own read position, so that a new device (or the same account on
+	// another phone) learns from handleGet's readSeq how far its user has
+	// read, instead of counting the whole pulled history as unread. Only the
+	// owner ever gets it back; the peer's read state still travels only as
+	// the live note. Not gated by read_receipt_enabled, which is about
+	// showing group members each other's reads. Legacy stores nothing, like
+	// the reference server.
+	if strictProtocol && msg.What == NoteRead && msg.Seq > 0 && strings.HasPrefix(topic, "p2p_") {
+		if err := h.store.UpsertOwnReadCursor(topic, client.uid, msg.Seq); err != nil {
+			logf("UpsertOwnReadCursor(%s,%s,%d): %v", topic, client.uid, msg.Seq, err)
+		}
+	}
 	if msg.What == NoteRead {
 		// Read state is the user's, not the device's: their other devices
 		// follow it (task 1.12). Other notes (typing) stay with the peers.
@@ -382,6 +395,11 @@ func (h *Hub) handleGet(client *Client, msg *ClientMessage) {
 	// feature is on, so a disabled deployment sends exactly the same
 	// response shape as before this field existed.
 	var readCursors []ReadCursorDto
+	// readSeq (strict profile): the caller's own read position, from the same
+	// table. A group has it only when read receipts are on, so it is taken
+	// from the snapshot just loaded; a direct chat has its own lookup (see
+	// handleNote). Omitted when there is none, and always under legacy.
+	readSeq := 0
 	if strings.HasPrefix(topic, "grp_") && CurrentRuntimeConfig().ReadReceiptEnabled {
 		cursors, cerr := h.store.GetReadCursors(topic)
 		if cerr != nil {
@@ -390,14 +408,28 @@ func (h *Hub) handleGet(client *Client, msg *ClientMessage) {
 			readCursors = make([]ReadCursorDto, len(cursors))
 			for i, c := range cursors {
 				readCursors[i] = ReadCursorDto(c)
+				// The group path stores whatever seq the note had; a
+				// non-positive one is not a read position.
+				if c.UID == client.uid && c.Seq > 0 {
+					readSeq = c.Seq
+				}
 			}
 		}
+	} else if strictProtocol && strings.HasPrefix(topic, "p2p_") {
+		seq, cerr := h.store.GetReadCursor(topic, client.uid)
+		if cerr != nil {
+			logf("GetReadCursor(%s,%s): %v", topic, client.uid, cerr)
+		}
+		readSeq = seq
+	}
+	if !strictProtocol {
+		readSeq = 0
 	}
 
 	client.SendJSON(&ServerMessage{
 		Id: msg.Id, Action: ActionGet, Code: CodeOK, Topic: msg.Topic, Messages: msgs,
 		ClearVersion: clearState.ClearVersion, ClearBeforeSeq: clearState.ClearBeforeSeq,
-		ReadCursors: readCursors,
+		ReadCursors: readCursors, ReadSeq: readSeq,
 	})
 	client.Subscribe(topic)
 	// handleGet subscribes exactly like handleSub, but used to skip the

@@ -47,6 +47,22 @@ class MiniServer {
 
     val requests = CopyOnWriteArrayList<JsonObject>()
 
+    /**
+     * Keep each user's `read` notes as their read position, the way a strict
+     * server does (spec 12.3): a direct chat's get reply then carries the
+     * caller's own `readSeq`, a group's carries `readCursors` (as a server
+     * with read receipts on does, legacy or strict).
+     */
+    var storeReads: Boolean = false
+    private val reads = ConcurrentHashMap<Pair<String, String>, Long>()
+
+    /** Sets [uid]'s stored read position in [topic] (canonical), as if one of their devices had read it. */
+    fun setRead(topic: String, uid: String, seq: Long) {
+        reads[topic to uid] = seq
+    }
+
+    fun readOf(topic: String, uid: String): Long? = reads[topic to uid]
+
     init {
         transport.onFrame = { c, f -> handle(c, f) }
     }
@@ -161,6 +177,14 @@ class MiniServer {
                             )
                         }
                         clears[canon]?.let { (v, b) -> put("clearVersion", v); put("clearBeforeSeq", b) }
+                        if (storeReads && ImIds.isGroupTopic(canon)) {
+                            val cursors = reads.filterKeys { it.first == canon }
+                            if (cursors.isNotEmpty()) {
+                                put("readCursors", JsonArray(cursors.map { (k, v) -> jsonObject { put("uid", k.second); put("seq", v) } }))
+                            }
+                        } else if (storeReads) {
+                            put("readSeq", reads[canon to me])
+                        }
                     },
                 )
             }
@@ -193,8 +217,16 @@ class MiniServer {
                     )
                 }
             }
-            "note" -> for (uid in membersOf(me, topic) - me) for (o in online(uid)) {
-                o.push(jsonObject { put("action", "info"); put("topic", topic); put("from", me); put("what", f.string("what")); put("seq", f.long("seq")) })
+            "note" -> {
+                val seq = f.long("seq")
+                if (storeReads && f.string("what") == "read" && seq != null && seq > 0) {
+                    val canon = canonical(me, topic)
+                    val last = messages(canon).maxOfOrNull { it.seq } ?: 0
+                    reads.merge(canon to me, minOf(seq, last)) { a, b -> maxOf(a, b) }
+                }
+                for (uid in membersOf(me, topic) - me) for (o in online(uid)) {
+                    o.push(jsonObject { put("action", "info"); put("topic", topic); put("from", me); put("what", f.string("what")); put("seq", seq) })
+                }
             }
             "sub" -> reply(c, f, jsonObject { put("action", "sub"); put("code", 200); put("topic", topic) })
             "pres" -> reply(c, f, jsonObject { put("action", "pres"); put("code", 200); put("what", "snapshot"); put("states", JsonArray(emptyList())) })

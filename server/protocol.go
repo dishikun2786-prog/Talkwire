@@ -205,6 +205,9 @@ type ServerMessage struct {
 	DeletedMessages int               `json:"deletedMessages,omitempty"`
 	DeletedMedia    int               `json:"deletedMedia,omitempty"`
 	ReadCursors     []ReadCursorDto   `json:"readCursors,omitempty"`
+	// ReadSeq is the caller's own read position in the topic, on a strict
+	// profile get reply (see handleGet). Omitted when unknown.
+	ReadSeq int `json:"readSeq,omitempty"`
 
 	// SenderKind/ForwardFrom* ride along on the "data" push (ActionData) so a
 	// live client can tell an AI reply apart from a user message and render a

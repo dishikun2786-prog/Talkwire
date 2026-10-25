@@ -78,6 +78,12 @@ public data class HistoryPage(
     val clearBeforeSeq: Long,
     /** Group read cursors (uid to seq), only when the host enabled read receipts. */
     val readCursors: Map<String, Long>?,
+    /**
+     * How far the user has read the conversation, on any of their devices
+     * (strict profile, spec 9.3); null when the server does not know or is
+     * a legacy one.
+     */
+    val readSeq: Long? = null,
 )
 
 /**
@@ -113,6 +119,7 @@ public suspend fun ImClient.history(
         clearVersion = reply.frame.long("clearVersion") ?: 0L,
         clearBeforeSeq = reply.frame.long("clearBeforeSeq") ?: 0L,
         readCursors = cursors,
+        readSeq = reply.frame.long("readSeq")?.takeIf { it > 0 },
     )
 }
 

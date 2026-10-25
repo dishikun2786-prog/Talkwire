@@ -312,6 +312,80 @@ class ChatEngineTest {
         assertEquals(1, removed.size)
     }
 
+    // ---------------------------------------------------------------- own read position from the server (spec 8, 9.3)
+
+    private fun ChatEngine.unreadWithBob(): Int? = conversations.value.firstOrNull { it.id == withBob }?.unread
+
+    /** A device that has never seen the chat finds it the way the UI does: by its contact. */
+    private fun newDevice(): ChatEngine = engine().also { it.startAndSync { ensureConversation(withBob) } }
+
+    @Test
+    fun aNewDeviceTakesTheReadPositionFromTheServer() {
+        server.storeReads = true
+        val p2p = ImIds.p2pTopic(alice, bob)
+        repeat(5) { server.inject(p2p, bob, "m$it") }
+        val phone = engine()
+        phone.startAndSync { ensureConversation(withBob) }
+        eventually { phone.unreadWithBob() == 3 }
+        runBlocking { phone.markRead(withBob) }
+        eventually { server.readOf(p2p, alice) == 5L }
+        server.inject(p2p, bob, "after the read")
+
+        val tablet = newDevice()
+        // A device with nothing stored pulls the latest page (three here).
+        eventually { tablet.msgs().mapNotNull { it.seq } == listOf(4L, 5L, 6L) }
+        assertEquals(1, tablet.unreadWithBob())
+        assertEquals(5L, tablet.conversations.value.single { it.id == withBob }.lastReadSeq)
+    }
+
+    @Test
+    fun withoutAReadPositionFromTheServerTheHistoryIsUnread() {
+        // A legacy server stores no direct-chat read: this is the behaviour the
+        // readSeq fixes, kept here as the control of the test above.
+        val p2p = ImIds.p2pTopic(alice, bob)
+        repeat(5) { server.inject(p2p, bob, "m$it") }
+        server.setRead(p2p, alice, 5)
+        val tablet = newDevice()
+        eventually { tablet.msgs().size == 3 }
+        assertEquals(3, tablet.unreadWithBob())
+    }
+
+    @Test
+    fun theServersReadPositionNeverMovesTheLocalOneBack() = runBlocking {
+        server.storeReads = true
+        val p2p = ImIds.p2pTopic(alice, bob)
+        repeat(5) { server.inject(p2p, bob, "m$it") }
+        server.setRead(p2p, alice, 2)
+        val store = InMemoryChatStore()
+        store.setOwner(alice)
+        store.putConversation(StoredConversation(withBob, lastReadSeq = 4))
+        val e = engine(store = store)
+        e.startAndSync()
+        eventually { e.msgs().mapNotNull { it.seq } == listOf(3L, 4L, 5L) }
+        assertEquals(4L, store.conversation(withBob)?.lastReadSeq)
+        assertEquals(1, e.unreadWithBob())
+    }
+
+    @Test
+    fun aGroupTakesTheOwnEntryOfReadCursors() {
+        // readCursors is sent by a server with read receipts on, legacy too.
+        server.storeReads = true
+        val g = "grp_abcdefabcdef"
+        server.groups[g] = MiniServer.Group("team", mutableMapOf(bob to "owner", alice to "member"))
+        repeat(4) { server.inject(g, bob, "g$it") }
+        server.setRead(g, alice, 3)
+        server.setRead(g, bob, 4)
+        val e = engine()
+        e.startAndSync()
+        val id = ConversationId(g)
+        eventually { e.msgs(id).mapNotNull { it.seq } == listOf(2L, 3L, 4L) }
+        assertEquals(1, e.conversations.value.single { it.id == id }.unread)
+        assertEquals(3L, e.conversations.value.single { it.id == id }.lastReadSeq)
+        // The others' cursors stay read receipts; the own one is not among them.
+        val cursors = e.readCursors(id)
+        eventually { cursors.value == mapOf(bob to 4L) }
+    }
+
     @Test
     fun aMessageFromAnotherAccountIsRefused() {
         val wrong = CopyOnWriteArrayList<ChatEvent.WrongAccount>()

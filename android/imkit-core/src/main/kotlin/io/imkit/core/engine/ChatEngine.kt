@@ -545,6 +545,11 @@ public class ChatEngine(
                     }
                 }
                 for (m in page.messages) applyIncomingLocked(conversation, m, live = false)
+                // The user's own read position as the server keeps it: readSeq
+                // (strict), or a group's own read cursor. A new device would
+                // otherwise count all the history it pulled as unread.
+                val ownRead = listOfNotNull(page.readSeq, page.readCursors?.get(me)).maxOrNull()
+                if (ownRead != null) advanceOwnReadLocked(conversation, ownRead)
             }
             first = false
             fetched += page.messages.size
@@ -643,7 +648,7 @@ public class ChatEngine(
         withConversation(c) {
             val conv = store.conversation(c) ?: return@withConversation
             when {
-                from == me -> if (seq > conv.lastReadSeq) store.putConversation(conv.copy(lastReadSeq = seq))
+                from == me -> advanceOwnReadLocked(c, seq)
                 c.isGroup -> store.setReadCursor(c, from, seq)
                 from == c.id -> if (seq > conv.peerReadSeq) store.putConversation(conv.copy(peerReadSeq = seq))
             }
@@ -685,6 +690,12 @@ public class ChatEngine(
         if (existing != null) return false
         store.putMessage(w.toChatMessage(c, MessageStatus.RECEIVED, null))
         return live
+    }
+
+    /** Moves the user's own read position forward to [seq]; never back. */
+    private suspend fun advanceOwnReadLocked(c: ConversationId, seq: Long) {
+        val conv = store.conversation(c) ?: return
+        if (seq > conv.lastReadSeq) store.putConversation(conv.copy(lastReadSeq = seq))
     }
 
     /** Applies a clear watermark if it is newer than what is known. Returns whether it was applied. */

@@ -22,8 +22,9 @@ type Additions struct {
 var KnownAdditions = map[string]Additions{
 	// The strict protocol profile (plan 1.7).
 	"strict": {
-		Name:    "strict",
-		Keys:    []string{"errCode", "protocol", "capabilities", "vapidKey"},
+		Name: "strict",
+		// readSeq: the caller's own read position on a get reply.
+		Keys:    []string{"errCode", "protocol", "capabilities", "vapidKey", "readSeq"},
 		ReplyID: true,
 	},
 }

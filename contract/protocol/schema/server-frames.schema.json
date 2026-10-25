@@ -619,6 +619,10 @@
                     "items": {
                       "$ref": "#/$defs/readCursor"
                     }
+                  },
+                  "readSeq": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 },
                 "required": [

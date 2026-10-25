@@ -1,6 +1,6 @@
 # ImKit 客户端协议 v1（草稿）
 
-状态：草稿，2026-10-24；2026-10-25 补入 ImKit 服务端 Phase 1 的结果：strict 档新增的字段与错误码（第 0.3、3.3、4、6.1 节）、模块未安装时的 501（第 4.1 节）、推送服务商（第 17 节）、多端同时在线（第 6.2 节及各节的“多端”段）、D9（第 18 节）。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
+状态：草稿，2026-10-24；2026-10-25 补入 ImKit 服务端 Phase 1 的结果：strict 档新增的字段与错误码（第 0.3、3.3、4、6.1 节）、模块未安装时的 501（第 4.1 节）、推送服务商（第 17 节）、多端同时在线（第 6.2 节及各节的“多端”段）、D9（第 18 节）；同日补入 strict 档 `get` 应答的 `readSeq`（第 8、9.3、12.3 节）。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
 
 本文的目标读者是要独立实现客户端或服务端的团队。只读本文、JSON Schema（`contract/protocol/schema/`）和黄金对话，就应能写出与参考服务逐帧兼容的实现。
 
@@ -33,7 +33,7 @@
 
 ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做两类改动：
 
-- **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）。
+- **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）；`get` 应答带本人的已读位置 `readSeq`（第 9.3 节）。
 - **修正第 18 节的缺陷**。ImKit 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。
 
 多端同时在线（第 6.2 节）不分档位：客户端在 `login` 里带 `device` 才启用，不带时两档都与参考服务一致。
@@ -354,7 +354,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 2. 发 `get_groups`，得到所在的全部群。对本地有但列表里没有的群：本地标记为已退出（可能是离线时被踢或群被解散，而补投事件尚未到达）。
 3. 对每个群发 `sub`（或直接发第 4 步的 `get`，它会顺带订阅）。
 4. 对每个会话（群与本地已知的单聊）发 `get`，`afterSeq` = 本地该会话的最大 seq，循环直到返回的消息数小于 `limit`。
-5. 用 `get` 应答里的 `clearVersion`、`clearBeforeSeq` 校正本地：若服务端的 `clearVersion` 大于本地记录，删除本地 seq ≤ `clearBeforeSeq` 的消息（第 11.3 节）。
+5. 用 `get` 应答里的 `clearVersion`、`clearBeforeSeq` 校正本地：若服务端的 `clearVersion` 大于本地记录，删除本地 seq ≤ `clearBeforeSeq` 的消息（第 11.3 节）。应答带 `readSeq` 时（strict 档），把本地该会话的已读位置推进到它；本地已经更大时不动，已读位置只前进不后退。没有这一步，新设备或换账号后拉回的历史会全部算作未读。
 6. 处理补投帧（第 6.3 节），按要求回执。
 7. 需要在线状态时发 `pres`（第 12 节）。
 
@@ -426,6 +426,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 | `messages` | 消息数组，每条含 `topic`（规范 topic）、`seq`、`from`、`content`、`contentType`、`ts`，以及可选的 `fileUrl`、`fileName`、`duration`、`extra`、`senderKind`、`forwardFromMsgId`、`forwardFromTopic`。没有消息时省略 |
 | `clearVersion`、`clearBeforeSeq` | 会话的清空状态（第 11.3 节），从未清空时省略 |
 | `readCursors` | 只对群、且宿主开启了已读回执时出现：`[{uid, seq}]`，表示该成员已读到 seq（含） |
+| `readSeq` | 仅 strict 档【测】：请求者本人在该会话已读到的 seq（含）。单聊总有记录可查（第 12.3 节）；群只在开启了已读回执时有，值与 `readCursors` 里本人那一项相同。没有记录时省略，legacy 档总是省略 |
 
 单聊时，应答之后服务端还会发一帧对方的在线状态（`pres` 推送形态，F5）。
 
@@ -678,7 +679,9 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 单聊里 `topic` 照抄发送方请求里的写法（第 5.5 节）。多端【测】：`read` 也发给发送者自己的其他设备（已读状态属于用户而不是设备），`kp` 不发。
 
-宿主开启已读回执时，群里的 `read` 会被存为该成员的已读游标，并在 `get` 时通过 `readCursors` 返回（第 9.3 节）。单聊的已读不存储。
+宿主开启已读回执时，群里的 `read` 会被存为该成员的已读游标，并在 `get` 时通过 `readCursors` 返回（第 9.3 节）。
+
+单聊：legacy 档不存储已读，与参考服务相同。strict 档【测】把单聊的 `read` 存为**发送者本人**的已读位置，只前进不后退，超过会话最后一条消息的 seq 时按最后一条存；它只通过本人的 `get` 应答的 `readSeq` 返回，对方拿不到（对方仍只从实时的 `info` 得知）。这一项不受已读回执开关影响：开关管的是群成员互相看到已读，这里只是同一个用户的不同设备共享自己的已读位置。`seq` 缺省或不大于 0 的 `read` 不存储。
 
 非成员发送时收到 `action:"note"` 的 401（F32）。
 
@@ -970,7 +973,7 @@ strict 档用同一套黄金对话检验：
 conformance check -additions strict -overlay contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict
 ```
 
-`-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`）；有意偏离 legacy 的六个场景改用 `transcripts-strict/` 里另录的版本：`core/login-tokens`（D4）、`core/presence`（D3）、`core/leave-grp`（D1、D2）、`core/group-offline-events`（D5）、`module/qr-join`（D7）、`module/qr-join-review`（D8）。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
+`-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`、`readSeq`）；有意偏离 legacy 的六个场景改用 `transcripts-strict/` 里另录的版本：`core/login-tokens`（D4）、`core/presence`（D3）、`core/leave-grp`（D1、D2）、`core/group-offline-events`（D5）、`module/qr-join`（D7）、`module/qr-join-review`（D8）。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
 
 多端同时在线没有黄金对话：参考服务没有这项能力。它由 `server/multidevice_test.go` 等用例覆盖（进程内真实服务端加真实 WebSocket）。
 

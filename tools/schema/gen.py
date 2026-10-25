@@ -187,7 +187,9 @@ SERVER_ACTION = {
               ["topic", "from", "seq", "ts"])],
     "get": [({"id": S, "code": C200, "topic": NS, "messages": {"type": "array", "items": ref("storedMessage")},
               "clearVersion": I, "clearBeforeSeq": I,
-              "readCursors": {"type": "array", "items": ref("readCursor")}}, ["code", "topic"])],
+              "readCursors": {"type": "array", "items": ref("readCursor")},
+              # readSeq: strict profile only, the caller's own read position.
+              "readSeq": POS}, ["code", "topic"])],
     "pres": [
         ({"topic": UID, "what": {"enum": ["on", "off"]}, "online": B, "presRev": I}, ["topic", "what"]),
         # id: strict profile only.

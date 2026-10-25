@@ -26,6 +26,8 @@ ImKit 的 Go 实时服务端。
 
 Phase 2 之后（加入 `custom-broadcast` 与核心组场景 `core/host-red-packet`，2026-10-25 在最终代码上重跑）：legacy 33/33，strict 33/33，standalone 30/33（同样是那三个依赖宿主的场景），表结构比较 5 项通过，竞态检测三轮无报告，staticcheck 无报告，单测 146 个全部通过、无跳过。
 
+M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人的已读位置（复用 `im_read_cursors`，按会话最后一条钳住），`get` 应答带 `readSeq`；legacy 档不存也不发（协议规范第 9.3、12.3 节，`readseq_test.go` 两档对照）。重跑：legacy 33/33，strict 33/33（`-additions strict` 加了 `readSeq`），lint 无报告，单测全部通过、无跳过。没有加表加列。
+
 ## 代码结构
 
 | 文件 | 内容 |

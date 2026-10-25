@@ -44,7 +44,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  * protocol profiles: login and first sync, a direct message, publish
  * idempotency, offline catch-up over several pages, reconnecting after a
  * dropped socket, a group round trip, history paging on a fresh device,
- * recall, read receipts, clearing for everyone, and presence.
+ * recall, read receipts, a new device's unread count, clearing for
+ * everyone, and presence.
  */
 class M1RealServerTest {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -233,6 +234,29 @@ class M1RealServerTest {
         val bobMax = bobWin.seqs().max()
         until("Alice sees the read position") { alice.store.conversation(withBob)?.peerReadSeq == bobMax }
         assertEquals(0, bob.engine.conversations.value.first { it.id == withAlice }.unread)
+
+        // A new device of Bob's pulls the history already read: strict keeps
+        // Bob's own read position (stored before the read was relayed to
+        // Alice, so it is there now) and returns it as readSeq; legacy keeps
+        // none, so everything pulled counts as unread there.
+        bob.client.stop()
+        val laptop = device(server, bobId, deviceName = "laptop")
+        laptop.engine.ensureConversation(withAlice, "Alice")
+        val laptopWin = laptop.engine.messages(withAlice)
+        laptop.client.start()
+        until("laptop sync") { laptop.synced() >= 1 }
+        assertEquals(listOf(5L, 6L, 7L), laptopWin.seqs())
+        val laptopChat = laptop.engine.conversations.value.first { it.id == withAlice }
+        if (profile == "strict") {
+            assertEquals("a new device's history is already read", 0, laptopChat.unread)
+            assertEquals(bobMax, laptopChat.lastReadSeq)
+        } else {
+            assertEquals("legacy keeps no direct-chat read position", 3, laptopChat.unread)
+        }
+        laptop.client.stop()
+        val bobAgain = bob.synced()
+        bob.client.start()
+        until("Bob back again") { bob.synced() > bobAgain }
 
         // Clear for everyone, permanently; later messages arrive normally.
         alice.engine.clear(withBob)

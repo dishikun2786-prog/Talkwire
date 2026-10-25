@@ -23,10 +23,12 @@ func TestStripStrictAdditions(t *testing.T) {
 			// Not one of the F1 replies: its id is part of the reference frame.
 			`{"action":"login","code":401,"id":"s4","reason":"invalid token"}`,
 			`{"action":"pres","online":true,"topic":"${uid:B}","what":"on"}`,
+			`{"action":"get","code":200,"id":"s5","readSeq":3,"topic":"${uid:B}"}`,
 		),
 	}}}}
 	removed := tr.Strip(KnownAdditions["strict"])
 	want := frames(
+		`{"action":"get","code":200,"id":"s5","topic":"${uid:B}"}`,
 		`{"action":"login","code":200,"uid":"${uid:A}"}`,
 		`{"action":"login","code":401,"id":"s4","reason":"invalid token"}`,
 		`{"action":"pres","code":200,"states":[],"what":"snapshot"}`,
@@ -36,7 +38,7 @@ func TestStripStrictAdditions(t *testing.T) {
 	if got := tr.Steps[0].Frames["a"]; !reflect.DeepEqual(got, want) {
 		t.Errorf("frames\n got  %s\n want %s", got, want)
 	}
-	if wantN := map[string]int{"capabilities": 1, "protocol": 1, "errCode": 1, "id": 2}; !reflect.DeepEqual(removed, wantN) {
+	if wantN := map[string]int{"capabilities": 1, "protocol": 1, "errCode": 1, "id": 2, "readSeq": 1}; !reflect.DeepEqual(removed, wantN) {
 		t.Errorf("removed %v, want %v", removed, wantN)
 	}
 }
