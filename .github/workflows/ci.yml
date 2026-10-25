@@ -1,0 +1,243 @@
+# Plan 9.2. Every job is one job of tools/ci.sh, which runs the same checks
+# locally: this file only sets up toolchains and the throwaway databases.
+#
+# iOS joins when the iOS SDK exists (Phase 6, needs a macOS runner).
+
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Throwaway databases in the job's own PostgreSQL service; nothing here is a secret.
+  PGPASSWORD: postgres
+  IMKIT_TEST_DSN: host=127.0.0.1 port=5432 user=postgres password=postgres dbname=imkit_new sslmode=disable
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imkit_host
+  # Every step's output, uploaded when a job fails.
+  CI_LOGS: ci-logs
+  GO_SUMS: |
+    server/go.sum
+    tools/conformance/go.sum
+    tools/loadtest/go.sum
+
+jobs:
+  deps:
+    name: dependencies, licenses, schemas, red lines
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bash tools/ci.sh deps
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-deps
+          path: ci-logs
+          if-no-files-found: ignore
+
+  go:
+    name: Go (lint, tests, race)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - run: go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
+      - run: bash tools/ci.sh go
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-go
+          path: ci-logs
+          if-no-files-found: ignore
+
+  conformance:
+    name: golden transcripts
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash tools/ci.sh conformance
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-conformance
+          path: ci-logs
+          if-no-files-found: ignore
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-logs
+          path: tools/conformance/logs
+          if-no-files-found: ignore
+
+  node:
+    name: Node host SDK and examples
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE imkit_host"
+      - run: bash tools/ci.sh node
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-node
+          path: ci-logs
+          if-no-files-found: ignore
+
+  web:
+    name: Web SDK
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash tools/ci.sh web
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-web
+          path: ci-logs
+          if-no-files-found: ignore
+
+  e2e:
+    name: Web end-to-end
+    runs-on: ubuntu-24.04
+    env:
+      # Playwright's own Chromium instead of the Edge the local runs use.
+      E2E_CHANNEL: ""
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash tools/ci.sh e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-e2e
+          path: ci-logs
+          if-no-files-found: ignore
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report
+            web/test-results
+            web/e2e/.stack-logs
+          if-no-files-found: ignore
+
+  android:
+    name: Android
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: imkit_new
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: ${{ env.GO_SUMS }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash tools/ci.sh android
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-android
+          path: ci-logs
+          if-no-files-found: ignore

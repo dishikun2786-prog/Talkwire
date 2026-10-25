@@ -2,7 +2,8 @@ import { defineConfig } from "@playwright/test";
 import { baseURL } from "./stack.js";
 
 // Runs on the locally installed Microsoft Edge (`channel: "msedge"`), so no
-// browser download is needed. Set E2E_CHANNEL=chrome (or "") to use another.
+// browser download is needed. E2E_CHANNEL=chrome picks another installed
+// browser; E2E_CHANNEL= (empty) Playwright's own Chromium (CI).
 export default defineConfig({
   testDir: ".",
   testMatch: "*.spec.ts",
@@ -17,7 +18,7 @@ export default defineConfig({
   outputDir: "../test-results",
   use: {
     baseURL,
-    channel: process.env.E2E_CHANNEL ?? "msedge",
+    channel: process.env.E2E_CHANNEL === undefined ? "msedge" : process.env.E2E_CHANNEL || undefined,
     headless: process.env.E2E_HEADED ? false : true,
     locale: "en-US",
     trace: "retain-on-failure",

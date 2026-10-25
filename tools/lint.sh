@@ -12,7 +12,7 @@
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-modules=(server tools/conformance)
+modules=(server tools/conformance tools/loadtest)
 fail=0
 
 for m in "${modules[@]}"; do

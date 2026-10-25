@@ -12,8 +12,9 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 - **Android**（Phase 3、4）：核心 SDK、Room 存储、通知与 FCM、Compose 界面套件、示例 App 完成，M1、M2 达成（真机一台）。
 - **Web**（Phase 5）：协议类型、客户端与同步引擎、IndexedDB 存储、React 套件、示例与端到端用例完成，M3 达成（Web 与 Android 真机互发、同一账号多端在线）。
 - **iOS**（Phase 6）：未开始，需要 macOS。
-- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成。E2EE 客户端模块、Android 的通话与扫码入群、ARTC 适配示例未做。
+- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@imkit/call-dingrtc`、`examples/artc`）。E2EE 客户端模块、Android 的通话与扫码入群（含 ARTC 适配）未做。
 - **后台**（Phase 8）：通话记录存储与后台接口（宿主 SDK）、可嵌入的后台页面 `@imkit/admin` 完成。
+- **文档、CI、压测**（Phase 9）：接入与迁移文档、ADR 完成；全量检查脚本 `tools/ci.sh` 与 GitHub Actions 配置写好（仓库还没有远程，没在 GitHub 上跑过）；压测工具 `tools/loadtest` 在本机试跑过，正式压测待在 Linux 上做。未发布。
 
 各部分的结果见各目录的 README，完整计划与进度见 `docs/plan.md`。
 
@@ -25,13 +26,14 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | `contract/redlines/` | 红线对照表：每条红线对应的已录用例与计划用例 | 建设中 |
 | `contract/host-api/` | 宿主 ↔ IM 的 OpenAPI 3.1、uid 黄金向量、用其他语言实现宿主的说明 | Phase 2 完成 |
 | `tools/conformance/` | 原版服务（参照）、假宿主、一致性测试台、客户端回放服务器 | 建设中 |
+| `tools/` 其他 | `ci.sh` 全量检查、`depcheck/` 依赖方向与许可证、`loadtest/` 压测、`schema/` 协议 Schema、`lint.sh`、`race.sh` | 已有 |
 | `docs/` | 计划、架构决策记录（`adr/`）、可选模块手册（`modules.md`）、从小桃子迁移（`migration-from-xiaotaozi.md`）、清单 | 建设中 |
 | `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
 | `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台） |
-| `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@imkit/call`、`@imkit/group-join`；后台页面 `@imkit/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
+| `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@imkit/call`、`@imkit/group-join`；通话的 ARTC 适配器 `@imkit/call-dingrtc`；后台页面 `@imkit/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
 | `ios/` | iOS SDK | Phase 6，未开始 |
-| `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主：开发登录、演示通话、通话记录与后台） | 已有 |
+| `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主：开发登录、演示通话、通话记录与后台）；`artc`（用阿里云 ARTC 3.0 打通话：宿主签频道令牌，各端适配器） | 已有 |
 
 ## 开发工具
 
@@ -39,6 +41,8 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 - Node.js 22 及以上（`host-sdk-node/`、`examples/`、`tools/schema/check.mjs`；本机验证用的是 24.19.0）。依赖版本钉死，lockfile 已提交。
 - JDK 17 与 Android SDK（platform 34），用于 `android/`；Gradle 8.7 由 wrapper 下载。见 `android/README.md`。
 - 文本文件一律 LF（见 `.gitattributes`）。Git for Windows 默认 `core.autocrlf=true`，不加这条，Go 源码检出后是 CRLF，哈希对不上冻结的源码，gofmt 也会报整份文件。
+- 全量检查：`bash tools/ci.sh`（或指定作业，如 `bash tools/ci.sh go web`；`--list` 列出全部步骤）。CI 跑的就是它，数据库用例需要的环境变量见脚本开头。
+- 压测：`tools/loadtest`，见 `tools/loadtest/README.md`。
 - 依赖方向与许可证：`node tools/depcheck/check.mjs`（核心不链接 libsignal 与 RTC SDK、模块只依赖核心、许可证），见 `tools/depcheck/README.md`。
 - 竞态检测用 `tools/race.sh`，参数原样传给 `go test -race`（默认 `./...`）：
 

@@ -62,7 +62,17 @@ Web SDK 完成，在 `web/`（npm 工作区，说明见 `web/README.md`）。5.1
 
 8.1 后台组件：Node 宿主 SDK 新增 `CallRecordStore`（内存版、Prisma 版，新模型 `ImkitCallRecord`）与 `recordingCalls`，把宿主通话处理器接受的通话记成元数据（双方、类型、各步时间、结束原因、时长），每步只进不退，写失败不影响通话；`imkitAdminRoutes` 给了 `calls` 时多出通话记录列表与详情。Web 新包 `@imkit/admin`：聊天记录（清空只给超级管理员、只对单聊，要理由和逐字确认语，没收到应答时重试沿用同一个幂等键）、通话记录、通话详情，并给出路由表。示例里的 `#/admin` 用 `/dev/admin-login` 登录；端到端用例走完“通话进记录、看详情、读聊天、为双方清空，双方屏幕随之清空”。
 
-未做：7.1 E2EE 客户端模块；7.3、7.6 的 Android 端（等另一个会话的 `imkit-core`）；7.4 ARTC 适配示例（Web 端 SDK 版本待核实，Android 要从 Maven 取 dingrtc，装工具链前先问）；iOS 全部（P6，需要 Mac）。
+7.4 ARTC 适配示例（Web 端与宿主一侧）：可选包 `@imkit/call-dingrtc` 在 DingRTC Web SDK（npm `dingrtc`，按 3.9.37 核实接口）上实现 `CallMediaEngine`，SDK 只作 peer 依赖、由应用安装后传入；入会途中挂断时，之后建出的麦克风和摄像头立即关掉。`examples/artc` 是宿主一侧：`artcCalls()` 实现 `CallHandlers`，每通电话一个频道，主叫、被叫各签一个 ARTC 3.0 AppToken（签给各自的 IM uid，与适配器的默认入会身份一致），谁能打、怎么计费交给宿主（`canCall`、`onSettle`）。令牌生成从参考部署移植，用阿里云官方示例的两组黄金向量逐字节核对；写读令牌的测试时抓到一处偏移量错误（`at += int32()` 加在旧偏移上）。`tools/depcheck` 新增“适配器”一类：只能依赖核心与它适配的模块，RTC SDK 只能是 peer 依赖。没有接真实的阿里云频道验证音视频。
+
+未做：7.1 E2EE 客户端模块；7.3、7.6 的 Android 端（等另一个会话的 `imkit-core`），7.4 的 Android 可选 AAR 随之再做；iOS 全部（P6，需要 Mac）。
+
+## Phase 9 进展（2026-10-25）
+
+文档（9.1）：`web/QUICKSTART.md`、可选模块手册 `docs/modules.md`、从小桃子迁移 `docs/migration-from-xiaotaozi.md`、ADR 0002（协议档位）与 0003（模块与宿主业务）。
+
+9.2 CI：`tools/ci.sh` 是全部检查的唯一入口，分七个作业（deps、go、conformance、node、web、e2e、android），本机与 CI 跑同一套；`.github/workflows/ci.yml` 只负责装工具链和起一次性 PostgreSQL，每个作业调一次 `tools/ci.sh <作业>`。数据库用例缺环境变量时本机明确报“跳过”，CI 里一律算失败，不许悄悄跳过。一致性检查包括 legacy、strict 两档和“Node 宿主 SDK 当宿主”；Android 另查解析后的依赖图里没有 libsignal 与 RTC SDK（depcheck 只看声明的依赖）。表结构比较需要从源项目构建原版服务，CI 里没有源项目，只在本机跑。仓库还没有远程，CI 配置没在 GitHub 上跑过。
+
+9.3 压测：`tools/loadtest`（Go）按设定速率在若干群里收发，统计应答与投递时延、丢失、被断开的连接，可设丢失上限作为通过条件。本机（i7-8700，压测端与服务端同机）试跑：1000 用户、20 个 50 人群，丢失 0，应答 p99 2.9 ms；1000 用户、4 个 250 人群时饱和，丢失 0.3%，7 条连接因发送缓冲满被断开（服务端的慢消费者保护），分不清瓶颈在服务端还是压测端。正式压测要在 Linux 上把压测端和服务端分开跑。
 
 ## 已定决策（2026-10-25，G1 验收）
 
