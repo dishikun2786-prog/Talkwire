@@ -123,7 +123,7 @@ public fun ImBannerHost(
         val context = LocalContext.current
         val colors = ImTheme.colors
         LaunchedEffect(s.message.from) { chat.profiles.request(listOf(s.message.from)) }
-        val sender = people[s.message.from]?.name?.takeIf { it.isNotBlank() } ?: ProfileCache.shortUid(s.message.from)
+        val sender = people[s.message.from]?.name?.takeIf { it.isNotBlank() } ?: ProfileCache.fallbackName(context, s.message.from)
         val title = if (s.groupName != null) "${s.groupName} · $sender" else sender
         Surface(
             shape = RoundedCornerShape(14.dp),

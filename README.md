@@ -12,7 +12,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 - **Android**（Phase 3、4）：核心 SDK、Room 存储、通知与 FCM、Compose 界面套件、示例 App 完成，M1、M2 达成（真机一台）。
 - **Web**（Phase 5）：协议类型、客户端与同步引擎、IndexedDB 存储、React 套件、示例与端到端用例完成，M3 达成（Web 与 Android 真机互发、同一账号多端在线）。
 - **iOS**（Phase 6）：未开始，需要 macOS。
-- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@imkit/call-dingrtc`、`examples/artc`）。E2EE 客户端模块、Android 的通话与扫码入群（含 ARTC 适配）未做。
+- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@imkit/call-dingrtc`、`examples/artc`）。Android 端的扫码入群、通话、ARTC 适配器、群助手“正在输入”、视频压缩与 E2EE 客户端模块（`imkit-e2ee`，AGPLv3）完成，都没有真机验证；iOS 端未做。
 - **后台**（Phase 8）：通话记录存储与后台接口（宿主 SDK）、可嵌入的后台页面 `@imkit/admin` 完成。
 - **文档、CI、压测**（Phase 9）：接入与迁移文档、ADR 完成；全量检查脚本 `tools/ci.sh` 与 GitHub Actions 配置写好（仓库还没有远程，没在 GitHub 上跑过）；压测工具 `tools/loadtest` 在本机试跑过，正式压测待在 Linux 上做。未发布。
 
@@ -30,7 +30,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | `docs/` | 计划、架构决策记录（`adr/`）、可选模块手册（`modules.md`）、从小桃子迁移（`migration-from-xiaotaozi.md`）、清单 | 建设中 |
 | `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
-| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台） |
+| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App；可选模块 `imkit-group-join`、`imkit-call`、`imkit-video-compress`、`imkit-e2ee`（AGPLv3）；通话的 ARTC 适配器 `imkit-call-dingrtc`。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台）；Phase 7 的 Android 部分完成（未上真机） |
 | `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@imkit/call`、`@imkit/group-join`；通话的 ARTC 适配器 `@imkit/call-dingrtc`；后台页面 `@imkit/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
 | `ios/` | iOS SDK | Phase 6，未开始 |
 | `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主：开发登录、演示通话、通话记录与后台）；`artc`（用阿里云 ARTC 3.0 打通话：宿主签频道令牌，各端适配器） | 已有 |
@@ -55,4 +55,4 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
 ## 许可证
 
-核心以 Apache-2.0 发布（见 `LICENSE`）。链接 libsignal 的 E2EE 客户端模块将单独发布并采用 AGPLv3；它们不会出现在核心产物的依赖树里。
+核心以 Apache-2.0 发布（见 `LICENSE`）。链接 libsignal 的 E2EE 客户端模块单独发布并采用 AGPLv3（目前是 Android 的 `android/imkit-e2ee`，目录里有它自己的 `LICENSE`）；它不会出现在核心产物的依赖树里，`tools/depcheck` 与 `tools/ci.sh` 检查这一点。

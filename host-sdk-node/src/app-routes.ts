@@ -5,7 +5,7 @@
 import { createHash, createHmac } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { checkAddToken, issueAddToken, type AddTokenMode } from "./add-token.js";
+import { checkAddToken, checkContactQr, issueAddToken, issueContactQr, type AddTokenMode } from "./add-token.js";
 import {
   addContact,
   aliasFor,
@@ -93,6 +93,7 @@ export async function imkitAppRoutes(app: FastifyInstance, options: AppRoutesOpt
   // A key of its own, so an add token can never pass for any other HMAC the
   // host makes with the same secret.
   const addTokenKey = createHmac("sha256", options.addTokenSecret).update("imkit add token").digest("hex");
+  const contactQrKey = createHmac("sha256", options.addTokenSecret).update("imkit contact qr").digest("hex");
   const reportError = (err: unknown, what: string) =>
     options.onError ? options.onError(err, what) : app.log.warn({ err }, `imkit: ${what} failed`);
 
@@ -230,6 +231,13 @@ export async function imkitAppRoutes(app: FastifyInstance, options: AppRoutesOpt
     return publicProfile(updated);
   });
 
+  // The user's own contact QR payload: what their QR code shows.
+  app.get(`${base}/me/qr`, async (request, reply) => {
+    const me = await signedIn(request, reply);
+    if (!me) return reply;
+    return { qr: issueContactQr(contactQrKey, (await ensureProfile(me)).uid) };
+  });
+
   // -- other users --
 
   app.get(`${base}/profiles`, async (request, reply) => {
@@ -259,12 +267,27 @@ export async function imkitAppRoutes(app: FastifyInstance, options: AppRoutesOpt
     return found(me, await profiles.findByHandle(body.handle), reply);
   });
 
+  // A contact QR code: the signed payload of /me/qr. A bare uid is refused
+  // under addTokenMode "require" (anyone in a group knows the other members'
+  // uids); "observe" accepts it and reports it, for codes printed before.
   app.post(`${base}/contacts/qr-resolve`, async (request, reply) => {
     const me = await signedIn(request, reply);
     if (!me) return reply;
-    const body = parse(z.object({ uid: z.string().trim().min(1).max(64) }), request.body, reply);
+    const body = parse(
+      z.object({ qr: z.string().trim().min(1).max(128).optional(), uid: z.string().trim().min(1).max(64).optional() }).refine((b) => b.qr || b.uid),
+      request.body,
+      reply,
+    );
     if (!body) return reply;
-    return found(me, await profiles.findByUid(body.uid), reply);
+    if (body.qr) {
+      const uid = checkContactQr(contactQrKey, body.qr);
+      if (!uid) return reply.status(400).send({ error: "invalid_qr" });
+      return found(me, await profiles.findByUid(uid), reply);
+    }
+    if (addTokenMode === "require") return reply.status(400).send({ error: "qr_required" });
+    const profile = await profiles.findByUid(body.uid!);
+    if (profile && profile.userId !== me && addTokenMode === "observe") options.onAddTokenMissing?.(me, profile.userId, "absent");
+    return found(me, profile, reply);
   });
 
   // -- contacts --

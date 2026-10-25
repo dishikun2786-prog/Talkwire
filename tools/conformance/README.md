@@ -150,7 +150,7 @@ go build -o bin/replay.exe ./cmd/replay
 
 ## 红线对照表
 
-`contract/redlines/redlines.json` 把计划里的每条红线（R1–R22 服务端与宿主，C1–C10 客户端）对应到已录的黄金对话步骤和计划中的自动化用例；`contract/redlines/matrix.md` 由它生成，不要手改。服务端与 Android 已经写好的用例在表里标“已写”：生成时扫描 `server/` 下 `*_test.go` 里的测试函数（`-tests` 指定目录，默认 `../../server`），以及 `android/` 各模块 `src/test` 下以红线编号开头的 Kotlin 测试函数（`-android`，默认 `../../android`），所以加了用例要重新 `write`。Web 与 iOS 还没有代码，不扫描。
+`contract/redlines/redlines.json` 把计划里的每条红线（R1–R22 服务端与宿主，C1–C10 客户端）对应到已录的黄金对话步骤和计划中的自动化用例；`contract/redlines/matrix.md` 由它生成，不要手改。服务端、宿主、Android 与 Web 已经写好的用例在表里标“已写”：生成时扫描 `server/` 下 `*_test.go` 里的测试函数（`-tests`，默认 `../../server`）、`host-sdk-node/` 的 node:test 用例（`-host`，默认 `../../host-sdk-node`）、`android/` 各模块 `src/test` 下以红线编号开头的 Kotlin 测试函数（`-android`，默认 `../../android`），以及 `web/` 下的 Vitest 与 Playwright 用例（`-web`，默认 `../../web`），所以加了用例要重新 `write`。iOS 还没有代码，不扫描。
 
 ```bash
 go run ./cmd/redlines check   # 校验，并确认 matrix.md 是最新的
@@ -165,6 +165,6 @@ go run ./cmd/redlines write   # 改完 JSON 后重新生成 matrix.md
 - 场景的 `redlines` 标签与对照表双向一致：标了某条红线的场景必须被它引用，被引用的场景必须标了它；
 - 计划用例的任务号在 `tasks` 里，平台属于这条红线，用例名带红线编号（如 `TestR3_…`、`C1_…`）；
 - 每条红线的每个平台至少有一个用例；服务端红线没有黄金用例时必须写明原因（`noGolden`）；参照服务违反的红线必须有 strict 档用例；
-- `server/` 里按红线命名（`TestR<n>_…`）的测试必须出现在对照表里，作为该红线的服务端用例；`android/` 里按红线命名（`R<n>_…`、`C<n>_…`）的测试同样必须登记为该红线的 Android 用例。
+- 按红线命名的测试必须出现在对照表里，登记为该红线在那个平台上的用例：`server/` 里的 `TestR<n>_…`，`host-sdk-node/` 里的 `R<n>_…`，`android/` 与 `web/` 里的 `R<n>_…`、`C<n>_…`。
 
 `go test ./redlines/` 对每条规则各做一次变异，确认它真能报出问题。

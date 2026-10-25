@@ -102,7 +102,7 @@ public class ChatEngine(
     public val groups: StateFlow<List<GroupInfo>> = _groups.asStateFlow()
 
     private val _typing = MutableStateFlow<Map<ConversationId, Map<String, Long>>>(emptyMap())
-    /** Who is typing where, with the time it was reported; see [typingIn]. */
+    /** Who is typing where, with the time each note runs out; see [typingIn]. */
     public val typing: StateFlow<Map<ConversationId, Map<String, Long>>> = _typing.asStateFlow()
 
     private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = Int.MAX_VALUE)
@@ -213,9 +213,28 @@ public class ChatEngine(
         return flow.asStateFlow()
     }
 
-    /** Who typed in [conversation] within [EngineConfig.typingTtlMs]. */
+    /**
+     * Who is typing in [conversation]: people who typed within
+     * [EngineConfig.typingTtlMs], and the group assistant
+     * ([ChatMessage.AI_ASSISTANT_UID]) for [EngineConfig.aiTypingTtlMs] after
+     * `ai_typing`. A message from someone ends their note at once.
+     */
     public fun typingIn(conversation: ConversationId, now: Long = config.clock()): Set<String> =
-        _typing.value[conversation]?.filterValues { now - it <= config.typingTtlMs }?.keys ?: emptySet()
+        _typing.value[conversation]?.filterValues { now <= it }?.keys ?: emptySet()
+
+    private fun noteTyping(c: ConversationId, uid: String, ttlMs: Long) {
+        val until = config.clock() + ttlMs
+        _typing.update { it + (c to ((it[c] ?: emptyMap()) + (uid to until))) }
+    }
+
+    private fun endTyping(c: ConversationId, uid: String) {
+        _typing.update { all ->
+            val notes = all[c] ?: return@update all
+            if (uid !in notes) return@update all
+            val rest = notes - uid
+            if (rest.isEmpty()) all - c else all + (c to rest)
+        }
+    }
 
     // ---------------------------------------------------------------- sending (C2)
 
@@ -584,7 +603,7 @@ public class ChatEngine(
                 }
                 is ImEvent.Presence -> presence.apply(e.uid, e.online, e.rev)
                 is ImEvent.Typing -> resolve(e.topic, e.from)?.let { c ->
-                    if (e.from != me) _typing.update { it + (c to ((it[c] ?: emptyMap()) + (e.from to config.clock()))) }
+                    if (e.from != me) noteTyping(c, e.from, config.typingTtlMs)
                 }
                 is ImEvent.Read -> resolve(e.topic, e.from)?.let { c -> onRead(c, e.from, e.seq) }
                 is ImEvent.GroupSync -> {
@@ -612,6 +631,11 @@ public class ChatEngine(
                 is ImEvent.ContactSync -> _events.tryEmit(ChatEvent.ContactChanged(e.what, e.peerUid))
                 is ImEvent.Custom -> Unit
                 is ImEvent.Module -> {
+                    // The group assistant is answering (spec 15.2): only in a group this device knows.
+                    val aiTopic = e.frame.string("topic")
+                    if (e.frame.string("type") == "ai_typing" && aiTopic != null && ImIds.isGroupTopic(aiTopic) && summaries.containsKey(ConversationId(aiTopic))) {
+                        noteTyping(ConversationId(aiTopic), ChatMessage.AI_ASSISTANT_UID, config.aiTypingTtlMs)
+                    }
                     val action = e.frame.string("action")
                     if (e.eventId != null && (action == "group_join_request" || action == "group_join_reviewed")) {
                         client.ackGroupEvent(e.eventId)
@@ -636,6 +660,7 @@ public class ChatEngine(
 
     private suspend fun onMessage(w: WireMessage) {
         val c = resolve(w.topic, w.from) ?: return
+        endTyping(c, w.from)
         var arrived: ChatMessage? = null
         withConversation(c) {
             if (c.isGroup && w.groupName != null) ensureConversationLocked(c, w.groupName, touchedAt = w.ts)

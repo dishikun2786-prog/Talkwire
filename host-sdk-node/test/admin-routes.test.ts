@@ -71,7 +71,10 @@ describe("admin routes", () => {
     assert.equal((await as("admin").get(`/topics/${P2P}/messages?limit=1000`)).statusCode, 400);
   });
 
-  test("clearing: superadministrator, typed confirmation, reason, idempotency key", async () => {
+  // R13: clearing takes a superadministrator, the typed confirmation, a
+  // reason and an idempotency key; the audit keeps metadata only, never the
+  // conversation's content or media addresses.
+  test("R13_AdminClearNeedsConfirmAndAudit", async () => {
     const { as, audit, clears } = await setup();
     const body = { confirm: clearConfirmation(P2P), reason: "the user asked", idempotencyKey: "clear-0001", targetUserId: "alice" };
     assert.equal((await as("admin").post(`/topics/${P2P}/clear`, body)).statusCode, 403);
@@ -97,6 +100,17 @@ describe("admin routes", () => {
     assert.equal(entry.targetUserId, "alice");
     assert.deepEqual(entry.details, { deletedMessages: 2, deletedMedia: 1, clearVersion: 1, clearBeforeSeq: 2 });
     assert.ok(!JSON.stringify(entry).includes("hi"), "no message content in the audit");
+
+    // An IM server that says more about what it deleted still leaves only the counts.
+    const chatty = await setup((req) =>
+      req.path.endsWith("/clear")
+        ? { status: 200, body: { deletedMessages: 1, deletedMedia: 1, clearVersion: 1, clearBeforeSeq: 1, mediaUrls: ["https://cdn.example/secret.jpg"], messages: [{ content: "secret words" }] } }
+        : { status: 404, body: "404 page not found" },
+    );
+    const done = await chatty.as("superadmin").post(`/topics/${P2P}/clear`, { ...body, idempotencyKey: "clear-0003" });
+    assert.equal(done.statusCode, 200);
+    const kept = JSON.stringify(await chatty.audit.get(done.json().auditId));
+    assert.ok(!kept.includes("secret"), kept);
   });
 
   test("a refused or failed clear is audited as failed; the key cannot be reused", async () => {

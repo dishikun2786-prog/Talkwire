@@ -67,6 +67,30 @@ describe("media", () => {
     assert.notEqual(second, url);
   });
 
+  // R15: every download carries Content-Length -- images inline, documents
+  // as attachments, and behind serveRequiresAuth.
+  test("R15_MediaResponsesCarryContentLength", async () => {
+    for (const extra of [{}, { serveRequiresAuth: true }]) {
+      const { app, upload } = await setup(extra);
+      for (const [file, bytes] of [["a.png", "png bytes"], ["notes.pdf", "%PDF-1.4 x"]] as const) {
+        const { url } = (await upload("alice", file, Buffer.from(bytes))).json();
+        const got = await app.inject({ method: "GET", url, headers: { "x-user": "bob" } });
+        assert.equal(got.statusCode, 200, `${file} ${JSON.stringify(extra)}`);
+        assert.equal(got.headers["content-length"], String(Buffer.byteLength(bytes)), file);
+      }
+    }
+  });
+
+  // R15: chat media is served by the host's own route, at a path on the host
+  // (no CDN or bucket address), and marked so that no shared cache keeps it.
+  test("R15_PrivateMediaBypassesCDN", async () => {
+    const { app, upload } = await setup();
+    const { url } = (await upload("alice", "a.png", Buffer.from("png"))).json();
+    assert.match(url, /^\/media\/[^/]+$/, "a path on the host, not an absolute URL elsewhere");
+    const got = await app.inject({ method: "GET", url });
+    assert.equal(got.headers["cache-control"], "private, no-store");
+  });
+
   test("documents download as attachments", async () => {
     const { app, upload } = await setup();
     const { url } = (await upload("alice", "notes.pdf", Buffer.from("%PDF"))).json();
@@ -109,7 +133,9 @@ describe("media", () => {
     assert.equal((await del("alice", late)).statusCode, 404, "too old to be an unsent upload");
   });
 
-  test("deleting is refused while a message uses the file, or when that cannot be checked", async () => {
+  // R15: deleting is refused while a message uses the file, or when that
+  // cannot be checked (the IM server does not answer); the file stays.
+  test("R15_DeleteChecksReferences", async () => {
     const used = await setup({}, 1);
     const n1 = (await used.upload("alice", "a.png", Buffer.from("png"))).json().url.split("/").pop();
     assert.equal((await used.app.inject({ method: "DELETE", url: `/api/v1/chat/upload/${n1}`, headers: { "x-user": "alice" } })).statusCode, 409);

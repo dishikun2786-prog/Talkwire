@@ -45,7 +45,7 @@ await app.register(imkitHostPlugin, { ..., calls: recordingCalls(calls, callReco
 | 端 | 适配器 | SDK | 状态 |
 | --- | --- | --- | --- |
 | Web | `@imkit/call-dingrtc`（`web/packages/call-dingrtc`） | npm `dingrtc`，按 3.9.37 编写 | 可用，有单元测试（假 SDK） |
-| Android | 可选 AAR，只按 Maven 坐标依赖 `com.ding.rtc:dingrtc-full` | 3.0.0 | 待通话模块的 Android 端落地后补 |
+| Android | `imkit-call-dingrtc`（`android/imkit-call-dingrtc`），依赖 `com.ding.rtc:dingrtc-full` | 3.0.0 | 可用，有单元测试（SDK 替身）；渲染视图沿用参考部署在真机上验证过的写法 |
 | iOS | CocoaPods `DingRTC_iOS` | — | 待 iOS 端开工（需要 Mac） |
 
 Web：
@@ -65,6 +65,21 @@ const media = new DingRtcMediaEngine(DingRTC);
 - 音频订阅一次混流（`mcu`）；视频按人订阅。清晰度按宿主给的 `videoQuality`：`sd` 为 640×480，`hd` 为 1280×720，15 帧。
 - 入会途中挂断：之后建出来的麦克风和摄像头会立即关掉，不会留着亮。
 - 适配器只依赖 SDK 的这几处接口（`createClient`、`createMicrophoneAudioTrack`、`createCameraVideoTrack`、客户端的 `join`、`publish`、`subscribe` 与两个事件），见 `src/index.ts` 的类型；换 SDK 版本时先对这些。
+
+Android：
+
+```kotlin
+val media = DingRtcMediaEngine(context)          // io.imkit.call.dingrtc
+val calls = CallManager(client, me, media, scope) // io.imkit.call
+calls.start()
+// 界面：CallScreen(calls)、CallButtons(calls, peerUid, onRefused)
+```
+
+- SDK 在阿里云 Maven 仓库（`https://maven.aliyun.com/repository/public`）。`android/settings.gradle.kts` 用 `exclusiveContent` 把这个仓库限定为 `com.ding.rtc` 一个组，应用自己的工程照此配置。
+- 入会后显式发布麦克风（3.0 入会不自动发布）；视频按宿主的 `videoQuality` 设编码尺寸，本地预览在通话界面要本地画面时才“先绑定、再启动”，否则先启动的预览接不上画面。
+- 渲染视图用 `SafeRtcSurfaceView`：SDK 自带的 `RTCSurfaceView` 在绑定前被测量会空指针崩溃（参考部署里“视频通话接听即闪退”）。远端画面等 SDK 报告对方视频可用后才创建、绑定好再放进布局。
+- 3.0 没有音频降噪接口，`denoiseEnabled` 在 Android 上不起作用。
+- SDK 的调用都收在 `RealDingRtc` 里，引擎逻辑对着 `DingRtc` 接口写，单元测试用替身；换 SDK 版本时先核对 `RealDingRtc`。
 
 ## 运行
 

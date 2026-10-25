@@ -24,6 +24,7 @@ import io.imkit.storage.room.RoomChatStore
 import io.imkit.ui.host.ImDeepLink
 import io.imkit.ui.message.MessageTypeRegistry
 import io.imkit.ui.screens.ImBannerState
+import io.imkit.videocompress.Media3VideoCompressor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -70,7 +71,7 @@ class ChatSession(context: Context, val account: Account, http: OkHttpClient) {
     val host = SampleHost(
         http,
         tokens,
-        MediaSender(app, engine, MediaUploader(SampleConfig.HOST_URL, tokens, http)),
+        MediaSender(app, engine, MediaUploader(SampleConfig.HOST_URL, tokens, http), videoCompressor = Media3VideoCompressor(app)),
         redPacketSender,
         app.getString(R.string.sample_red_packet),
     )

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Scan-to-join strings. English, the default. Keep values-zh and values-vi in step. -->
+<resources>
+    <string name="imkit_gj_qr_title">Group QR code</string>
+    <string name="imkit_gj_qr_expires">Valid until %1$s</string>
+    <string name="imkit_gj_qr_refresh">Reset QR code</string>
+    <string name="imkit_gj_qr_refresh_confirm">Reset the QR code? The old code and its link stop working at once.</string>
+    <string name="imkit_gj_copy_link">Copy link</string>
+    <string name="imkit_gj_copied">Copied</string>
+    <string name="imkit_gj_loading">Loading…</string>
+    <string name="imkit_gj_invalid_code">This QR code is invalid or has expired.</string>
+    <string name="imkit_gj_already_member">You are already in this group.</string>
+    <string name="imkit_gj_group_full">This group is full.</string>
+    <string name="imkit_gj_needs_approval">A group admin approves new members.</string>
+    <string name="imkit_gj_join_message">Message to the admins (optional)</string>
+    <string name="imkit_gj_join">Join group</string>
+    <string name="imkit_gj_ask_to_join">Ask to join</string>
+    <string name="imkit_gj_open_chat">Open chat</string>
+    <string name="imkit_gj_pending">Request sent. You will be told when an admin decides.</string>
+    <string name="imkit_gj_failed">Something went wrong. Try again.</string>
+    <string name="imkit_gj_not_allowed">Only the group owner or admins can do this.</string>
+    <string name="imkit_gj_requests_title">Join requests</string>
+    <string name="imkit_gj_no_requests">No pending requests</string>
+    <string name="imkit_gj_approve">Approve</string>
+    <string name="imkit_gj_reject">Decline</string>
+    <string name="imkit_gj_handled_elsewhere">Another admin already handled this request.</string>
+    <string name="imkit_gj_require_approval">Admins approve people who join by QR code</string>
+    <string name="imkit_gj_request_notice">%1$s asked to join %2$s</string>
+    <string name="imkit_gj_approved_notice">You joined %1$s</string>
+    <string name="imkit_gj_rejected_notice">Your request to join %1$s was declined</string>
+    <plurals name="imkit_gj_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+</resources>

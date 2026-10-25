@@ -35,7 +35,7 @@ export {
   type ClearResult,
   type BroadcastTarget,
 } from "./im-client.js";
-export { issueAddToken, checkAddToken, type AddTokenMode } from "./add-token.js";
+export { issueAddToken, checkAddToken, issueContactQr, checkContactQr, type AddTokenMode } from "./add-token.js";
 export {
   addContact,
   respondToContact,

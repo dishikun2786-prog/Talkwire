@@ -26,6 +26,8 @@ import io.imkit.core.json.jsonObject
 import io.imkit.core.store.ChatStore
 import io.imkit.core.store.ClearState
 import io.imkit.core.store.InMemoryChatStore
+import io.imkit.core.testing.RecordingTransport
+import io.imkit.core.testing.Replay
 import io.imkit.core.transport.ImTransport
 import io.imkit.core.transport.OkHttpTransport
 import kotlinx.coroutines.CoroutineScope

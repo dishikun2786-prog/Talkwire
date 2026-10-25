@@ -251,7 +251,7 @@ internal fun ConversationScreen(state: ImChatState, id: ConversationId, onBack: 
     var selection by remember(id) { mutableStateOf<Set<String>?>(null) }
     var mentionPicker by remember { mutableStateOf(false) }
 
-    val name: (String) -> String = { uid -> if (uid == engine.me) context.getString(R.string.imkit_you) else people[uid]?.name?.takeIf { it.isNotBlank() } ?: ProfileCache.shortUid(uid) }
+    val name: (String) -> String = { uid -> if (uid == engine.me) context.getString(R.string.imkit_you) else people[uid]?.name?.takeIf { it.isNotBlank() } ?: ProfileCache.fallbackName(context, uid) }
     val title = state.title(id, summary, groups, people)
     val left = summary?.left == true
 
@@ -357,9 +357,10 @@ internal fun ConversationScreen(state: ImChatState, id: ConversationId, onBack: 
                 }
             }
         } else {
-            // A typing note has no "stopped": it ends when it gets older than
-            // EngineConfig.typingTtlMs. typingIn() applies that limit; while
-            // someone shows as typing, look again every second so it can expire.
+            // A typing note has no "stopped": it runs out after
+            // EngineConfig.typingTtlMs (aiTypingTtlMs for the group assistant).
+            // typingIn() applies that limit; while someone shows as typing,
+            // look again every second so it can expire.
             var typingCheck by remember(id) { mutableIntStateOf(0) }
             val typingUids = remember(typingAll, typingCheck) { engine.typingIn(id).filterTo(LinkedHashSet()) { it != engine.me } }
             if (typingUids.isNotEmpty()) {

@@ -13,6 +13,11 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 | `imkit-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
 | `imkit-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `ImkitMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
 | `imkit-ui` | Android 库（Compose） | 整套聊天界面：会话列表、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口）、深链接 `imkit://`。另有 `imkit-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
+| `imkit-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。 | `imkit-ui` |
+| `imkit-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `imkit-ui`、activity-compose 1.8.1 |
+| `imkit-call-dingrtc` | RTC 适配器 | 用阿里云 ARTC 3.0（DingRTC）实现 `CallMediaEngine`，说明见 `examples/artc/README.md`。SDK 只在这里出现。 | `imkit-call`、`com.ding.rtc:dingrtc-full:3.0.0`（阿里云 Maven） |
+| `imkit-video-compress` | 可选模块 | 发送前重新编码大视频（H.264 + AAC，计划 3.9）：`Media3VideoCompressor`，交给 `MediaSender(videoCompressor = …)`。单独成模块，不发大视频的 App 不必带上编码器与 ExoPlayer。 | `imkit-android`、media3-transformer 1.4.1 |
+| `imkit-e2ee` | 可选模块（Compose），**AGPLv3** | 端到端加密（协议第 13 节）：`E2eeSignaling`（协议层，不链接 libsignal）、`E2eeCrypto`（libsignal：身份、密钥包、单聊会话、群发送密钥、安全码）、`E2eeChats`（收发、本机存储、清空与结束）、`EncryptedChatScreen`。说明见下文“端到端加密”。 | `imkit-ui`、`org.signal:libsignal-android:0.73.0`（钉死）、Room 2.6.1 |
 | `example-red-packet`（`examples/red-packet/android`） | 示例 | 红包卡片：只靠注册一个 `MessageType` 接入，状态由宿主推送实时更新。服务端一侧在 `examples/red-packet/src`。 | `imkit-ui` |
 | `sample-app` | 示例 App | 接入方要写的三样东西（令牌、联系人与资料、推送配置）的完整例子，配 `examples/sample-host`（Node 开发宿主）在本机跑。包名 `io.imkit.sample`。 | 以上全部 |
 
@@ -26,17 +31,19 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 
 ```bash
 cd android
-./gradlew :imkit-core:test :imkit-storage-room:testDebugUnitTest :imkit-android:testDebugUnitTest :imkit-push-fcm:testDebugUnitTest :imkit-ui:testDebugUnitTest :example-red-packet:testDebugUnitTest
+./gradlew :imkit-core:test :imkit-storage-room:testDebugUnitTest :imkit-android:testDebugUnitTest :imkit-push-fcm:testDebugUnitTest :imkit-ui:testDebugUnitTest \
+  :imkit-group-join:testDebugUnitTest :imkit-call:testDebugUnitTest :imkit-call-dingrtc:testDebugUnitTest :imkit-video-compress:testDebugUnitTest \
+  :imkit-e2ee:testDebugUnitTest :example-red-packet:testDebugUnitTest
 ./gradlew :imkit-core:jar :imkit-storage-room:assembleRelease :imkit-android:assembleRelease :imkit-push-fcm:assembleRelease :imkit-ui:assembleRelease :sample-app:assembleDebug
 ```
 
-`imkit-ui` 与示例模块只跑 debug 的单测：界面测试需要 debug 清单里的测试 Activity。
+`imkit-ui`、带界面的可选模块与示例模块只跑 debug 的单测：界面测试需要 debug 清单里的测试 Activity。
 
 Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运行时它会下载 Android 运行时（约 144 MB）到 Maven 本地缓存，离线环境要先备好。
 
 两组测试依赖仓库里的其他产物，缺了就跳过（显示为 skipped），不算失败：
 
-- **回放测试**（`replay/ReplayScenarioTest`）需要客户端回放服务器：
+- **回放测试**（core 的 `replay/ReplayScenarioTest`，以及可选模块的 `GroupJoinReplayTest`、`CallReplayTest`、`E2eeSignalingReplayTest`）需要客户端回放服务器：
 
   ```bash
   cd tools/conformance && go build -o bin/replay.exe ./cmd/replay
@@ -91,8 +98,22 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 | C7 气泡按类型 | `C7_BubblesFromContentType` | ui `RedLineUiTest` | 气泡按 `contentType` 选，`content` 里的占位文字（如“[图片]”）不当类型用；宿主注册的类型同样生效 |
 | C8 按住说话 | `C8_HoldToTalkSingleGesture` | ui `RedLineUiTest` | 一次手势内按下、移动、松开只结束一次；拿源项目“两个探测器”的写法试过，这个用例会失败 |
 | C8 弹层语言 | `C8_SheetsFollowAppLocale` | ui `RedLineUiTest` | 底部弹层与对话框跟随 App 语言；`plainSheetLosesTheAppLocale` 证明不包一层时确实会丢 |
+| R17 本机身份初始化互斥 | `R17_IdentityInitIsMutuallyExclusive` | e2ee `E2eeCryptoTest` | 32 个并发调用只生成一套身份密钥（真实 libsignal） |
+| C10 E2EE 失败原因分类 | `C10_E2EEFailureReasons` | e2ee `E2eeScreensTest` | 七类失败在英、中、越三种语言下各有一句文案；只有“离线”说重试；协议的拒绝码映射到对应类别 |
 
-对照表里 Android 还剩 4 个没写：C6、C8 的真机用例（`C6_DeviceSoundAndCallTiming`、`C8_DeviceHoldToTalk`）是人工检查，不是测试函数，结果记在 DEVICE_CHECKS.md（C6 只验证了提示音，来电时序未验证）；R17、C10 属于 E2EE 模块（7.1）。
+对照表里 Android 还剩 2 个没写：C6、C8 的真机用例（`C6_DeviceSoundAndCallTiming`、`C8_DeviceHoldToTalk`）是人工检查，不是测试函数，结果记在 DEVICE_CHECKS.md（C6 只验证了提示音，来电时序未验证）。
+
+## 端到端加密（`imkit-e2ee`）
+
+- **许可证**：模块链接 libsignal，单独发布，AGPLv3（模块目录的 `LICENSE` 是官方全文，每个源文件带 `SPDX-License-Identifier: AGPL-3.0-only`）。其余模块都是 Apache-2.0，不依赖它；`tools/depcheck` 检查这几点，CI 另查解析后的依赖图里 libsignal 仍是 0.73.0。
+- **钉死版本**：会话两端必须用同一版 libsignal（计划 7.1）。单测里的对端用同一版本的 JVM 构建 `libsignal-client:0.73.0`（libsignal-android 的传递依赖，带 Windows、Linux、macOS 的原生库），加解密是真跑的，不是替身。
+- **打 APK 的 App 必须开核心库脱糖**（`isCoreLibraryDesugaringEnabled = true` 加 `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:…")`）：libsignal 的 AAR 元数据要求这一项，minSdk 26 实际用不到。模块自己的单测关掉了这项检查（JVM 上与脱糖无关）。
+- **本机数据**：独立的数据库文件 `imkit-e2ee.db`（`E2eeDatabase.open`），存身份私钥、会话棘轮与解密后的文本，App 应把它排除在备份之外。一个文件只属于一个账号：换账号时调 `wipe()`；用另一个 uid 打开会先清空。给了 `KeyWrapper`（如 `AndroidKeystoreKeyWrapper`）时文本按会话加密存放，清空即销毁该会话的数据密钥。
+- **与协议的对应**：每次登录后发布密钥包（v1 每个账号一套密钥，最后发布的设备收加密消息）；一次性预密钥低于 5 个时补 20 个。单聊的 `topic` 用规范单聊主题，收到时按发送者归档，不看对方带的标签（F43）。群用发送密钥：我的密钥经与每个成员的单聊会话包一层、走单聊通道发给他（群主题会扇出给全体），确认发出后才记为已分发；收到任何 `e2e_set_group_encrypted` 推送都换新密钥（13.3），换钥与“分发加加密”在同一把锁里，避免成员拿到旧钥、消息却用新钥。先于发送密钥到达的群消息先挂起，密钥一到就补解。
+- **失败分类（C10）**：`E2eeFailure` 七类，`e2eeFailureText` 给每类一句可操作的文案，只有 `OFFLINE` 是“重试”。`PEER_KEYS_UNAVAILABLE` 服务端刻意不区分“没开启”与“不是好友”，只在已知是联系人的地方（例如从已有会话进入）读成“对方还没开启”。发送失败的消息保留密文，重发用同一份密文，对方已收到时会当重复丢弃。
+- **与参考部署互通**：消息内容是 UTF-8 文本；分发的发送密钥是“base64 字符串经单聊会话加密”，群消息类型 7，与参考部署一致。参考部署把发送密钥发在群主题上，本模块收到不是给自己的那份会解不开，按预期忽略。
+- **测试**：`E2eeSignalingReplayTest`（两份黄金对话，A、B、C 三个角色）、`E2eeCryptoTest`（真实 libsignal 的会话、乱序、重复、无一次性预密钥、群与换钥、换账号）、`E2eeChatsTest`（内存服务端加一个按第 13 节写的转发替身，单聊、加密存放与清空、结束会话、失败分类与重发、无法解密、群、密钥晚到、每次登录重新发布）、`E2eeScreensTest`。
+- **没做的**：没有真机验证；示例 App 没接（要开脱糖，需要新下载 `desugar_jdk_libs`）；只有文本消息；多设备加密（v1 不做）；对方离线时清空与结束的通知不排队（协议如此），界面没有补发或提示。
 
 ## 从源项目迁来的单测（3.10）
 
@@ -115,7 +136,8 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 ## 已知缺口
 
 - **真机只跑过一台小米（Android 15）**，见 DEVICE_CHECKS.md。来电时序、FCM 实际收发、多设备同账号、相册与文件选择器都还没在真机上验证。
-- **视频压缩未做**；视频首帧缩略图已做（`VideoThumbnail`），按旋转角调整宽高的逻辑没有拿真机拍的旋转视频验证过。
+- **视频压缩只在 JVM 上测了发送逻辑**：`MediaSender` 对大于 50 MB（或超过上限）的视频先交给 `VideoCompressor` 重新编码，失败或没变小就发原片（放得下时），仍超限才拒绝；这些分支有单测。`Media3VideoCompressor` 真正的编码要真机，只测了“读不了的文件返回 false 且不留文件”。旋转视频编码后方向是否正确、首帧缩略图按旋转角调整宽高，都没拿真机拍的视频验证过。
+- **群助手“正在输入”**（`ai_typing`，协议第 15 节）：本人所在的群收到它时，`typingIn` 里出现 `ChatMessage.AI_ASSISTANT_UID` 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。只在单测与界面测试里验证过。
 - **新设备上单聊的历史全算未读**：已修，但要 strict 档服务端：它存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 同步时据此推进本地已读位置（只前进）。legacy 档服务端与原版一致不存，接它时照旧。没有在真机上复核，见 DEVICE_CHECKS.md。
 - **撤回不留提示行**（“你撤回了一条消息”）：引擎只记被撤回的 seq。
 - 保存图片与视频到相册需要 Android 10（API 29）以上，更低的系统不显示“保存”。

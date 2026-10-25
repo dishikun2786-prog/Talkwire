@@ -1,7 +1,12 @@
 package io.imkit.android.media
 
+import android.content.ContentProvider
+import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
+import android.database.MatrixCursor
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.test.core.app.ApplicationProvider
 import io.imkit.core.client.ImClient
@@ -27,6 +32,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import java.io.File
@@ -136,6 +142,115 @@ class MediaSenderTest {
         val r = sender.sendPicked(peer, Uri.fromFile(File(ctx.cacheDir, "missing.bin")))
         assertTrue(r is MediaSender.Result.Failed)
         assertTrue(server.requests.none { it.string("action") == "pub" })
+    }
+
+    /** A video provider: its type, and a size it reports or keeps to itself; the bytes come from [video]. */
+    class Videos : ContentProvider() {
+        override fun onCreate() = true
+        override fun getType(uri: Uri) = types[uri.lastPathSegment]
+        override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
+            val f = files.getValue(uri.lastPathSegment!!)
+            return MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)).apply {
+                addRow(arrayOf<Any?>(f.name, if (uri.lastPathSegment in hiddenSizes) null else f.length()))
+            }
+        }
+        override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+        override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?) = 0
+        override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = 0
+
+        companion object {
+            val files = mutableMapOf<String, File>()
+            val types = mutableMapOf<String, String>()
+            val hiddenSizes = mutableSetOf<String>()
+        }
+    }
+
+    private fun video(name: String, bytes: Int, mime: String = "video/quicktime", sizeKnown: Boolean = true): Uri {
+        Robolectric.setupContentProvider(Videos::class.java, "io.imkit.test.videos")
+        Videos.files[name] = File(ctx.cacheDir, name).apply { writeBytes(ByteArray(bytes) { 7 }) }
+        Videos.types[name] = mime
+        if (!sizeKnown) Videos.hiddenSizes += name
+        val uri = Uri.parse("content://io.imkit.test.videos/$name")
+        // Not through the provider's openFile: Robolectric cannot open a ParcelFileDescriptor on JDK 17.
+        shadowOf(ctx.contentResolver).registerInputStreamSupplier(uri) { Videos.files.getValue(name).inputStream() }
+        return uri
+    }
+
+    /** Writes [outBytes] bytes, or fails when null; records what it was given. */
+    private class FakeCompressor(private val outBytes: Int?) : VideoCompressor {
+        val sources = CopyOnWriteArrayList<Uri>()
+        override suspend fun compress(source: Uri, out: File): Boolean {
+            sources += source
+            ctx().contentResolver.openInputStream(source)!!.use { it.readBytes() } // it can read what it is given
+            outBytes ?: return false
+            out.writeBytes(ByteArray(outBytes))
+            return true
+        }
+
+        private fun ctx() = ApplicationProvider.getApplicationContext<Context>()
+    }
+
+    /** One video went up, of this type; the recorded size is the multipart body, a little over the file. */
+    private fun assertVideoUpload(type: String, fileBytes: Int) {
+        val videos = uploads.filter { it.first.startsWith("video/") }
+        assertEquals(1, videos.size)
+        assertEquals(type, videos[0].first)
+        assertTrue("${videos[0].second} bytes for a $fileBytes-byte file", videos[0].second in fileBytes..fileBytes + 1024)
+    }
+
+    private fun senderWith(compressor: VideoCompressor?, compressAbove: Long = 50L * 1024 * 1024) =
+        MediaSender(ctx, engine, MediaUploader("http://127.0.0.1:${http.localPort}", TokenProvider { "alice" }), maxBytes = 64 * 1024, videoCompressor = compressor, compressVideosAboveBytes = compressAbove)
+
+    @Test
+    fun aVideoOverTheLimitIsReencodedAndSentAsMp4() = runBlocking {
+        val compressor = FakeCompressor(outBytes = 10_000)
+        val uri = video("trip.mov", 100 * 1024)
+        val r = senderWith(compressor).sendPicked(peer, uri)
+        assertTrue(r.toString(), r is MediaSender.Result.Sent)
+        assertEquals(listOf(uri), compressor.sources.toList())
+        assertVideoUpload("video/mp4", 10_000)
+        eventually { server.requests.any { it.string("action") == "pub" } }
+        assertEquals("video/mp4", lastPub().string("contentType"))
+        assertEquals("[Video]", lastPub().string("content"))
+    }
+
+    @Test
+    fun aVideoStillTooLargeOrNotReencodedIsRefused() = runBlocking {
+        val failing = senderWith(FakeCompressor(outBytes = null)).sendPicked(peer, video("a.mov", 100 * 1024))
+        assertEquals(MediaSender.Result.TooLarge(64 * 1024), failing)
+        val tooBig = senderWith(FakeCompressor(outBytes = 80 * 1024)).sendPicked(peer, video("b.mov", 100 * 1024))
+        assertEquals(MediaSender.Result.TooLarge(64 * 1024), tooBig)
+        val noCompressor = senderWith(null).sendPicked(peer, video("c.mov", 100 * 1024))
+        assertEquals(MediaSender.Result.TooLarge(64 * 1024), noCompressor)
+        assertTrue(uploads.isEmpty())
+        assertTrue(server.requests.none { it.string("action") == "pub" })
+    }
+
+    @Test
+    fun aReencodeThatIsNoSmallerSendsTheOriginal() = runBlocking {
+        val compressor = FakeCompressor(outBytes = 50 * 1024)
+        val r = senderWith(compressor, compressAbove = 32 * 1024).sendPicked(peer, video("d.mov", 40 * 1024))
+        assertTrue(r.toString(), r is MediaSender.Result.Sent)
+        assertEquals(1, compressor.sources.size)
+        assertVideoUpload("video/quicktime", 40 * 1024)
+    }
+
+    @Test
+    fun aSmallVideoIsNotTouched() = runBlocking {
+        val compressor = FakeCompressor(outBytes = 1_000)
+        val r = senderWith(compressor).sendPicked(peer, video("e.mov", 20 * 1024))
+        assertTrue(r.toString(), r is MediaSender.Result.Sent)
+        assertTrue(compressor.sources.isEmpty())
+        assertVideoUpload("video/quicktime", 20 * 1024)
+    }
+
+    @Test
+    fun aVideoOfUnknownSizeIsReadFirstThenReencoded() = runBlocking {
+        val compressor = FakeCompressor(outBytes = 10_000)
+        val r = senderWith(compressor).sendPicked(peer, video("f.mov", 100 * 1024, sizeKnown = false))
+        assertTrue(r.toString(), r is MediaSender.Result.Sent)
+        assertEquals("file", compressor.sources.single().scheme)
+        assertVideoUpload("video/mp4", 10_000)
     }
 
     @Test

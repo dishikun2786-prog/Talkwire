@@ -19,6 +19,7 @@ const (
 	serverDir   = "../../../server"
 	androidDir  = "../../../android"
 	webDir      = "../../../web"
+	hostDir     = "../../../host-sdk-node"
 )
 
 func writtenTests(t *testing.T) Written {
@@ -35,7 +36,11 @@ func writtenTests(t *testing.T) Written {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Written{"server": server, "android": android, "web": web}
+	host, err := HostTests(hostDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Written{"server": server, "host": host, "android": android, "web": web}
 }
 
 // marked matches an "已写" mark in the summary or the details, not the legend.

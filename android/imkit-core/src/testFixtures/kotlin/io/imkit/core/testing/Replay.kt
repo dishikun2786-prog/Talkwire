@@ -1,6 +1,5 @@
-package io.imkit.core.replay
+package io.imkit.core.testing
 
-import io.imkit.core.TestFiles
 import io.imkit.core.json.Json
 import io.imkit.core.json.JsonObject
 import io.imkit.core.transport.ImSocket
@@ -21,8 +20,11 @@ import java.util.concurrent.TimeUnit
  * golden transcript to the client under test and exits 0 only if the client
  * sent exactly the scripted requests. Tests are skipped when the binary has
  * not been built (`cd tools/conformance && go build -o bin/replay.exe ./cmd/replay`).
+ *
+ * The test task must set the system property `imkit.repoRoot` to the
+ * repository root, where the scenarios, transcripts and binary are.
  */
-internal class Replay private constructor(
+class Replay private constructor(
     private val process: Process,
     val port: Int,
     private val log: StringBuffer,
@@ -52,9 +54,10 @@ internal class Replay private constructor(
     }
 
     companion object {
-        private val conformance = File(TestFiles.repoRoot, "tools/conformance")
-        private val scenarios = File(TestFiles.repoRoot, "contract/protocol/scenarios")
-        private val transcripts = File(TestFiles.repoRoot, "contract/protocol/transcripts")
+        private val repoRoot = File(System.getProperty("imkit.repoRoot") ?: error("set the system property imkit.repoRoot in the test task"))
+        private val conformance = File(repoRoot, "tools/conformance")
+        private val scenarios = File(repoRoot, "contract/protocol/scenarios")
+        private val transcripts = File(repoRoot, "contract/protocol/transcripts")
         private val binary = File(
             conformance,
             if (System.getProperty("os.name").startsWith("Windows")) "bin/replay.exe" else "bin/replay",
@@ -109,7 +112,7 @@ internal class Replay private constructor(
 }
 
 /** Passes everything through and keeps a copy of every frame the client sends. */
-internal class RecordingTransport(private val delegate: ImTransport) : ImTransport {
+class RecordingTransport(private val delegate: ImTransport) : ImTransport {
     val sent = CopyOnWriteArrayList<JsonObject>()
 
     fun sentActions(action: String): List<JsonObject> = sent.filter { it.string("action") == action }

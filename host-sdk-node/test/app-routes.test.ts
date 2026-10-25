@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify, { type FastifyInstance } from "fastify";
-import { checkAddToken } from "../src/add-token.js";
+import { ADD_TOKEN_TTL_MS, checkAddToken, issueAddToken } from "../src/add-token.js";
 import { imkitAppRoutes, type AppRoutesOptions } from "../src/app-routes.js";
 import { MemoryContactStore, MemoryProfileStore } from "../src/memory.js";
 import { imUid } from "../src/uid.js";
@@ -70,7 +70,7 @@ describe("app routes", () => {
     assert.equal((await as("alice").patch("/me", { extra: 1 })).statusCode, 400);
   });
 
-  test("finding users: by handle or QR uid, with an add token bound to both users", async () => {
+  test("finding users: by handle or QR code, with an add token bound to both users", async () => {
     const { as } = await setup();
     await as("bob").get("/me");
     await as("bob").patch("/me", { handle: "Bobby1", displayName: "Bob" });
@@ -78,25 +78,55 @@ describe("app routes", () => {
     assert.equal(byHandle.json().userId, "bob");
     assert.equal(byHandle.json().displayName, "Bob");
     assert.equal(checkAddToken(require_key(), byHandle.json().addToken, "alice", "bob"), "invalid", "the token is not signed with the raw secret");
-    const byQr = await as("alice").post("/contacts/qr-resolve", { uid: imUid("bob") });
+    const bobsQr = (await as("bob").get("/me/qr")).json().qr;
+    assert.match(bobsQr, new RegExp(`^c1\.${imUid("bob")}\.[0-9a-f]{32}$`));
+    const byQr = await as("alice").post("/contacts/qr-resolve", { qr: bobsQr });
     assert.equal(byQr.json().userId, "bob");
     assert.equal((await as("alice").post("/contacts/search", { handle: "nobody" })).statusCode, 404);
     const profiles = await as("alice").get(`/profiles?uids=${imUid("bob")},not-a-uid,${imUid("ghost")}`);
     assert.deepEqual(profiles.json().items, [{ uid: imUid("bob"), displayName: "Bob", avatarUrl: null }]);
   });
 
-  test("adding needs a token from a search by the same user, for the same target", async () => {
+  // R14: adding needs a token from a search or a QR code, by the same user,
+  // for the same target, issued within the last two minutes. The check is
+  // stateless: within those minutes the token can be presented again for the
+  // same pair, where a second request meets the first one (409).
+  test("R14_AddContactRequiresOneTimeToken", async () => {
     const { as } = await setup();
     await as("bob").get("/me");
     await as("carol").get("/me");
     const bob = (await as("bob").get("/me")).json();
     assert.equal((await as("alice").post("/contacts", { contactId: "bob" })).json().error, "add_token_required");
-    const forCarol = await as("alice").post("/contacts/qr-resolve", { uid: imUid("carol") });
+    const forCarol = await as("alice").post("/contacts/qr-resolve", { qr: (await as("carol").get("/me/qr")).json().qr });
     assert.equal((await as("alice").post("/contacts", { contactId: "bob", addToken: forCarol.json().addToken })).statusCode, 403);
     const carolsToken = await as("carol").post("/contacts/search", { handle: bob.handle });
     assert.equal((await as("alice").post("/contacts", { contactId: "bob", addToken: carolsToken.json().addToken })).statusCode, 403);
     const mine = await as("alice").post("/contacts/search", { handle: bob.handle });
     assert.equal((await as("alice").post("/contacts", { contactId: "bob", addToken: mine.json().addToken })).json().status, "pending");
+    assert.equal((await as("alice").post("/contacts", { contactId: "bob", addToken: mine.json().addToken })).statusCode, 409, "used: the request exists");
+    const token = issueAddToken("k", "alice", "bob", 0);
+    assert.equal(checkAddToken("k", token, "alice", "bob", ADD_TOKEN_TTL_MS), "valid");
+    assert.equal(checkAddToken("k", token, "alice", "bob", ADD_TOKEN_TTL_MS + 1), "invalid", "expired");
+  });
+
+  // R14: a uid -- every group member sees every other member's -- shows a
+  // name and an avatar (to draw the chat) and nothing that leads to the user:
+  // no host id, no handle, no add token, and a bare uid does not resolve as a
+  // QR code. Only a code the user showed (their /me/qr) does.
+  test("R14_GroupMembersCannotViewProfiles", async () => {
+    const { as } = await setup();
+    await as("bob").patch("/me", { displayName: "Bob" });
+    const uid = imUid("bob");
+    const items = (await as("alice").get(`/profiles?uids=${uid}`)).json().items;
+    assert.deepEqual(items, [{ uid, displayName: "Bob", avatarUrl: null }]);
+    assert.deepEqual((await as("alice").post("/contacts/qr-resolve", { uid })).json(), { error: "qr_required" });
+    for (const qr of [`c1.${uid}.${"0".repeat(32)}`, uid, (await as("carol").get("/me/qr")).json().qr.replace(imUid("carol"), uid)]) {
+      const res = await as("alice").post("/contacts/qr-resolve", { qr });
+      assert.deepEqual([res.statusCode, res.json()], [400, { error: "invalid_qr" }], qr);
+    }
+    const shown = (await as("alice").post("/contacts/qr-resolve", { qr: (await as("bob").get("/me/qr")).json().qr })).json();
+    assert.equal(shown.userId, "bob");
+    assert.ok(shown.addToken);
   });
 
   test("observe mode accepts requests without a token and reports them", async () => {
@@ -105,6 +135,9 @@ describe("app routes", () => {
     await as("bob").get("/me");
     assert.equal((await as("alice").post("/contacts", { contactId: "bob" })).json().status, "pending");
     assert.deepEqual(missing, ["alice>bob:absent"]);
+    await as("carol").get("/me");
+    assert.equal((await as("alice").post("/contacts/qr-resolve", { uid: imUid("carol") })).json().userId, "carol", "a printed bare-uid code still resolves");
+    assert.deepEqual(missing, ["alice>bob:absent", "alice>carol:absent"]);
   });
 
   test("request, accept, events and IM sync", async () => {

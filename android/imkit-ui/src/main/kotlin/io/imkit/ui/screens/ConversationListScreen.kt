@@ -147,7 +147,7 @@ internal fun ConversationListScreen(state: ImChatState, onExit: (() -> Unit)?) {
                         line = lastLine(
                             s,
                             preview = { m -> state.types.preview(m, context) },
-                            senderName = { uid -> people[uid]?.name ?: ProfileCache.shortUid(uid) },
+                            senderName = { uid -> people[uid]?.name ?: ProfileCache.fallbackName(context, uid) },
                             me = engine.me,
                             draftLabel = { d -> context.getString(R.string.imkit_draft, d) },
                             senderLabel = { n, t -> context.getString(R.string.imkit_sender_preview, n, t) },

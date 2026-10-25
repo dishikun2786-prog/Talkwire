@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from "fastify";
+import jwt from "jsonwebtoken";
 import { imkitHostPlugin, type CallHandlers } from "../src/host-plugin.js";
 import { MemoryContactStore, MemoryProfileStore, staticConfig } from "../src/memory.js";
 import { signInternalToken } from "../src/token.js";
@@ -55,10 +56,19 @@ const post = (a: FastifyInstance, path: string, payload: unknown, headers: Recor
   a.inject({ method: "POST", url: path, payload: payload as object, headers });
 
 describe("host plugin", () => {
-  test("every request needs an internal_service token signed with the shared secret", async () => {
+  // R13: every request needs an unexpired internal_service token signed with
+  // the shared secret: missing, not a JWT, another secret, expired and another
+  // role are all refused.
+  test("R13_HostEndpointsRejectBadTokens", async () => {
     const { app: a } = await app({ config: true, deleted: [] });
     const route = "/api/v1/internal/im/friendship";
-    const bad: Array<Record<string, string>> = [{}, { authorization: "Bearer nonsense" }, { authorization: `Bearer ${signInternalToken("another-secret-0123456789")}` }];
+    const bad: Array<Record<string, string>> = [
+      {},
+      { authorization: "Bearer nonsense" },
+      { authorization: `Bearer ${signInternalToken("another-secret-0123456789")}` },
+      { authorization: `Bearer ${signInternalToken(SECRET, -60)}` },
+      { authorization: `Bearer ${jwt.sign({ role: "app_user" }, SECRET, { algorithm: "HS256", expiresIn: 60 })}` },
+    ];
     for (const headers of bad) {
       const res = await get(a, route, { a: "x", b: "y" }, headers);
       assert.equal(res.statusCode, 401);
@@ -85,7 +95,10 @@ describe("host plugin", () => {
     conforms("GET", route, res);
   });
 
-  test("profile: the viewer's own remark first, then the sender's name; unknown senders get empty strings", async () => {
+  // R12: the profile of a sender as one viewer sees it: the viewer's own
+  // remark first, then the sender's name; unknown senders get empty strings.
+  // Remarks go by direction: neither side sees the other's.
+  test("R12_ProfileAliasByDirection", async () => {
     const { app: a, contacts, profiles } = await app();
     const route = `${BASE}/profile`;
     let res = await get(a, route, { viewer: "bob", sender: "alice" });
@@ -101,6 +114,9 @@ describe("host plugin", () => {
     await setAlias(contacts, "alice", req.value.contact.id, "Bobby");
     res = await get(a, route, { viewer: "bob", sender: "alice" });
     assert.equal(res.json().displayName, "My Alice", "bob sees his remark for alice");
+    await profiles.create({ userId: "bob", handle: "bob", displayName: "Bob", avatarUrl: null });
+    res = await get(a, route, { viewer: "alice", sender: "bob" });
+    assert.equal(res.json().displayName, "Bobby", "alice sees her remark for bob, not his for her");
     res = await get(a, route, { viewer: "carol", sender: "alice" });
     assert.equal(res.json().displayName, "Alice", "nobody else sees bob's remark");
     conforms("GET", route, res);

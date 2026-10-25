@@ -11,13 +11,13 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
 - 计划用例 77 个。按平台：服务端 25、宿主 8、Android 20、Web 12、iOS 12。
 - 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 23/25、Android 16/20、Web 12/12。
+- 已写用例（已写/计划）：服务端 24/25、宿主 8/8、Android 18/20、Web 12/12。
 
 图例：
 
 - 参照服务：小桃子原版服务（源提交 33e23250）在黄金对话里的表现。“违反”的红线在 legacy 档按原样录、在 strict 档由计划用例修正；“未观测”是黄金对话录不到，只能靠计划用例。
 - 已录用例：已经录成黄金对话的场景与步号，ImKit 服务端用一致性测试台逐帧比对，三端 SDK 用回放服务器重放。
-- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端、Android 与 Web 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数、`android/` 各模块 `src/test` 下的 Kotlin 测试函数和 `web/` 下的 Vitest 与 Playwright 用例（`*.test.ts(x)`、`*.spec.ts` 里的 `it(…)`、`test(…)`）得出；按红线命名（服务端 `TestR<n>_…`，Android 与 Web `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。iOS 还没有代码，不扫描。
+- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端、宿主、Android 与 Web 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数、`host-sdk-node/` 的 node:test 用例、`android/` 各模块 `src/test` 下的 Kotlin 测试函数和 `web/` 下的 Vitest 与 Playwright 用例（`*.test.ts(x)`、`*.spec.ts` 里的 `it(…)`、`test(…)`）得出；按红线命名（服务端 `TestR<n>_…`，宿主 `R<n>_…`，Android 与 Web `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。iOS 还没有代码，不扫描。
 
 ## 总表
 
@@ -34,12 +34,12 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R9](#r9) | 可配项默认值等于原写死值（如消息上限 20000） | 服务端 | 符合 | `core/limits` 4、5、6<br>`core/rate-limit` 23、24<br>`core/history-paging` 12 | `TestR9_DefaultsEqualOriginalValues`：服务端 1.10 已写 |
 | [R10](#r10) | 限流、连接上限、帧上限、队列满即断开（E2EE 走降级）、重复登录拒绝 | 服务端 | 符合 | `core/rate-limit` 24<br>`core/limits` 7<br>`core/login` 3 | `TestR10_ConnectionCap`：服务端 1.11 已写<br>`TestR10_SendQueueFullDisconnects`：服务端 1.11 已写<br>`TestR10_E2EEQueueFullFallsBackToOffline`：服务端 7.1 |
 | [R11](#r11) | 心跳间隔 0.45 × 超时 | 服务端 | 未观测 | — | `TestR11_PingIntervalIs045OfTimeout`：服务端 1.10 已写 |
-| [R12](#r12) | 推送只发数据载荷；加密消息不带预览；备注按方向 | 服务端、宿主 | 未观测 | — | `TestR12_PushPayloadIsDataOnly`：服务端 1.4 已写<br>`TestR12_EncryptedMessageHasNoPreview`：服务端 1.4 已写<br>`TestR12_ProfileAliasByDirection`：宿主 2.2 |
-| [R13](#r13) | 内部接口鉴权；后台清空二次确认加审计 | 服务端、宿主 | 未观测 | — | `TestR13_InternalEndpointsRejectBadTokens`：服务端 2.1<br>`TestR13_HostEndpointsRejectBadTokens`：宿主 2.1<br>`TestR13_AdminClearNeedsConfirmAndAudit`：宿主 2.5 |
-| [R14](#r14) | 群成员不能互看资料；加好友需一次性令牌 | 宿主 | 未观测 | — | `TestR14_GroupMembersCannotViewProfiles`：宿主 2.3<br>`TestR14_AddContactRequiresOneTimeToken`：宿主 2.3 |
-| [R15](#r15) | 媒体带 Content-Length；删前查引用；私密媒体不进 CDN | 宿主 | 未观测 | — | `TestR15_MediaResponsesCarryContentLength`：宿主 2.4<br>`TestR15_DeleteChecksReferences`：宿主 2.4<br>`TestR15_PrivateMediaBypassesCDN`：宿主 2.4 |
+| [R12](#r12) | 推送只发数据载荷；加密消息不带预览；备注按方向 | 服务端、宿主 | 未观测 | — | `TestR12_PushPayloadIsDataOnly`：服务端 1.4 已写<br>`TestR12_EncryptedMessageHasNoPreview`：服务端 1.4 已写<br>`R12_ProfileAliasByDirection`：宿主 2.2 已写 |
+| [R13](#r13) | 内部接口鉴权；后台清空二次确认加审计 | 服务端、宿主 | 未观测 | — | `TestR13_InternalEndpointsRejectBadTokens`：服务端 2.1 已写<br>`R13_HostEndpointsRejectBadTokens`：宿主 2.1 已写<br>`R13_AdminClearNeedsConfirmAndAudit`：宿主 2.5 已写 |
+| [R14](#r14) | 群成员不能互看资料；加好友需一次性令牌 | 宿主 | 未观测 | — | `R14_GroupMembersCannotViewProfiles`：宿主 2.3 已写<br>`R14_AddContactRequiresOneTimeToken`：宿主 2.3 已写 |
+| [R15](#r15) | 媒体带 Content-Length；删前查引用；私密媒体不进 CDN | 宿主 | 未观测 | — | `R15_MediaResponsesCarryContentLength`：宿主 2.4 已写<br>`R15_DeleteChecksReferences`：宿主 2.4 已写<br>`R15_PrivateMediaBypassesCDN`：宿主 2.4 已写 |
 | [R16](#r16) | 通话状态用比较后替换；断线宽限；计时器显式停；用宿主用户 id | 服务端 | 符合 | `module/call` 11、13、14、19、21、25、27<br>`module/call-timeout` 6、7 | `TestR16_CallStateCASUnderRace`：服务端 1.11 已写<br>`TestR16_DisconnectGraceEndsCall`：服务端 7.2 已写<br>`TestR16_TimersStoppedOnEveryPath`：服务端 7.2 已写 |
-| [R17](#r17) | E2EE 只存转不透明信封；补投；本机身份初始化互斥 | 服务端、Android、iOS | 符合 | `module/e2ee-p2p` 16、20、22、25<br>`module/e2ee-group` 17、18 | `R17_IdentityInitIsMutuallyExclusive`：Android 7.1、iOS 7.1 |
+| [R17](#r17) | E2EE 只存转不透明信封；补投；本机身份初始化互斥 | 服务端、Android、iOS | 符合 | `module/e2ee-p2p` 16、20、22、25<br>`module/e2ee-group` 17、18 | `R17_IdentityInitIsMutuallyExclusive`：Android 7.1 已写、iOS 7.1 |
 | [R18](#r18) | 用户令牌只接受 type=access，刷新、代理、管理员令牌一律拒绝 | 服务端 | 违反 | `core/login-tokens` 2、4、6、8、10、12、14 | `TestR18_OnlyAccessTokensLogIn`：服务端 1.8 已写 |
 | [R19](#r19) | 登录与在线快照应答带 id；客户端只对旧服务端按 action 关联这两种 | 服务端、Android、Web、iOS | 违反 | `core/login` 2、6<br>`core/p2p` 11<br>`core/presence` 10 | `TestR19_LoginAndSnapshotRepliesCarryId`：服务端 1.7 已写<br>`R19_CorrelateLegacyRepliesByAction`：Android 3.4 已写、Web 5.2 已写、iOS 6.1 |
 | [R20](#r20) | 好友关系在单聊首次建立时校验；解除好友经 contact_sync 收回 | 服务端 | 符合 | `core/host-contact-sync` 5、7、8、11、12、13<br>`core/p2p` 12、13 | — |
@@ -54,7 +54,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [C7](#c7) | 媒体缓存；语音气泡随时长变宽；占位符用类型字段 | Android、Web、iOS | 不适用 | — | `C7_MediaCacheHitsSecondPlay`：Android 3.9 已写<br>`C7_BubblesFromContentType`：Android 4.3 已写、Web 5.9 已写、iOS 6.7 |
 | [C8](#c8) | 按住说话单手势；弹层语言跟随 | Android | 不适用 | — | `C8_HoldToTalkSingleGesture`：Android 4.1 已写<br>`C8_SheetsFollowAppLocale`：Android 4.2 已写<br>`C8_DeviceHoldToTalk`：Android 4.5 |
 | [C9](#c9) | 本人群角色从名册取、群同步推送触发刷新、失败回落普通成员 | Android、Web、iOS | 不适用 | — | `C9_RoleFromRoster`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C9_UnknownRosterMeansMember`：Android 3.10 已写、Web 5.8 已写 |
-| [C10](#c10) | E2EE 失败原因分类 | Android、iOS | 不适用 | — | `C10_E2EEFailureReasons`：Android 7.1、iOS 7.1 |
+| [C10](#c10) | E2EE 失败原因分类 | Android、iOS | 不适用 | — | `C10_E2EEFailureReasons`：Android 7.1 已写、iOS 7.1 |
 
 ## 逐条明细
 
@@ -214,7 +214,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `TestR12_PushPayloadIsDataOnly`（服务端，1.4 推送接口，单测，已写）：假推送通道收到的 FCM、APNs、Web Push 载荷都只有数据字段
   - `TestR12_EncryptedMessageHasNoPreview`（服务端，1.4 推送接口，单测，已写）：加密消息的推送不带正文预览和发信人
-  - `TestR12_ProfileAliasByDirection`（宿主，2.2 Node 插件，契约测试）：profile 端点按 viewer→sender 方向取备注，双账号互设备注互不影响
+  - `R12_ProfileAliasByDirection`（宿主，2.2 Node 插件，契约测试，已写）：profile 端点按 viewer→sender 方向取备注，双账号互设备注互不影响
 
 <a id="r13"></a>
 
@@ -224,9 +224,9 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：未观测
 - 没有黄金用例：测试台只会带合法的内部令牌调用，拒绝路径要靠契约测试。
 - 计划用例：
-  - `TestR13_InternalEndpointsRejectBadTokens`（服务端，2.1 宿主契约与契约测试，契约测试）：IM 的内部接口拒绝缺失、过期、角色不对的内部令牌
-  - `TestR13_HostEndpointsRejectBadTokens`（宿主，2.1 宿主契约与契约测试，契约测试）：宿主的内部接口同样拒绝不合法的内部令牌
-  - `TestR13_AdminClearNeedsConfirmAndAudit`（宿主，2.5 后台，契约测试）：后台清空需超级管理员二次确认；审计只记元数据，不含正文与媒体地址
+  - `TestR13_InternalEndpointsRejectBadTokens`（服务端，2.1 宿主契约与契约测试，契约测试，已写）：IM 的内部接口拒绝缺失、过期、角色不对的内部令牌
+  - `R13_HostEndpointsRejectBadTokens`（宿主，2.1 宿主契约与契约测试，契约测试，已写）：宿主的内部接口同样拒绝不合法的内部令牌
+  - `R13_AdminClearNeedsConfirmAndAudit`（宿主，2.5 后台，契约测试，已写）：后台清空需超级管理员二次确认；审计只记元数据，不含正文与媒体地址
 
 <a id="r14"></a>
 
@@ -236,8 +236,8 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：未观测
 - 说明：IM 侧的 get_members 本来就不下发昵称（core/group-guards 第 18 步），资料只能经宿主取。
 - 计划用例：
-  - `TestR14_GroupMembersCannotViewProfiles`（宿主，2.3 App 接口，契约测试）：只因同在一个群的用户查不到对方资料
-  - `TestR14_AddContactRequiresOneTimeToken`（宿主，2.3 App 接口，契约测试）：加好友必须带搜索得到的一次性令牌，令牌用过或过期即失效
+  - `R14_GroupMembersCannotViewProfiles`（宿主，2.3 App 接口，契约测试，已写）：只知道群里看到的 uid 时，只能查到名字和头像（显示聊天要用），查不到宿主 id、handle、加好友令牌；裸 uid 不能当二维码解析，要本人出示的签名二维码
+  - `R14_AddContactRequiresOneTimeToken`（宿主，2.3 App 接口，契约测试，已写）：加好友必须带搜索或扫码得到的令牌，绑定双方、两分钟内有效；签给别人或过期的令牌无效。令牌不记状态，两分钟内可对同一对用户再用（第二次请求遇到已有的请求，409）
 
 <a id="r15"></a>
 
@@ -247,9 +247,9 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：未观测
 - 说明：IM 侧在请求宿主删除前先数引用，录在 core/clear-media 第 11、12 步（归 R6、R21）。
 - 计划用例：
-  - `TestR15_MediaResponsesCarryContentLength`（宿主，2.4 媒体，契约测试）：媒体下载响应都带 Content-Length
-  - `TestR15_DeleteChecksReferences`（宿主，2.4 媒体，契约测试）：删除媒体前查引用计数，仍被引用则不删
-  - `TestR15_PrivateMediaBypassesCDN`（宿主，2.4 媒体，契约测试）：私密媒体的地址不指向 CDN
+  - `R15_MediaResponsesCarryContentLength`（宿主，2.4 媒体，契约测试，已写）：媒体下载响应都带 Content-Length
+  - `R15_DeleteChecksReferences`（宿主，2.4 媒体，契约测试，已写）：删除媒体前查引用计数，仍被引用则不删
+  - `R15_PrivateMediaBypassesCDN`（宿主，2.4 媒体，契约测试，已写）：私密媒体的地址不指向 CDN
 
 <a id="r16"></a>
 
@@ -277,7 +277,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
   - `module/e2ee-p2p` 第 16、20、22、25 步（e2e_send、e2e_send、login、login）：密文原样转发；对方离线时入队、上线补投，投递后删除不再重发
   - `module/e2ee-group` 第 17、18 步（e2e_send、e2e_send）：群内 sender key 与消息信封原样扇出给其他成员
 - 计划用例：
-  - `R17_IdentityInitIsMutuallyExclusive`（Android，7.1 E2EE 模块，单测）：并发初始化本机身份只生成一套密钥
+  - `R17_IdentityInitIsMutuallyExclusive`（Android，7.1 E2EE 模块，单测，已写）：并发初始化本机身份只生成一套密钥
   - `R17_IdentityInitIsMutuallyExclusive`（iOS，7.1 E2EE 模块，单测）：同上
 
 <a id="r18"></a>
@@ -456,6 +456,6 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 平台：Android、iOS
 - 参照服务：不适用
 - 计划用例：
-  - `C10_E2EEFailureReasons`（Android，7.1 E2EE 模块，单测）：失败原因按类区分（如对方未发布密钥），界面不显示笼统的稍后重试
+  - `C10_E2EEFailureReasons`（Android，7.1 E2EE 模块，单测，已写）：失败原因按类区分（如对方未发布密钥），界面不显示笼统的稍后重试
   - `C10_E2EEFailureReasons`（iOS，7.1 E2EE 模块，单测）：同上
 

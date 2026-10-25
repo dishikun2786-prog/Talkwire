@@ -6,11 +6,14 @@
 //
 // 1. Nothing in the core links libsignal or an RTC SDK: the Go server, the
 //    Node host SDK, the core web packages and the core Android modules, by
-//    their declared dependencies and by their imports.
+//    their declared dependencies and by their imports. Only the E2EE module
+//    links libsignal, and only an RTC adapter its RTC SDK.
 // 2. Modules depend on the core, never the other way round, and never on each
 //    other: a module can be installed or removed on its own.
 // 3. Licenses: our packages are Apache-2.0; every runtime dependency of the
-//    Node host SDK, all the way down, is under a permissive license.
+//    Node host SDK, all the way down, is under a permissive license. The
+//    Android E2EE module is AGPLv3: its LICENSE is that text, every source
+//    file says so, and no other module carries AGPL code.
 //
 // What it does not see: Android's resolved (transitive) Gradle graph and the
 // licenses of Go and Android dependencies; CI covers those with
@@ -30,6 +33,14 @@ const WEB_MODULES = ["call", "group-join", "admin"];
 // together. The SDK may only be a peer dependency (the app installs it).
 const WEB_ADAPTERS = { "call-dingrtc": ["call"] };
 const ANDROID_CORE = ["imkit-core", "imkit-android", "imkit-storage-room", "imkit-ui", "imkit-push-fcm"];
+// Optional Android modules: the core only, never another module.
+const ANDROID_MODULES = ["imkit-group-join", "imkit-call", "imkit-video-compress"];
+// Android RTC adapters: the core, the module they adapt, and their one RTC SDK.
+const ANDROID_ADAPTERS = { "imkit-call-dingrtc": { modules: ["imkit-call"], sdk: /com\.ding\.rtc|dingrtc/i } };
+// The E2EE module: the core and libsignal, nothing else; AGPLv3 (it links libsignal).
+const ANDROID_E2EE = { "imkit-e2ee": /org\.signal|libsignal/i };
+// Not part of the SDK: the sample app may use everything.
+const ANDROID_APPS = ["sample-app"];
 const PERMISSIVE = new Set(["MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "BlueOak-1.0.0", "Unlicense", "CC0-1.0", "Python-2.0"]);
 
 const failures = [];
@@ -174,21 +185,44 @@ for (const file of files(join(root, "server"), [".go"])) {
 
 // ------------------------------------------------------------------ Android
 
-for (const mod of ANDROID_CORE) {
+/**
+ * `sdk` matches what an adapter may name of its own RTC SDK, or the E2EE
+ * module of libsignal ([signal]); anything else forbidden stays forbidden.
+ */
+function androidModule(mod, allowedProjects, sdk = null, signal = false) {
   const dir = join(root, "android", mod);
-  if (!existsSync(dir)) continue;
+  if (!existsSync(dir)) return;
+  const allowed = (s) => !FORBIDDEN.test(s) || (sdk !== null && sdk.test(s) && (signal || !/signal/i.test(s)));
   const gradle = join(dir, "build.gradle.kts");
   if (existsSync(gradle)) {
     for (const line of readFileSync(gradle, "utf8").split("\n")) {
       if (line.trim().startsWith("//")) continue;
-      check(!FORBIDDEN.test(line), `android/${mod}/build.gradle.kts: ${line.trim()}`);
+      check(allowed(line), `android/${mod}/build.gradle.kts: ${line.trim()}`);
       const project = /project\(\s*":([^"]+)"\s*\)/.exec(line)?.[1];
-      if (project) check(ANDROID_CORE.includes(project), `android/${mod}: depends on :${project}, which is not core`);
+      if (project) check(allowedProjects.includes(project), `android/${mod}: depends on :${project}, which it must not`);
     }
   }
   for (const file of files(join(dir, "src"), [".kt", ".java"])) {
-    for (const m of readFileSync(file, "utf8").matchAll(/^\s*import\s+([\w.]+)/gm)) check(!FORBIDDEN.test(m[1]), `${rel(file)}: imports ${m[1]}`);
+    const text = readFileSync(file, "utf8");
+    for (const m of text.matchAll(/^\s*import\s+([\w.]+)/gm)) check(allowed(m[1]), `${rel(file)}: imports ${m[1]}`);
+    const agpl = /SPDX-License-Identifier:\s*AGPL-3\.0-only/.test(text);
+    if (signal) check(agpl, `${rel(file)}: no "SPDX-License-Identifier: AGPL-3.0-only" line`);
+    else check(!agpl, `${rel(file)}: AGPL code outside the E2EE module`);
   }
+  if (signal) {
+    const license = join(dir, "LICENSE");
+    check(existsSync(license) && /GNU AFFERO GENERAL PUBLIC LICENSE\s+Version 3/.test(readFileSync(license, "utf8")), `android/${mod}/LICENSE: not the AGPLv3 text`);
+  }
+}
+
+if (existsSync(join(root, "android"))) {
+  for (const mod of ANDROID_CORE) androidModule(mod, ANDROID_CORE);
+  for (const mod of ANDROID_MODULES) androidModule(mod, ANDROID_CORE);
+  for (const [mod, a] of Object.entries(ANDROID_ADAPTERS)) androidModule(mod, [...ANDROID_CORE, ...a.modules], a.sdk);
+  for (const [mod, sdk] of Object.entries(ANDROID_E2EE)) androidModule(mod, ANDROID_CORE, sdk, true);
+  const present = readdirSync(join(root, "android")).filter((d) => existsSync(join(root, "android", d, "build.gradle.kts")));
+  const known = [...ANDROID_CORE, ...ANDROID_MODULES, ...Object.keys(ANDROID_ADAPTERS), ...Object.keys(ANDROID_E2EE), ...ANDROID_APPS];
+  for (const d of present) check(known.includes(d), `android/${d}: not classified as core, module, adapter, E2EE or app in tools/depcheck`);
 }
 
 // ------------------------------------------------------------------ report

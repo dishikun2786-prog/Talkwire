@@ -12,6 +12,7 @@ import io.imkit.core.client.TokenProvider
 import io.imkit.core.engine.ChatEngine
 import io.imkit.core.engine.EngineConfig
 import io.imkit.core.engine.OutgoingMessage
+import io.imkit.core.json.jsonObject
 import io.imkit.core.model.ConversationId
 import io.imkit.core.store.InMemoryChatStore
 import io.imkit.core.testing.MiniServer
@@ -145,5 +146,26 @@ class ChatScreenTest {
         now.addAndGet(1_500)
         rule.mainClock.advanceTimeBy(1_500)
         rule.waitUntil(5_000) { rule.onAllNodesWithText(typing).fetchSemanticsNodes().isEmpty() }
+    }
+
+    /** Protocol §15: the group assistant shows by name, not as a bare uid. */
+    @Test
+    fun theGroupAssistantTypesByName() {
+        val group = ConversationId("grp_aiaiaiaiaiai")
+        val aliceUid = server.uidOf("alice")
+        server.groups[group.id] = MiniServer.Group("team", mutableMapOf(aliceUid to "owner"))
+        val alice = engine("alice", 6)
+        runBlocking { alice.ensureConversation(group) }
+        rule.setContent {
+            ImTheme {
+                ImChatApp(rememberImChatState(alice, Host, start = ImDeepLink.Conversation(group)))
+            }
+        }
+        rule.waitForIdle()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val text = context.getString(R.string.imkit_typing_named, context.getString(R.string.imkit_assistant))
+
+        server.pushTo(aliceUid, jsonObject { put("type", "ai_typing"); put("topic", group.id) })
+        rule.waitUntil(5_000) { rule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
 }

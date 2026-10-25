@@ -1,10 +1,13 @@
 package io.imkit.ui.host
 
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import io.imkit.core.model.ChatMessage
+import io.imkit.ui.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +83,14 @@ public class ProfileCache(
     public companion object {
         /** What is shown for someone the host does not know: a recognisable piece of the uid. */
         public fun shortUid(uid: String): String = uid.removePrefix("uid_").removePrefix("usr").take(6).ifEmpty { "?" }
+
+        /**
+         * The name for someone the host did not name: the group assistant's
+         * built-in name ([ChatMessage.AI_ASSISTANT_UID]),
+         * else a short form of the uid.
+         */
+        public fun fallbackName(context: Context, uid: String): String =
+            if (uid == ChatMessage.AI_ASSISTANT_UID) context.getString(R.string.imkit_assistant) else shortUid(uid)
     }
 }
 

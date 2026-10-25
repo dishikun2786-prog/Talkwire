@@ -1,6 +1,9 @@
 package io.imkit.android.notify
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.os.VibrationEffect
@@ -15,8 +18,9 @@ public fun interface AlertPlayer {
 /**
  * Plays a short sound from res/raw with [SoundPool] (on the notification
  * stream, so the ringer volume and silent mode apply), and optionally
- * vibrates (the app then needs the VIBRATE permission). A [play] before the
- * sound finished loading plays it as soon as it has.
+ * vibrates. Vibrating needs the VIBRATE permission in the app's manifest;
+ * without it the alert only plays the sound (the call would throw). A [play]
+ * before the sound finished loading plays it as soon as it has.
  */
 public class SoundPoolAlertPlayer(
     context: Context,
@@ -50,9 +54,13 @@ public class SoundPoolAlertPlayer(
         soundId = pool.load(app, sound, 1)
     }
 
+    // VIBRATE is the app's to declare (the library's manifest stays empty); the
+    // check below skips vibrating when it did not, which Lint cannot see for
+    // a normal (install-time) permission.
+    @SuppressLint("MissingPermission")
     override fun play() {
         if (loaded) pool.play(soundId, 1f, 1f, 1, 0, 1f) else playWhenLoaded = true
-        if (vibrateMs > 0) {
+        if (vibrateMs > 0 && app.checkSelfPermission(Manifest.permission.VIBRATE) == PackageManager.PERMISSION_GRANTED) {
             app.getSystemService(Vibrator::class.java)?.takeIf { it.hasVibrator() }
                 ?.vibrate(VibrationEffect.createOneShot(vibrateMs, VibrationEffect.DEFAULT_AMPLITUDE))
         }

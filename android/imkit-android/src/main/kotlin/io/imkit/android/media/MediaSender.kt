@@ -8,6 +8,7 @@ import io.imkit.core.engine.ChatEngine
 import io.imkit.core.engine.OutgoingMessage
 import io.imkit.core.json.jsonObject
 import io.imkit.core.media.MediaUploader
+import io.imkit.core.media.UploadedMedia
 import io.imkit.core.model.ChatMessage
 import io.imkit.core.model.ConversationId
 import io.imkit.core.model.MessageKind
@@ -22,9 +23,13 @@ import java.io.File
  *
  * - Photos are compressed ([ImageCompressor]) and carry `extra.imageWidth`
  *   and `imageHeight`, so the bubble has its final size before the image loads.
- * - Videos are sent as they are, with a first-frame thumbnail
- *   (`extra.thumbUrl`, `thumbWidth`, `thumbHeight`) and their length; a
- *   thumbnail that cannot be made or uploaded does not stop the send.
+ * - Videos carry a first-frame thumbnail (`extra.thumbUrl`, `thumbWidth`,
+ *   `thumbHeight`) taken from the original, and their length; a thumbnail
+ *   that cannot be made or uploaded does not stop the send. With a
+ *   [VideoCompressor], a video larger than [compressVideosAboveBytes] (or
+ *   than [maxBytes]) is re-encoded first and goes as MP4; it is refused only
+ *   if it is still over [maxBytes] afterwards. A re-encode that fails or
+ *   comes out no smaller sends the original, when that fits.
  * - The message's `content` is a short fallback text ([fallbackText]) for
  *   clients that do not know the type; ImKit's own UI never shows it.
  */
@@ -35,6 +40,9 @@ public class MediaSender(
     /** Larger files are refused before they are read; the Node host SDK's default limit is 50 MB. */
     public val maxBytes: Long = 50L * 1024 * 1024,
     private val fallbackText: (MessageKind) -> String = ::defaultFallback,
+    private val videoCompressor: VideoCompressor? = null,
+    /** The reference deployment re-encoded videos of 50 MB and more. */
+    public val compressVideosAboveBytes: Long = 50L * 1024 * 1024,
 ) {
     public sealed interface Result {
         public data class Sent(val message: ChatMessage) : Result
@@ -50,7 +58,8 @@ public class MediaSender(
         val resolver = context.contentResolver
         val mime = resolver.getType(uri) ?: "application/octet-stream"
         val (displayName, size) = withContext(Dispatchers.IO) { nameAndSize(uri) }
-        if (size != null && size > maxBytes) return@guarded Result.TooLarge(maxBytes)
+        val compressible = videoCompressor != null && mime.startsWith("video/")
+        if (size != null && size > maxBytes && !compressible) return@guarded Result.TooLarge(maxBytes)
         val name = withExtension(displayName ?: uri.lastPathSegment ?: "file", mime)
         when {
             mime.startsWith("image/") && mime != "image/gif" -> {
@@ -65,7 +74,7 @@ public class MediaSender(
             }
             mime.startsWith("video/") -> {
                 val thumb = withContext(Dispatchers.IO) { VideoThumbnail.extract(context, uri) }
-                val up = uploadUri(uri, name, mime)
+                val up = uploadVideo(uri, name, mime, size)
                 val extra = thumb?.let { t ->
                     val thumbUrl = runCatching { uploadBytes(t.jpeg, "$name-thumb.jpg", "image/jpeg").url }.getOrNull()
                     thumbUrl?.let { url ->
@@ -115,11 +124,36 @@ public class MediaSender(
     }
 
     private suspend fun uploadUri(uri: Uri, name: String, mime: String) = withTempFile(name) { f ->
-        withContext(Dispatchers.IO) {
-            (context.contentResolver.openInputStream(uri) ?: error("cannot open $uri")).use { input -> f.outputStream().use { input.copyTo(it) } }
-        }
+        copyTo(uri, f)
         if (f.length() > maxBytes) throw TooLargeException()
         uploader.upload(f, name, mime)
+    }
+
+    private suspend fun uploadVideo(uri: Uri, name: String, mime: String, size: Long?): UploadedMedia {
+        val compressor = videoCompressor
+        val threshold = minOf(compressVideosAboveBytes, maxBytes)
+        if (compressor == null || (size != null && size <= threshold)) return uploadUri(uri, name, mime)
+        return withTempFile(name) { copy ->
+            // An unknown size: read the video first, then decide.
+            val source = if (size == null) Uri.fromFile(copyTo(uri, copy)) else uri
+            val length = size ?: copy.length()
+            if (length <= threshold) return@withTempFile uploader.upload(copy, name, mime)
+            val mp4 = name.substringBeforeLast('.') + ".mp4"
+            withTempFile(mp4) { out ->
+                val ok = compressor.compress(source, out)
+                when {
+                    ok && out.length() in 1 until length && out.length() <= maxBytes -> uploader.upload(out, mp4, "video/mp4")
+                    length > maxBytes -> throw TooLargeException()
+                    size == null -> uploader.upload(copy, name, mime)
+                    else -> uploadUri(uri, name, mime)
+                }
+            }
+        }
+    }
+
+    private suspend fun copyTo(uri: Uri, f: File): File = withContext(Dispatchers.IO) {
+        (context.contentResolver.openInputStream(uri) ?: error("cannot open $uri")).use { input -> f.outputStream().use { input.copyTo(it) } }
+        f
     }
 
     private suspend fun <T> withTempFile(name: String, block: suspend (File) -> T): T {

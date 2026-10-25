@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Failure classes (red line C10): each says what to do; only "offline" asks to try again. -->
+    <string name="imkit_e2ee_failed_peer_keys">%1$s hasn\'t set up encrypted chat yet. It starts working once they open the app.</string>
+    <string name="imkit_e2ee_failed_not_allowed">You can\'t do this in encrypted chat: it needs you to be contacts, or the group\'s owner or a manager.</string>
+    <string name="imkit_e2ee_failed_group_not_encrypted">This group isn\'t encrypted. Its owner has to turn encryption on first.</string>
+    <string name="imkit_e2ee_failed_disabled">Encrypted chat isn\'t available on this server.</string>
+    <string name="imkit_e2ee_failed_offline">Not connected. Check your network and try again.</string>
+    <string name="imkit_e2ee_failed_crypto">The encryption keys of this chat can\'t be used. End the encrypted chat and start it again.</string>
+    <string name="imkit_e2ee_failed_server">The server gave an unexpected answer. If it keeps happening, contact support.</string>
+
+    <string name="imkit_e2ee_encrypted">End-to-end encrypted</string>
+    <string name="imkit_e2ee_empty">Messages here are end-to-end encrypted. Only the people in this chat can read them, and they are kept on this device only.</string>
+    <string name="imkit_e2ee_hint">Encrypted message</string>
+    <string name="imkit_e2ee_send">Send</string>
+    <string name="imkit_e2ee_back">Back</string>
+    <string name="imkit_e2ee_more">More</string>
+    <string name="imkit_e2ee_not_sent">Not sent. Tap to send again.</string>
+    <string name="imkit_e2ee_undecryptable">This message could not be decrypted.</string>
+    <string name="imkit_e2ee_without_key">Some members can\'t read this message: they haven\'t set up encrypted chat.</string>
+
+    <string name="imkit_e2ee_safety_number">Safety number</string>
+    <string name="imkit_e2ee_safety_number_explain">Compare these numbers with %1$s, in person or on a call. If they match, no one is listening in.</string>
+    <string name="imkit_e2ee_safety_number_none">There is no safety number until you have exchanged a message.</string>
+    <string name="imkit_e2ee_clear">Clear messages</string>
+    <string name="imkit_e2ee_clear_confirm">Clear the messages on this device? %1$s is asked to clear theirs too, if they are online.</string>
+    <string name="imkit_e2ee_clear_group_confirm">Clear the messages on this device? If you manage the group, everyone online clears theirs too.</string>
+    <string name="imkit_e2ee_end">End encrypted chat</string>
+    <string name="imkit_e2ee_end_confirm">End the encrypted chat? Its messages on this device are deleted. A new message starts it again.</string>
+    <string name="imkit_e2ee_cancel">Cancel</string>
+    <string name="imkit_e2ee_close">Close</string>
+
+    <string name="imkit_e2ee_notice_ended">%1$s ended the encrypted chat.</string>
+    <string name="imkit_e2ee_notice_cleared">%1$s cleared the encrypted messages.</string>
+    <string name="imkit_e2ee_notice_group_on">Encryption is on in this group.</string>
+    <string name="imkit_e2ee_notice_incoming">New encrypted message</string>
+</resources>

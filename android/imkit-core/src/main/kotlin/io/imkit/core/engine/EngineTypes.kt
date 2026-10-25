@@ -18,6 +18,8 @@ public data class EngineConfig(
     /** A message still "sending" after this long, with nothing in flight, becomes failed. */
     val staleSendingMs: Long = 5 * 60_000,
     val typingTtlMs: Long = 10_000,
+    /** How long "the assistant is typing" lasts in a group without its reply. */
+    val aiTypingTtlMs: Long = 15_000,
     val presenceTtlMs: Long = 180_000,
     /** `contentType` of plain text. The reference app uses `text`. */
     val textContentType: String = "text",

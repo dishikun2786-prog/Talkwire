@@ -45,6 +45,12 @@ class MiniServer {
     /** Return a non-null reply to answer instead of the normal handling. */
     var override: (JsonObject) -> JsonObject? = { null }
 
+    /**
+     * Like [override], with the sender's uid: for module actions a test plays
+     * the server's side of (it may [pushTo] others before answering).
+     */
+    var overrideAs: (me: String, request: JsonObject) -> JsonObject? = { _, _ -> null }
+
     val requests = CopyOnWriteArrayList<JsonObject>()
 
     /**
@@ -106,6 +112,7 @@ class MiniServer {
         val me = users[c] ?: return
         if (loseRequest(f)) return
         override(f)?.let { reply(c, f, it); return }
+        overrideAs(me, f)?.let { reply(c, f, it); return }
         val topic = f.string("topic") ?: ""
         when (action) {
             "pub" -> {

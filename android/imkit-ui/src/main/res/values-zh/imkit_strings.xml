@@ -134,4 +134,6 @@
     <string name="imkit_mute_notifications">消息免打扰</string>
     <string name="imkit_pin_chat">置顶聊天</string>
     <string name="imkit_member_fallback">群成员</string>
+    <!-- The group assistant, until the host names it. -->
+    <string name="imkit_assistant">助手</string>
 </resources>

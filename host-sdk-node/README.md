@@ -37,7 +37,8 @@ await app.register(imkitMediaRoutes, { authenticate, store: blobs, im });
 - IM 服务端的 `MAIN_API_BASE_URL` 指向这个应用；`JWT_SECRET` 两边相同。
 - Prisma：把 `prisma/imkit.prisma` 拷进你的 schema（多文件 schema 直接放进 schema 目录），再照常迁移。不用 Prisma 的宿主可以用 `prisma/imkit.sql` 建同样的表，自己实现存储接口。
 - 联系人与资料变化时，`imkitAppRoutes` 默认经 `custom-broadcast` 把事件推给用户的各个设备（`what` 为 `contact.request`、`contact.accepted`、`contact.removed`、`contact.alias`、`profile.updated`），并在关系被接受或解除时调 `contact-sync`。可以用 `notify` 换成你自己的推送。
-- 加好友默认要求令牌（`addTokenMode: "require"`）：令牌只能由搜索或扫码得到，绑定双方、两分钟有效。从不带令牌的旧客户端迁移时先用 `"observe"`。
+- 加好友默认要求令牌（`addTokenMode: "require"`）：令牌只能由搜索或扫码得到，绑定双方、两分钟有效。从不带令牌的旧客户端迁移时先用 `"observe"`令牌不记状态：两分钟内对同一对用户可以再用，第二次请求会遇到已有的请求（409）。
+- 加好友的二维码放 `GET /me/qr` 给的签名串（`c1.<uid>.<签名>`），扫码后交给 `POST /contacts/qr-resolve` 的 `qr`。uid 不是秘密，群里每个成员都看得到别人的，所以 `"require"` 下只给 uid 会被拒（`qr_required`）：否则群成员不用对方出示二维码就能互加（红线 R14）。`"observe"` 下裸 uid 照旧能解析并经 `onAddTokenMissing` 报告，供迁移期印出去的旧码使用。
 
 后台与通话记录（前端页面见 `web/packages/admin`，`@imkit/admin`）：
 

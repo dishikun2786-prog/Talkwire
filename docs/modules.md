@@ -8,7 +8,7 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | --- | --- | --- |
 | 服务端 | `IMKIT_MODULES` 列出模块名（`call`、`groupjoin`、`groupai`、`e2ee`）；不设时装宿主支持的全部模块 | 从列表里去掉，或 `IMKIT_MODULES=none`。没装的模块的动作得到 501 `module not enabled: <名>` |
 | 宿主（Node SDK） | 给 `imkitHostPlugin` 对应的选项（`calls`、`groupAi`、`config`） | 不给；对应端点答 404 |
-| 客户端 | 装对应的包（Web 是 `@imkit/<模块>`） | 不装；核心包不引用模块包 |
+| 客户端 | 装对应的包（Web 是 `@imkit/<模块>`，Android 是 `imkit-<模块>`） | 不装；核心包不引用模块包 |
 
 - 显式列出的模块，宿主缺对应能力时服务端启动即报错；不设 `IMKIT_MODULES` 时缺能力的模块跳过并打一行日志。standalone 宿主（`IMKIT_HOST_MODE=standalone`）只支持 `groupjoin` 与 `e2ee`。
 - 模块有自己的迁移脚本（`server/migrations/<模块>/`），装上时建表；拿掉模块不删表，数据留着，再装上时接着用。
@@ -23,9 +23,9 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | 协议 | 第 16 节：`call_invite`、`call_accept`、`call_reject`、`call_cancel`、`call_hangup`、`call_upgrade*`；推送 `call_ring`、`call_answered`、`call_ended` 等 |
 | 宿主 | `CallHandlers`：`create`（能不能打）、`answer`（频道与双方各自的令牌）、`settle`（结束原因，在这里计费）、`upgrade`（语音转视频）。宿主要提前结束通话（余额不足、到了时长上限）时用 `ImClient.callBroadcast` 给双方各推一个 `call_ended`，IM 收到后释放这通通话。`recordingCalls` 把通话记成后台能查的记录 |
 | Web | `@imkit/call`：`CallManager` 驱动 RTC 适配器接口 `CallMediaEngine`；`/react` 有来电与通话界面、单聊页头的通话按钮 |
-| Android | 待做（7.3）：通话引擎接口与界面；原项目踩过的坑（未绑定的渲染视图不能被测量、前台服务不能自动重启、先发全屏通知再开麦克风服务、每条结束路径都撤掉来电通知）要原样带上 |
+| Android | `imkit-call`：`CallManager` 驱动 `CallMediaEngine`；`CallSystem` 负责来电通知与前台服务；`CallScreen`、`CallButtons`。原项目踩过的坑都带上了：前台服务被系统重建时自己停掉、不自动重启，服务类型按已授予的权限选，每条结束路径都撤掉来电通知 |
 | iOS | 待做（Phase 6） |
-| RTC 适配 | 待做（7.4）：阿里云 ARTC 的三端适配器放在 `examples/`，Android 另发一个只按 Maven 坐标依赖 dingrtc 的可选 AAR |
+| RTC 适配 | 阿里云 ARTC 3.0：Web 是 `@imkit/call-dingrtc`，Android 是 `imkit-call-dingrtc`（只按 Maven 坐标依赖 dingrtc，带上原项目的 `SafeRtcSurfaceView`：未绑定的渲染视图被测量不再崩溃）；宿主一侧在 `examples/artc`。iOS 待做 |
 
 要点：每一方只拿到自己的 RTC 令牌，IM 不会把一方的令牌交给另一方，客户端也不转发；被叫可能先于主叫拿到“对方已接听”以外的推送，客户端要缓存早到的帧（协议 F49）；一方断线后等 `IM_CALL_DISCONNECT_GRACE_SEC`（默认 10 秒）再结束通话。
 
@@ -37,7 +37,7 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | --- | --- |
 | 协议 | 第 14 节：`group_qr_token`、`group_qr_resolve`、`group_join`、`group_join_requests_list`、`group_join_review`、`get_group_join_settings`、`update_group_join_settings` |
 | Web | `@imkit/group-join`：`GroupJoinClient` 一个动作一个方法；`/react` 有群二维码卡片、入群页、入群申请列表、审核开关 |
-| Android | 待做（7.6） |
+| Android | `imkit-group-join`：`GroupJoinClient` 与 Compose 界面（群二维码卡片、入群页、申请列表、审核开关） |
 
 要点：二维码里放什么由应用决定（通常是自己的入群页链接，令牌在链接里），套件不带二维码编码器。legacy 档的服务端不给入群者订阅群（D7），客户端入群后要自己订阅并刷新群列表；审核失败用 strict 档的 `errCode` 区分“群已满”和“已被处理”，不解析 `reason`。
 
@@ -49,7 +49,7 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | --- | --- |
 | 宿主 | `GroupAiHandler`（`POST .../group-ai-qa`）：答 `{ ok: true, answer }`；答不了时 `{ ok: false, reason, message? }`，`message` 是给群里看的说法 |
 | 运行配置 | `groupAi`：助手的名字（“@”后面那个，默认“小桃子”）、各种兜底文案；宿主经 `ConfigSource.runtimeConfig` 下发 |
-| 客户端 | 收到 `ai_typing` 时显示助手“正在输入”（Web 已做，最长 15 秒，回复到达即消失；Android 待做） |
+| 客户端 | 收到 `ai_typing` 时显示助手“正在输入”（Web 与 Android 都已做：只认本人所在的群，最长 15 秒，回复到达即消失） |
 
 要点：宿主 10 秒内不答，IM 发兜底文案。每个群有自己的开关、每日次数与冷却间隔，由群主设置。
 
@@ -61,9 +61,10 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | --- | --- |
 | 服务端 | 密钥包的发布与领取、密文的存转；密钥包只属于发布它的设备 |
 | 宿主 | `ConfigSource.e2eeConfig`（`enabled`、`groupEnabled`、密文保留时长）；不设时答 404，服务端用默认值 |
-| 客户端 | 待做（7.1）：Android 模块钉死 libsignal 版本，失败分类按红线 C10 |
+| Android | `imkit-e2ee`（AGPLv3）：libsignal 钉死在 0.73.0，测试的对端用同一版本；`E2eeChats` 收发与本机存储，`EncryptedChatScreen`；失败分七类（红线 C10），只有离线才提示重试。说明见 `android/README.md` 的“端到端加密” |
+| Web、iOS | v1 的 Web 不做；iOS 待做（Phase 6） |
 
-要点：v1 不做 E2EE 多设备；客户端开始带 `device` 登录后要重新发布密钥包。
+要点：v1 不做 E2EE 多设备；客户端每次登录都发布密钥包（开始带 `device` 登录后必须重新发布一次）。群的发送密钥要经单聊会话分发给每个成员：发在群主题上会被服务端扇出给全体。用到 libsignal 的 App 要开核心库脱糖（AAR 元数据的要求）。
 
 ## 不是模块、但宿主常用的扩展点
 
@@ -76,3 +77,4 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 - 服务端：`modules_test.go` 覆盖未知模块名、宿主缺能力、模块动作互不重叠、未装模块的动作答 501。
 - 宿主：`host-sdk-node` 的宿主插件测试覆盖通话与群机器人端点，不给选项时答 404；契约测试覆盖 `host.openapi.yaml` 的每个操作。
 - Web：每个模块包有自己的单测、组件测试与黄金对话回放；端到端用例在示例里走一遍扫码入群、通话与后台。
+- Android：每个模块有自己的单测与界面测试，扫码入群、通话、E2EE 各用黄金对话回放；E2EE 另用真实 libsignal 跑两端与群。`tools/depcheck` 检查依赖方向（模块只依赖核心，适配器只多一个 RTC SDK，只有 E2EE 模块链接 libsignal）与 E2EE 的许可证标注；CI 查解析后的依赖图：核心与各模块里没有 libsignal 和 RTC SDK，E2EE 模块里 libsignal 没被升级。

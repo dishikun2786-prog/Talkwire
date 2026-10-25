@@ -261,14 +261,15 @@ func checkRedline(m *Matrix, rl *Redline, byName map[string]*harness.Scenario, u
 }
 
 // Written lists, per platform, the tests found in the code: which planned
-// cases exist. The server, Android and the web are scanned; iOS not yet.
+// cases exist. The server, the Node host SDK, Android and the web are
+// scanned; iOS not yet.
 type Written map[string]map[string]bool
 
 // Has reports whether the platform's test of that name exists.
 func (w Written) Has(platform, name string) bool { return w[platform][name] }
 
 // ScannedPlatforms are the platforms whose tests Written can hold, in display order.
-var ScannedPlatforms = []string{"server", "android", "web"}
+var ScannedPlatforms = []string{"server", "host", "android", "web"}
 
 var testFunc = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\)`)
 
@@ -371,16 +372,22 @@ func WebTests(dir string) (map[string]bool, error) {
 	return out, err
 }
 
+// HostTests returns the node:test cases of the Node host SDK named after a
+// red line (test("R<n>_...")) in its test files: which host cases of the
+// matrix exist. The files and the naming are the web's, so is the scan.
+func HostTests(dir string) (map[string]bool, error) { return WebTests(dir) }
+
 // redlineTestPatterns tell, per scanned platform, which test names are named
 // after a red line; the group is the red line's id.
 var redlineTestPatterns = map[string]*regexp.Regexp{
 	"server":  regexp.MustCompile(`^Test(R[1-9][0-9]*)_`),
 	"android": regexp.MustCompile(`^([RC][1-9][0-9]*)_`),
 	"web":     regexp.MustCompile(`^([RC][1-9][0-9]*)_`),
+	"host":    regexp.MustCompile(`^(R[1-9][0-9]*)_`),
 }
 
 // CheckWritten reports tests named after a red line (server TestR<n>_...,
-// Android and web R<n>_... or C<n>_...) that the matrix does not list as a
+// host R<n>_..., Android and web R<n>_... or C<n>_...) that the matrix does not list as a
 // case of that platform: a red-line test written without its row in the matrix.
 func CheckWritten(m *Matrix, written Written) []string {
 	var problems []string

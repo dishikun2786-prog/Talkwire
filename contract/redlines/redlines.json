@@ -226,7 +226,7 @@
       "planned": [
         {"task": "1.4", "layer": "unit", "platform": "server", "name": "TestR12_PushPayloadIsDataOnly", "checks": "假推送通道收到的 FCM、APNs、Web Push 载荷都只有数据字段"},
         {"task": "1.4", "layer": "unit", "platform": "server", "name": "TestR12_EncryptedMessageHasNoPreview", "checks": "加密消息的推送不带正文预览和发信人"},
-        {"task": "2.2", "layer": "contract", "platform": "host", "name": "TestR12_ProfileAliasByDirection", "checks": "profile 端点按 viewer→sender 方向取备注，双账号互设备注互不影响"}
+        {"task": "2.2", "layer": "contract", "platform": "host", "name": "R12_ProfileAliasByDirection", "checks": "profile 端点按 viewer→sender 方向取备注，双账号互设备注互不影响"}
       ]
     },
     {
@@ -238,8 +238,8 @@
       "golden": [],
       "planned": [
         {"task": "2.1", "layer": "contract", "platform": "server", "name": "TestR13_InternalEndpointsRejectBadTokens", "checks": "IM 的内部接口拒绝缺失、过期、角色不对的内部令牌"},
-        {"task": "2.1", "layer": "contract", "platform": "host", "name": "TestR13_HostEndpointsRejectBadTokens", "checks": "宿主的内部接口同样拒绝不合法的内部令牌"},
-        {"task": "2.5", "layer": "contract", "platform": "host", "name": "TestR13_AdminClearNeedsConfirmAndAudit", "checks": "后台清空需超级管理员二次确认；审计只记元数据，不含正文与媒体地址"}
+        {"task": "2.1", "layer": "contract", "platform": "host", "name": "R13_HostEndpointsRejectBadTokens", "checks": "宿主的内部接口同样拒绝不合法的内部令牌"},
+        {"task": "2.5", "layer": "contract", "platform": "host", "name": "R13_AdminClearNeedsConfirmAndAudit", "checks": "后台清空需超级管理员二次确认；审计只记元数据，不含正文与媒体地址"}
       ]
     },
     {
@@ -250,8 +250,8 @@
       "note": "IM 侧的 get_members 本来就不下发昵称（core/group-guards 第 18 步），资料只能经宿主取。",
       "golden": [],
       "planned": [
-        {"task": "2.3", "layer": "contract", "platform": "host", "name": "TestR14_GroupMembersCannotViewProfiles", "checks": "只因同在一个群的用户查不到对方资料"},
-        {"task": "2.3", "layer": "contract", "platform": "host", "name": "TestR14_AddContactRequiresOneTimeToken", "checks": "加好友必须带搜索得到的一次性令牌，令牌用过或过期即失效"}
+        {"task": "2.3", "layer": "contract", "platform": "host", "name": "R14_GroupMembersCannotViewProfiles", "checks": "只知道群里看到的 uid 时，只能查到名字和头像（显示聊天要用），查不到宿主 id、handle、加好友令牌；裸 uid 不能当二维码解析，要本人出示的签名二维码"},
+        {"task": "2.3", "layer": "contract", "platform": "host", "name": "R14_AddContactRequiresOneTimeToken", "checks": "加好友必须带搜索或扫码得到的令牌，绑定双方、两分钟内有效；签给别人或过期的令牌无效。令牌不记状态，两分钟内可对同一对用户再用（第二次请求遇到已有的请求，409）"}
       ]
     },
     {
@@ -262,9 +262,9 @@
       "note": "IM 侧在请求宿主删除前先数引用，录在 core/clear-media 第 11、12 步（归 R6、R21）。",
       "golden": [],
       "planned": [
-        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_MediaResponsesCarryContentLength", "checks": "媒体下载响应都带 Content-Length"},
-        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_DeleteChecksReferences", "checks": "删除媒体前查引用计数，仍被引用则不删"},
-        {"task": "2.4", "layer": "contract", "platform": "host", "name": "TestR15_PrivateMediaBypassesCDN", "checks": "私密媒体的地址不指向 CDN"}
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "R15_MediaResponsesCarryContentLength", "checks": "媒体下载响应都带 Content-Length"},
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "R15_DeleteChecksReferences", "checks": "删除媒体前查引用计数，仍被引用则不删"},
+        {"task": "2.4", "layer": "contract", "platform": "host", "name": "R15_PrivateMediaBypassesCDN", "checks": "私密媒体的地址不指向 CDN"}
       ]
     },
     {

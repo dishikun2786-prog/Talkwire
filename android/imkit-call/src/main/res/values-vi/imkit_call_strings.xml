@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="imkit_call_voice_call">Gọi thoại</string>
+    <string name="imkit_call_video_call">Gọi video</string>
+    <string name="imkit_call_incoming_voice">Cuộc gọi thoại đến</string>
+    <string name="imkit_call_incoming_video">Cuộc gọi video đến</string>
+    <string name="imkit_call_calling">Đang gọi…</string>
+    <string name="imkit_call_connecting">Đang kết nối…</string>
+    <string name="imkit_call_accept">Trả lời</string>
+    <string name="imkit_call_accept_as_voice">Trả lời bằng thoại</string>
+    <string name="imkit_call_decline">Từ chối</string>
+    <string name="imkit_call_cancel">Hủy</string>
+    <string name="imkit_call_hang_up">Kết thúc</string>
+    <string name="imkit_call_mute">Tắt tiếng</string>
+    <string name="imkit_call_unmute">Bật tiếng</string>
+    <string name="imkit_call_speaker">Loa ngoài</string>
+    <string name="imkit_call_camera_off">Tắt camera</string>
+    <string name="imkit_call_camera_on">Bật camera</string>
+    <string name="imkit_call_switch_camera">Đổi camera</string>
+    <string name="imkit_call_switch_to_video">Chuyển sang video</string>
+    <string name="imkit_call_video_asked">Đang chờ họ bật video…</string>
+    <string name="imkit_call_video_requested">Họ muốn chuyển sang gọi video</string>
+    <string name="imkit_call_accept_video">Bật video</string>
+    <string name="imkit_call_decline_video">Để sau</string>
+    <string name="imkit_call_video_declined">Họ đã từ chối video</string>
+    <string name="imkit_call_waiting_for_video">Đang chờ video của họ…</string>
+    <string name="imkit_call_someone">Ai đó</string>
+    <string name="imkit_call_refused_offline">Họ đang ngoại tuyến</string>
+    <string name="imkit_call_refused_busy">Họ đang trong cuộc gọi khác</string>
+    <string name="imkit_call_refused_not_friends">Bạn chỉ có thể gọi cho danh bạ</string>
+    <string name="imkit_call_refused">Không thể thực hiện cuộc gọi</string>
+    <string name="imkit_call_mic_needed">Cuộc gọi cần micrô. Hãy cho phép trong Cài đặt.</string>
+    <string name="imkit_call_camera_needed">Video cần camera. Hãy cho phép trong Cài đặt.</string>
+    <string name="imkit_call_ongoing_channel">Cuộc gọi đang diễn ra</string>
+    <string name="imkit_call_ongoing_text">Chạm để quay lại cuộc gọi</string>
+    <string name="imkit_call_ended_user_hangup">Cuộc gọi đã kết thúc</string>
+    <string name="imkit_call_ended_no_answer">Không trả lời</string>
+    <string name="imkit_call_ended_rejected">Đã từ chối</string>
+    <string name="imkit_call_ended_cancelled">Đã hủy</string>
+    <string name="imkit_call_ended_disconnected">Mất kết nối</string>
+    <string name="imkit_call_ended_failed">Cuộc gọi thất bại</string>
+    <string name="imkit_call_ended_answered_elsewhere">Đã trả lời trên thiết bị khác</string>
+    <string name="imkit_call_ended_credit_exhausted">Hết tín dụng</string>
+    <string name="imkit_call_ended_max_duration_reached">Đã đạt giới hạn thời gian</string>
+</resources>

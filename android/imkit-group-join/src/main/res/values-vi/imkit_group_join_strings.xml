@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="imkit_gj_qr_title">Mã QR nhóm</string>
+    <string name="imkit_gj_qr_expires">Có hiệu lực đến %1$s</string>
+    <string name="imkit_gj_qr_refresh">Đặt lại mã QR</string>
+    <string name="imkit_gj_qr_refresh_confirm">Đặt lại mã QR? Mã cũ và liên kết cũ sẽ hết hiệu lực ngay.</string>
+    <string name="imkit_gj_copy_link">Sao chép liên kết</string>
+    <string name="imkit_gj_copied">Đã sao chép</string>
+    <string name="imkit_gj_loading">Đang tải…</string>
+    <string name="imkit_gj_invalid_code">Mã QR không hợp lệ hoặc đã hết hạn.</string>
+    <string name="imkit_gj_already_member">Bạn đã ở trong nhóm này.</string>
+    <string name="imkit_gj_group_full">Nhóm đã đủ thành viên.</string>
+    <string name="imkit_gj_needs_approval">Quản trị viên nhóm sẽ duyệt thành viên mới.</string>
+    <string name="imkit_gj_join_message">Lời nhắn cho quản trị viên (tùy chọn)</string>
+    <string name="imkit_gj_join">Tham gia nhóm</string>
+    <string name="imkit_gj_ask_to_join">Xin tham gia</string>
+    <string name="imkit_gj_open_chat">Mở cuộc trò chuyện</string>
+    <string name="imkit_gj_pending">Đã gửi yêu cầu. Bạn sẽ được báo khi quản trị viên quyết định.</string>
+    <string name="imkit_gj_failed">Có lỗi xảy ra. Hãy thử lại.</string>
+    <string name="imkit_gj_not_allowed">Chỉ chủ nhóm hoặc quản trị viên mới làm được việc này.</string>
+    <string name="imkit_gj_requests_title">Yêu cầu tham gia</string>
+    <string name="imkit_gj_no_requests">Không có yêu cầu đang chờ</string>
+    <string name="imkit_gj_approve">Đồng ý</string>
+    <string name="imkit_gj_reject">Từ chối</string>
+    <string name="imkit_gj_handled_elsewhere">Quản trị viên khác đã xử lý yêu cầu này.</string>
+    <string name="imkit_gj_require_approval">Người vào bằng mã QR cần quản trị viên duyệt</string>
+    <string name="imkit_gj_request_notice">%1$s xin tham gia %2$s</string>
+    <string name="imkit_gj_approved_notice">Bạn đã tham gia %1$s</string>
+    <string name="imkit_gj_rejected_notice">Yêu cầu tham gia %1$s của bạn đã bị từ chối</string>
+    <plurals name="imkit_gj_member_count">
+        <item quantity="other">%1$d thành viên</item>
+    </plurals>
+</resources>

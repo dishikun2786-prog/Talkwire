@@ -141,6 +141,36 @@ class PortedChatBehaviorsTest {
         assertTrue(a.typingIn(withBob, at + config.typingTtlMs + 1).isEmpty())
     }
 
+    /** Protocol §15: "the assistant is typing" for a group alice is in, until it answers or the note runs out. */
+    @Test
+    fun theAssistantTypesInGroupsAliceIsIn() {
+        val g = ConversationId(group)
+        val a = engine()
+        a.startAndSync { ensureConversation(g) }
+        val aiTyping = { topic: String -> jsonObject { put("type", "ai_typing"); put("topic", topic) } }
+        val at = now
+        server.pushTo(alice, aiTyping("grp_unknownunkno")) // not a group she has: ignored
+        server.pushTo(alice, aiTyping(group))
+        eventually { a.typingIn(g, at).isNotEmpty() }
+        assertEquals(setOf(ChatMessage.AI_ASSISTANT_UID), a.typingIn(g, at))
+        assertEquals(setOf(ChatMessage.AI_ASSISTANT_UID), a.typingIn(g, at + config.aiTypingTtlMs))
+        assertTrue(a.typingIn(g, at + config.aiTypingTtlMs + 1).isEmpty())
+        assertTrue(a.typingIn(ConversationId("grp_unknownunkno"), at).isEmpty())
+
+        // The answer ends the note at once, and so does a message from someone typing.
+        server.pushTo(alice, info("kp", group, bob))
+        eventually { a.typingIn(g, at).size == 2 }
+        server.pushTo(alice, groupData(ChatMessage.AI_ASSISTANT_UID, 1, "hi"))
+        eventually { a.typingIn(g, at) == setOf(bob) }
+        server.pushTo(alice, groupData(bob, 2, "thanks"))
+        eventually { a.typingIn(g, at).isEmpty() }
+    }
+
+    private fun groupData(from: String, seq: Long, content: String) = jsonObject {
+        put("action", "data"); put("topic", group); put("from", from); put("seq", seq); put("ts", 5_000 + seq)
+        put("content", content); put("contentType", "text")
+    }
+
     /** ChatRepositoryTest, ChatIntegrationTest: a read note moves the cursor it belongs to, never backwards. */
     @Test
     fun readNotesMoveTheRightCursor() = runBlocking {

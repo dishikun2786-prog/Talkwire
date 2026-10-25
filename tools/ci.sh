@@ -17,8 +17,9 @@
 #   node         Node host SDK (build, types, tests) and the examples
 #   web          web SDK: generated types up to date, types, Vitest
 #   e2e          Playwright against the sample stack
-#   android      Android unit tests, and no libsignal or RTC SDK in the
-#                resolved graph of the core modules
+#   android      Android unit tests, Lint, no libsignal or RTC SDK in the
+#                resolved graphs of the core and the optional modules, and
+#                libsignal at its pinned version in the E2EE module's
 #
 # What the tests need from the environment:
 #   IMKIT_TEST_DSN  libpq key=value of a throwaway PostgreSQL database (tests
@@ -283,25 +284,58 @@ job_android() {
 		skip "android: tests against a real server" "IMKIT_TEST_DSN not set"
 	fi
 	step "android: unit tests" in_dir android ./gradlew --no-daemon :imkit-core:test :imkit-storage-room:testDebugUnitTest \
-		:imkit-android:testDebugUnitTest :imkit-push-fcm:testDebugUnitTest :imkit-ui:testDebugUnitTest :example-red-packet:testDebugUnitTest
+		:imkit-android:testDebugUnitTest :imkit-push-fcm:testDebugUnitTest :imkit-ui:testDebugUnitTest \
+		:imkit-group-join:testDebugUnitTest :imkit-call:testDebugUnitTest :imkit-call-dingrtc:testDebugUnitTest \
+		:imkit-video-compress:testDebugUnitTest :imkit-e2ee:testDebugUnitTest :example-red-packet:testDebugUnitTest
+	# Errors fail the build; warnings (newer dependency versions and the like) are reported only.
+	step "android: Lint" in_dir android ./gradlew --no-daemon lintDebug
 	# depcheck reads the declared dependencies; this is the resolved graph, transitive ones included.
-	step "android: no libsignal or RTC SDK in the core graph" android_graph
+	step "android: no libsignal or RTC SDK in the core and module graphs" android_graph
+	step "android: libsignal pinned at $LIBSIGNAL_PIN in the E2EE module" android_e2ee_pin
 }
 
+# The resolved graphs that must not reach libsignal or an RTC SDK: the core
+# (through :imkit-ui, which depends on the rest) and each optional module.
+# The E2EE module and the RTC adapters are left out on purpose.
+ANDROID_CLEAN_GRAPHS=(imkit-ui imkit-group-join imkit-call imkit-video-compress)
+
 android_graph() {
-	local out hits
-	out="$(cd android && ./gradlew --no-daemon -q :imkit-ui:dependencies --configuration releaseRuntimeClasspath)" || return 1
-	hits="$(printf '%s\n' "$out" | grep -Ei 'libsignal|org\.signal|dingrtc|com\.ding\.rtc|alivc' || true)"
-	if [ -n "$hits" ]; then
-		echo "forbidden in :imkit-ui releaseRuntimeClasspath:"
-		echo "$hits"
+	local mod out hits
+	for mod in "${ANDROID_CLEAN_GRAPHS[@]}"; do
+		out="$(cd android && ./gradlew --no-daemon -q ":$mod:dependencies" --configuration releaseRuntimeClasspath)" || return 1
+		hits="$(printf '%s\n' "$out" | grep -Ei 'libsignal|org\.signal|dingrtc|com\.ding\.rtc|alivc' || true)"
+		if [ -n "$hits" ]; then
+			echo "forbidden in :$mod releaseRuntimeClasspath:"
+			echo "$hits"
+			return 1
+		fi
+		if ! printf '%s\n' "$out" | grep -q 'imkit-core'; then
+			echo ":$mod: the graph does not list :imkit-core; is the configuration name right?"
+			return 1
+		fi
+		echo ":$mod: $(printf '%s\n' "$out" | grep -c -- '--- ') entries, none forbidden"
+	done
+}
+
+# Both ends of a session must run the same libsignal (plan 7.1): the E2EE
+# module pins it, and its resolved graph must not have moved it.
+LIBSIGNAL_PIN=0.73.0
+
+android_e2ee_pin() {
+	local out lines
+	out="$(cd android && ./gradlew --no-daemon -q :imkit-e2ee:dependencies --configuration releaseRuntimeClasspath)" || return 1
+	lines="$(printf '%s\n' "$out" | grep -E 'org\.signal:libsignal-(android|client)' || true)"
+	if [ -z "$lines" ]; then
+		echo ":imkit-e2ee: no libsignal in the graph; is the configuration name right?"
 		return 1
 	fi
-	if ! printf '%s\n' "$out" | grep -q 'imkit-core'; then
-		echo "the graph does not list :imkit-core; is the configuration name right?"
+	# Every line must end at the pin: "x:0.73.0", "x:0.73.0 (*)"; not "x:0.73.0 -> 0.74.0".
+	if printf '%s\n' "$lines" | grep -v -E ":$LIBSIGNAL_PIN( \(\*\))?\$" | grep -q .; then
+		echo ":imkit-e2ee: libsignal is not at $LIBSIGNAL_PIN:"
+		echo "$lines"
 		return 1
 	fi
-	echo "$(printf '%s\n' "$out" | grep -c -- '--- ') entries, none forbidden"
+	echo ":imkit-e2ee: $(printf '%s\n' "$lines" | sed 's/^[^a-z]*//; s/ (\*)$//' | sort -u | tr '\n' ' ')"
 }
 
 # ------------------------------------------------------------------ main

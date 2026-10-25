@@ -108,6 +108,9 @@ public data class ChatMessage(
         public const val SENDER_USER: String = "user"
         public const val SENDER_AI: String = "ai_assistant"
 
+        /** The uid the group assistant's answers come from (spec 15.2). */
+        public const val AI_ASSISTANT_UID: String = "assistant_xiaotaozi"
+
         /**
          * Timeline order: stored messages by seq (the order the server stored
          * them in), pending ones after all stored ones, by creation time.

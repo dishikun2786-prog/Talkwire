@@ -52,6 +52,8 @@
 | `routes/chatUpload.ts` | `imkitMediaRoutes` | |
 | `routes/images.ts` | 只换聊天媒体的部分 | 朋友圈等非聊天图片也走这个路由，留在宿主 |
 
+加好友二维码：小桃子的码里是裸 uid（`/qr/c/:uid`），ImKit 的码是宿主签名的串（`GET /me/qr`，红线 R14：群里人人看得到 uid，裸 uid 能解析就等于群成员可以互加）。切换时先用 `addTokenMode: "observe"`，旧码照常能扫、扫到时经 `onAddTokenMissing` 报告；新版 App 都改用签名码之后再换成 `"require"`。
+
 ## 宿主数据
 
 两种做法：在原表上实现 ImKit 的存储接口（不搬数据，建议先这样），或者把数据搬进 `prisma/imkit.prisma` 的 `imkit_*` 表、用 `@imkit/host-node/prisma`。
@@ -76,9 +78,11 @@
 | `ImWebSocketClient.kt` 里的 FCM 上报 | `imkit-push-fcm` | |
 | `ui/ChatSubApp.kt`、`ui/screens/messages/`、`ui/screens/contacts/`、`ui/components/chat/` | `imkit-ui`（`ImChatApp`） | 文案自带三语，不再依赖 `i18n.AppStrings`；运行配置由服务端下发，不再依赖 `data.ImConfig` |
 | `chat/RedPacket*`、`chat/Transfer*`、`chat/MallCardModels.kt`、`chat/GuandanInviteModels.kt` 与对应卡片 | 宿主自定义消息类型（`MessageType`） | 例子：`examples/red-packet/android` |
-| `chat/call/` | 待做（7.3） | |
-| `chat/e2e/` | 待做（7.1，AGPLv3 模块） | |
-| `ui/screens/messages/GroupQrCodeScreen.kt`、`GroupJoin*Screen.kt` | 待做（7.6） | Web 已有 `@imkit/group-join` |
+| `chat/call/`（`ImCallManager.kt`、`ImCallForegroundService.kt`、`CallFloatingBubbleService.kt` 等） | `imkit-call` 的 `CallManager`、`CallSystem`、`CallScreen` | 信令按协议第 16 节；悬浮小窗未移植 |
+| `chat/call/AliRtcCallEngine.kt`、`ArtcCallEngine.kt` | `imkit-call-dingrtc`（实现 `CallMediaEngine`） | 宿主签频道令牌，见 `examples/artc` |
+| `chat/e2e/`、`ui/screens/messages/EncryptedConversationScreen.kt` | `imkit-e2ee`（AGPLv3）的 `E2eeChats`、`EncryptedChatScreen` | libsignal 同为 0.73.0，消息格式互通；本机数据在独立的库里，不从原项目的加密库迁移；App 要开核心库脱糖 |
+| `ui/screens/messages/GroupQrCodeScreen.kt`、`GroupJoin*Screen.kt` | `imkit-group-join`（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`） | 二维码的绘制与扫描仍由 App 提供 |
+| `chat/MediaUtils.kt` 的 `compressVideo` | `imkit-video-compress` 的 `Media3VideoCompressor` | 同为大于 50 MB 才重新编码 |
 
 ## 后台
 

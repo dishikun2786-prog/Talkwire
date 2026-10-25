@@ -43,6 +43,8 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     implementation(project(":imkit-ui"))
     implementation(project(":imkit-storage-room"))
+    // Optional: re-encodes large videos before they are sent.
+    implementation(project(":imkit-video-compress"))
     // The host's own message type, joined through the registry only.
     implementation(project(":example-red-packet"))
     implementation("androidx.activity:activity-compose:1.8.1")

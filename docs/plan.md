@@ -24,7 +24,7 @@ Android 核心 SDK（无 UI）完成，**M1 达成**。四个模块：`imkit-cor
 
 过程中修的客户端问题：`stop()` 后立刻 `start()` 再等待登录，会读到上一轮的“已停止”而立即返回（`start()` 现在同步进入连接中）；带 id 的登录应答在已登录时被吞掉，发它的请求只能超时（现在先按 id 关联）。
 
-未验证与未做：没有真机验证（AndroidKeyStore、通知响铃与来电时序、FCM 收发）；视频压缩与缩略图未做（3.9 只做了缓存与图片压缩）；旧库导入没拿真实用户的旧库验证；本地消息搜索未做。minSdk 用 26（源项目的值），计划 3.1 写的是 27，待定。
+未验证与未做：没有真机验证（AndroidKeyStore、通知响铃与来电时序、FCM 收发）；视频压缩与缩略图当时未做（3.9 只做了缓存与图片压缩；首帧缩略图在 Phase 4 补上，视频压缩后来做成可选模块 `imkit-video-compress`，见 Phase 7 进展）；旧库导入没拿真实用户的旧库验证；本地消息搜索未做。minSdk 用 26（源项目的值），计划 3.1 写的是 27，待定。
 
 ## Phase 4 结果（2026-10-25）
 
@@ -34,7 +34,7 @@ Compose 界面套件 `imkit-ui` 与示例完成，**M2 达成**（真机一台�
 
 真机上发现并修了 5 个问题，都先补了能复现的用例：会话打开期间到达的消息不算已读；“新消息”分隔线标在打开后才到的消息上；换账号或新设备后单聊回不来（协议没有列出单聊的调用，现在按宿主联系人找回，`ImUiConfig.chatsFromContacts`）；录音浮层文字重复、按钮压住计时器；示例的退出按钮盖住麦克风。
 
-未验证与未做：相册、拍摄、文件入口没在真机上点（选择器会显示私人照片）；来电时序、FCM、多设备同账号未在真机验证；视频压缩未做（首帧缩略图已做）；撤回不留提示行。新设备上单聊历史全算未读，M2 之后已修：strict 档服务端存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 据此推进（legacy 档照旧；未上真机复核）。
+未验证与未做：相册、拍摄、文件入口没在真机上点（选择器会显示私人照片）；来电时序、FCM、多设备同账号未在真机验证；视频压缩当时未做（首帧缩略图已做；后来做成可选模块 `imkit-video-compress`，见 Phase 7 进展）；撤回不留提示行。新设备上单聊历史全算未读，M2 之后已修：strict 档服务端存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 据此推进（legacy 档照旧；未上真机复核）。
 
 ## Phase 5 结果（2026-10-25）
 
@@ -64,7 +64,16 @@ Web SDK 完成，在 `web/`（npm 工作区，说明见 `web/README.md`）。5.1
 
 7.4 ARTC 适配示例（Web 端与宿主一侧）：可选包 `@imkit/call-dingrtc` 在 DingRTC Web SDK（npm `dingrtc`，按 3.9.37 核实接口）上实现 `CallMediaEngine`，SDK 只作 peer 依赖、由应用安装后传入；入会途中挂断时，之后建出的麦克风和摄像头立即关掉。`examples/artc` 是宿主一侧：`artcCalls()` 实现 `CallHandlers`，每通电话一个频道，主叫、被叫各签一个 ARTC 3.0 AppToken（签给各自的 IM uid，与适配器的默认入会身份一致），谁能打、怎么计费交给宿主（`canCall`、`onSettle`）。令牌生成从参考部署移植，用阿里云官方示例的两组黄金向量逐字节核对；写读令牌的测试时抓到一处偏移量错误（`at += int32()` 加在旧偏移上）。`tools/depcheck` 新增“适配器”一类：只能依赖核心与它适配的模块，RTC SDK 只能是 peer 依赖。没有接真实的阿里云频道验证音视频。
 
-未做：7.1 E2EE 客户端模块；7.3、7.6 的 Android 端（等另一个会话的 `imkit-core`），7.4 的 Android 可选 AAR 随之再做；iOS 全部（P6，需要 Mac）。
+Android 端（`imkit-core` 改完之后）：
+
+- 7.6 `imkit-group-join`、7.3 `imkit-call`、7.4 `imkit-call-dingrtc`（DingRTC 3.0.0 只在适配器里出现，CI 另查解析后的依赖图）。
+- 7.5 `ai_typing`：本人所在的群收到它时，`typingIn` 里出现助手 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。
+- 3.9 视频压缩：可选模块 `imkit-video-compress`（media3-transformer 1.4.1）。`MediaSender` 对大于 50 MB 或超过上限的视频先交给 `VideoCompressor`，失败或没变小就发原片（放得下时），仍超限才拒绝。
+- 7.1 E2EE 客户端模块 `imkit-e2ee`：单独发布，AGPLv3，libsignal-android 钉死 0.73.0；`tools/depcheck` 检查许可证标记与依赖，CI 查解析后的版本。按协议第 13 节实现单聊与群发送密钥、密钥包发布与补充、安全码、清空与结束会话、本机存储（可按会话加密，清空即粉碎）与 `EncryptedChatScreen`。补齐红线 R17（`R17_IdentityInitIsMutuallyExclusive`）与 C10（`C10_E2EEFailureReasons`）。单测 26 个，加解密用同版本的 JVM 构建真跑；两份 E2EE 黄金对话在 Android 上回放通过。实现时发现：群主题会扇出给全体成员，所以发送密钥改走与每个成员的单聊通道；换钥与“分发加加密”放在同一把锁里，否则成员可能拿到旧钥、消息却用新钥。
+
+都没有真机验证。示例 App 没接 E2EE：libsignal 要求打 APK 的 App 开核心库脱糖，需要新下载 `desugar_jdk_libs`。
+
+未做：iOS 全部（P6，需要 Mac）。
 
 ## Phase 9 进展（2026-10-25）
 
