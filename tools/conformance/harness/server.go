@@ -63,18 +63,23 @@ func (d DB) Password() (string, error) {
 // Reset drops and recreates the public schema so the server starts from an
 // empty database and every id it allocates is reproducible.
 func (d DB) Reset() error {
-	pw, err := d.Password()
-	if err != nil {
-		return err
-	}
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable", d.Host, d.Port, d.Name, d.User, pw)
-	db, err := sql.Open("postgres", dsn)
+	db, err := d.Open()
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 	_, err = db.Exec(`DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;`)
 	return err
+}
+
+// Open connects to the database. The password is never logged.
+func (d DB) Open() (*sql.DB, error) {
+	pw, err := d.Password()
+	if err != nil {
+		return nil, err
+	}
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable", d.Host, d.Port, d.Name, d.User, pw)
+	return sql.Open("postgres", dsn)
 }
 
 // ServerConfig says how to start the server under test.

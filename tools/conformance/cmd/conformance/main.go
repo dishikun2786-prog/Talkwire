@@ -63,6 +63,8 @@ func main() {
 	n := fs.Int("n", 3, "repeat: number of runs")
 	schemaDir := fs.String("schema", "../../contract/protocol/schema", "coverage: protocol schemas")
 	negative := fs.String("negative", "../schema/negative-cases.json", "coverage: steps that send invalid requests on purpose")
+	oracleBin := fs.String("oracle", "oracle/bin/im-oracle.exe", "schema: the reference server")
+	oracleDB := fs.String("oracle-db", "imkit_oracle", "schema: throwaway database for the reference server (must differ from -db)")
 	_ = fs.Parse(os.Args[2:])
 
 	scenarios, err := harness.LoadScenarios(o.scenarios)
@@ -85,6 +87,8 @@ func main() {
 	defer stopHost()
 
 	switch cmd {
+	case "schema":
+		os.Exit(schemaCheck(o, host, *oracleBin, *oracleDB))
 	case "record":
 		must(os.MkdirAll(*out, 0o755))
 		for _, sc := range scenarios {
@@ -237,7 +241,7 @@ func must(err error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: conformance record|check|repeat|coverage [flags]")
+	fmt.Fprintln(os.Stderr, "usage: conformance record|check|repeat|coverage|schema [flags]")
 	os.Exit(2)
 }
 
@@ -322,4 +326,81 @@ func dropHostCalls(tr *harness.Transcript) {
 	for i := range tr.Steps {
 		tr.Steps[i].HostCalls = nil
 	}
+}
+
+// schemaAdditions are the tables the server adds to the reference schema.
+var schemaAdditions = []string{"imkit_schema_migrations"}
+
+// schemaCheck compares the schema the server builds with the reference
+// server's, three ways: on an empty database, after a restart (which must
+// apply nothing), and on a database the reference server already created
+// (the upgrade path of an existing deployment).
+func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int {
+	ref := o.db
+	ref.Name = oracleDB
+	if ref.Name == o.db.Name {
+		fmt.Fprintln(os.Stderr, "schema: -db and -oracle-db must be different databases")
+		return 2
+	}
+	start := func(bin string, db harness.DB, tag string) string {
+		host.Reset()
+		logPath := filepath.Join(o.logDir, "schema-"+tag+".log")
+		srv, err := harness.StartServer(harness.ServerConfig{
+			Bin: bin, Port: o.port, DB: db, Secret: testSecret,
+			HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort), LogPath: logPath,
+		})
+		must(err)
+		srv.Stop()
+		return logPath
+	}
+	catalog := func(db harness.DB) harness.Catalog {
+		c, err := db.Catalog()
+		must(err)
+		return c
+	}
+	failed := 0
+	compare := func(label string, want, got harness.Catalog) {
+		if d := want.Diff(got); len(d) > 0 {
+			failed++
+			fmt.Printf("FAIL     %s: %d difference(s)\n", label, len(d))
+			for _, l := range d {
+				fmt.Println("  " + l)
+			}
+			return
+		}
+		fmt.Printf("PASS     %s (%d lines)\n", label, len(want.Lines))
+	}
+
+	must(ref.Reset())
+	start(oracleBin, ref, "reference")
+	reference := catalog(ref)
+
+	must(o.db.Reset())
+	start(o.bin, o.db, "fresh")
+	fresh := catalog(o.db)
+	compare("empty database: server vs reference", reference, fresh.Without(schemaAdditions...))
+	added := len(fresh.Lines) - len(fresh.Without(schemaAdditions...).Lines)
+	fmt.Printf("         additions: %s (%d lines)\n", strings.Join(schemaAdditions, ", "), added)
+
+	restartLog := start(o.bin, o.db, "restart")
+	compare("restart: unchanged", fresh, catalog(o.db))
+	data, err := os.ReadFile(restartLog)
+	must(err)
+	if n := strings.Count(string(data), "applied migration"); n > 0 {
+		failed++
+		fmt.Printf("FAIL     restart: applied %d migration(s) again\n", n)
+	} else {
+		fmt.Println("PASS     restart: no migration applied again")
+	}
+
+	must(o.db.Reset())
+	start(oracleBin, o.db, "adopt-reference")
+	start(o.bin, o.db, "adopt")
+	compare("existing reference database: adopted vs reference", reference, catalog(o.db).Without(schemaAdditions...))
+
+	fmt.Printf("SUMMARY  %d check(s) failed\n", failed)
+	if failed > 0 {
+		return 1
+	}
+	return 0
 }
