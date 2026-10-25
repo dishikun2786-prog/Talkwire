@@ -99,6 +99,9 @@ func TestR9_DefaultsEqualOriginalValues(t *testing.T) {
 		"env IMKIT_WEBPUSH_TTL_SEC":       "24 * time.Hour",
 		"Config.HostMode":                 `"http"`, // the reference has only the HTTP host
 		"RuntimeConfig.PushText":          "defaultPushText()",
+		// The reference hard-coded the assistant's name and notices; the
+		// defaults are that wording (TestGroupAIDefaultsAreTheReferenceWording).
+		"RuntimeConfig.GroupAI": "defaultGroupAIText()",
 		// The reference allowed one connection per user (each login replaced
 		// the last); 10 devices covers phones, tablets and browsers without
 		// letting one account hold unbounded connections (task 1.12).

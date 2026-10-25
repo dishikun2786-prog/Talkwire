@@ -33,8 +33,15 @@ export interface GroupAiRequest {
   docIds: string[];
 }
 
-/** The group assistant's host side: answer, or ok=false with a business reason. */
-export type GroupAiHandler = (req: GroupAiRequest) => Promise<{ ok: boolean; answer?: string; reason?: string }>;
+/**
+ * The group assistant's host side (the bot hook): the host decides the answer
+ * and what it costs, and the IM server posts it in the group as the
+ * assistant. On a business failure answer ok=false with a reason; `message`,
+ * when given, is posted instead of the IM server's configured notice for the
+ * reason (runtime config `groupAi`). The IM server waits 10 seconds, then
+ * posts the "busy" notice.
+ */
+export type GroupAiHandler = (req: GroupAiRequest) => Promise<{ ok: boolean; answer?: string; reason?: string; message?: string }>;
 
 export interface HostPluginOptions {
   /** The secret shared with the IM server (its JWT_SECRET). */

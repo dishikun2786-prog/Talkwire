@@ -287,6 +287,81 @@ type RuntimeConfig struct {
 
 	// PushText is the wording of offline push notifications (plan 1.9).
 	PushText PushText `json:"pushText"`
+
+	// GroupAI is the group assistant's name and the notices it posts when
+	// it cannot answer (task 7.5).
+	GroupAI GroupAIText `json:"groupAi"`
+}
+
+// GroupAIText is the group assistant's name and its failure notices. An
+// empty or missing entry keeps its default, the reference deployment's
+// Chinese wording, so a host that sends nothing gets exactly the old
+// behavior. "{name}" in a notice is replaced with Name.
+type GroupAIText struct {
+	// Name is what members write after "@" to ask the assistant.
+	Name string `json:"name"`
+	// Notices for the host's failure reasons.
+	InsufficientCredits string `json:"insufficientCredits"`
+	QuotaExceeded       string `json:"quotaExceeded"`
+	NotConfigured       string `json:"notConfigured"`
+	OwnerInactive       string `json:"ownerInactive"`
+	RateLimited         string `json:"rateLimited"`
+	// Busy covers a timeout, a transport failure, and any other reason.
+	Busy string `json:"busy"`
+}
+
+// defaultGroupAIText is the reference deployment's wording.
+func defaultGroupAIText() GroupAIText {
+	return GroupAIText{
+		Name:                "小桃子",
+		InsufficientCredits: "群主积分不足，{name}暂时无法为本群解答问题",
+		QuotaExceeded:       "本群今日的{name}问答次数已用完，请明天再试",
+		NotConfigured:       "群主还没有为本群配置可用的知识库，请联系群主在群设置中勾选",
+		OwnerInactive:       "{name}暂时无法为本群解答问题",
+		RateLimited:         "问得有点快，请稍后再试",
+		Busy:                "{name}正在整理资料，请稍后再问",
+	}
+}
+
+// withDefaults fills every empty entry from def. A name written with its
+// "@" or surrounding spaces is taken without them; one that is nothing but
+// those keeps the default, since "@" alone would make every message a
+// question.
+func (g GroupAIText) withDefaults(def GroupAIText) GroupAIText {
+	g.Name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(g.Name), "@"))
+	keep := func(v *string, d string) {
+		if *v == "" {
+			*v = d
+		}
+	}
+	keep(&g.Name, def.Name)
+	keep(&g.InsufficientCredits, def.InsufficientCredits)
+	keep(&g.QuotaExceeded, def.QuotaExceeded)
+	keep(&g.NotConfigured, def.NotConfigured)
+	keep(&g.OwnerInactive, def.OwnerInactive)
+	keep(&g.RateLimited, def.RateLimited)
+	keep(&g.Busy, def.Busy)
+	return g
+}
+
+// notice is the group message for a failed question; reason is the host's.
+func (g GroupAIText) notice(reason string) string {
+	var template string
+	switch reason {
+	case "insufficient_credits":
+		template = g.InsufficientCredits
+	case "quota_exceeded":
+		template = g.QuotaExceeded
+	case "not_configured":
+		template = g.NotConfigured
+	case "owner_inactive":
+		template = g.OwnerInactive
+	case "rate_limited":
+		template = g.RateLimited
+	default:
+		template = g.Busy
+	}
+	return strings.ReplaceAll(template, "{name}", g.Name)
 }
 
 // PushText is the wording of offline push notifications. An empty or missing
@@ -375,6 +450,7 @@ func defaultRuntimeConfig() RuntimeConfig {
 		CallRingTimeoutSeconds: 45,
 		CallMaxDurationMinutes: 60,
 		PushText:               defaultPushText(),
+		GroupAI:                defaultGroupAIText(),
 	}
 }
 
@@ -452,7 +528,12 @@ func setRuntimeConfig(rc RuntimeConfig) {
 	rc.PublishRateLimitPer10s = fix(rc.PublishRateLimitPer10s, def.PublishRateLimitPer10s)
 	rc.CallRingTimeoutSeconds = fix(rc.CallRingTimeoutSeconds, def.CallRingTimeoutSeconds)
 	rc.CallMaxDurationMinutes = fix(rc.CallMaxDurationMinutes, def.CallMaxDurationMinutes)
-	rc.PushText = rc.PushText.withDefaults(def.PushText)
+	rc.GroupAI = rc.GroupAI.withDefaults(def.GroupAI)
+	// The assistant's name in push titles follows the name it answers to,
+	// unless the host words the push separately.
+	pushDef := def.PushText
+	pushDef.Assistant = rc.GroupAI.Name
+	rc.PushText = rc.PushText.withDefaults(pushDef)
 	// FCMEnabled and ReadReceiptEnabled are deliberately not repaired: false
 	// is a legitimate value an operator sets on purpose, and there is no way
 	// to tell it apart from "field missing" in Go's zero-value JSON decoding.

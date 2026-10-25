@@ -37,7 +37,14 @@ async function app(options: { calls?: CallHandlers; groupAi?: boolean; config?: 
         }
       : undefined,
     calls: options.calls,
-    groupAi: options.groupAi ? async (q) => (q.question.includes("quota") ? { ok: false, reason: "quota_exceeded" } : { ok: true, answer: "42" }) : undefined,
+    groupAi: options.groupAi
+      ? async (q) =>
+          q.question.includes("tomorrow")
+            ? { ok: false, reason: "quota_exceeded", message: "Come back tomorrow" }
+            : q.question.includes("quota")
+              ? { ok: false, reason: "quota_exceeded" }
+              : { ok: true, answer: "42" }
+      : undefined,
   });
   return { app: a, contacts, profiles };
 }
@@ -154,7 +161,7 @@ describe("host plugin", () => {
     conforms("POST", `${BASE}/calls/create`, res);
   });
 
-  test("group assistant: an answer or a business refusal", async () => {
+  test("group assistant: an answer, or a business refusal with or without the host's wording", async () => {
     const { app: a } = await app({ groupAi: true });
     const route = `${BASE}/group-ai-qa`;
     const q = { groupTopic: "grp_x", askerImUid: "uid_aaaaaaaaaaa", question: "why?", groupOwnerAppUserId: "owner", kbIds: [], docIds: [] };
@@ -163,6 +170,10 @@ describe("host plugin", () => {
     conforms("POST", route, res);
     res = await post(a, route, { ...q, question: "over quota" });
     assert.deepEqual(res.json(), { ok: false, reason: "quota_exceeded" });
+    conforms("POST", route, res);
+    // A refusal in the host's own words.
+    res = await post(a, route, { ...q, question: "again tomorrow?" });
+    assert.deepEqual(res.json(), { ok: false, reason: "quota_exceeded", message: "Come back tomorrow" });
     conforms("POST", route, res);
     const { app: without } = await app();
     res = await post(without, route, q);

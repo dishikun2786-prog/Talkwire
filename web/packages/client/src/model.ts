@@ -57,6 +57,8 @@ export const isDeterministicFailure = (f: SendFailure): boolean => f.code >= 400
 
 export const SENDER_USER = "user";
 export const SENDER_AI = "ai_assistant";
+/** The reserved `from` of the group assistant's messages (section 9.2). */
+export const AI_ASSISTANT_UID = "assistant_xiaotaozi";
 
 export interface ChatMessage {
   conversation: ConversationId;

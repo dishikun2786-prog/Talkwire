@@ -1,4 +1,4 @@
-import type { ChatEngine, ConnectionState, ConversationId, ConversationSummary, MediaSender, PresenceState, ReadonlySignal } from "@imkit/client";
+import { AI_ASSISTANT_UID, type ChatEngine, type ConnectionState, type ConversationId, type ConversationSummary, type MediaSender, type PresenceState, type ReadonlySignal } from "@imkit/client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MessageTypeRegistry } from "./registry.js";
 import { en, stringsFor, type ImStrings } from "./strings.js";
@@ -48,10 +48,13 @@ export interface ImKitProviderProps {
 }
 
 export function ImKitProvider({ engine, host, locale, strings, types, children }: ImKitProviderProps) {
-  const profiles = useMemo(() => new ProfileCache(host), [host]);
+  const resolved = useMemo(() => ({ ...(locale ? stringsFor(locale) : en), ...strings }), [locale, strings]);
+  // Until the host names someone, the group assistant goes by strings.assistant.
+  const assistant = useLatest(resolved.assistant);
+  const profiles = useMemo(() => new ProfileCache(host, (uid) => (uid === AI_ASSISTANT_UID ? assistant.current : shortUid(uid))), [host, assistant]);
   const value = useMemo<ImKitValue>(
-    () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: { ...(locale ? stringsFor(locale) : en), ...strings } }),
-    [engine, host, profiles, types, locale, strings],
+    () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: resolved }),
+    [engine, host, profiles, types, resolved],
   );
   return <ImKitContext.Provider value={value}>{children}</ImKitContext.Provider>;
 }
@@ -120,7 +123,11 @@ export class ProfileCache {
   private readonly asked = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly host: ImUiHost) {}
+  /** fallbackName names someone the host has not named (yet). */
+  constructor(
+    private readonly host: ImUiHost,
+    private readonly fallbackName: (uid: string) => string = shortUid,
+  ) {}
 
   get(uid: string): ImProfile {
     const p = this.known.get(uid);
@@ -130,7 +137,7 @@ export class ProfileCache {
       this.queued.add(uid);
       this.timer ??= setTimeout(() => this.flush(), 0);
     }
-    return { uid, name: shortUid(uid) };
+    return { uid, name: this.fallbackName(uid) };
   }
 
   /** Puts profiles known from elsewhere (the contact list) into the cache. */

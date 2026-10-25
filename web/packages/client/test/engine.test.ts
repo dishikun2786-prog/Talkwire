@@ -1,6 +1,6 @@
 import { p2pTopic, uidOf } from "@imkit/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { ChatEngine, ImClient, MemoryChatStore, PresenceTracker, recalledWhileAway, resumeSeq } from "../src/index.js";
+import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, recalledWhileAway, resumeSeq, type EngineConfig } from "../src/index.js";
 import { FakeServer, type Frame } from "./fake-server.js";
 import { until } from "./replay.js";
 
@@ -11,7 +11,7 @@ afterEach(() => {
   for (const e of engines.splice(0)) e.close();
 });
 
-function device(server: FakeServer, appUserId: string, opts: { publishTimeoutMs?: number; autoSync?: boolean } = {}) {
+function device(server: FakeServer, appUserId: string, opts: { publishTimeoutMs?: number; autoSync?: boolean; clock?: () => number } = {}) {
   const client = new ImClient({
     endpoints: ["ws://fake/ws/im"],
     tokenProvider: () => "tok:" + appUserId,
@@ -23,7 +23,9 @@ function device(server: FakeServer, appUserId: string, opts: { publishTimeoutMs?
     watchNetwork: false,
   });
   const store = new MemoryChatStore();
-  const engine = new ChatEngine(client, store, { appUserId, autoSync: opts.autoSync ?? false, pageSize: 10 });
+  const config: EngineConfig = { appUserId, autoSync: opts.autoSync ?? false, pageSize: 10 };
+  if (opts.clock) config.clock = opts.clock;
+  const engine = new ChatEngine(client, store, config);
   clients.push(client);
   engines.push(engine);
   return { client, store, engine };
@@ -187,6 +189,38 @@ describe("engine", () => {
     expect(removed).toEqual(["grp_gone00000001"]);
     expect(engine.conversation("grp_gone00000001")?.left).toBe(true);
     expect(engine.conversation("grp_keep00000001")?.title).toBe("keep");
+  });
+
+  it("shows the group assistant typing until its reply (section 15.2)", async () => {
+    const server = new FakeServer();
+    const carol = uidOf("carol");
+    const group = "grp_askai0000001";
+    const now = 1_000_000;
+    const { client, engine } = device(server, "alice", { clock: () => now });
+    await engine.open();
+    await engine.ensureConversation(group, "ask");
+    client.start();
+    await client.awaitConnected(5_000);
+    const conn = server.live[0]!;
+    conn.push({ action: "info", topic: group, from: carol, what: "kp" });
+    // A group this device does not know is not invented by a typing note.
+    conn.push({ type: "ai_typing", topic: "grp_unknown00001" });
+    conn.push({ type: "ai_typing", topic: group });
+    await until("the assistant types", () => engine.typingIn(group).includes(AI_ASSISTANT_UID));
+    expect(engine.typingIn(group).sort()).toEqual([AI_ASSISTANT_UID, carol].sort());
+    expect(engine.conversation("grp_unknown00001")).toBeUndefined();
+    // It outlasts the server's 10-second wait for the host, then ends on its own.
+    expect(engine.typingIn(group, now + 14_000)).toContain(AI_ASSISTANT_UID);
+    expect(engine.typingIn(group, now + 15_001)).not.toContain(AI_ASSISTANT_UID);
+
+    // Its reply ends it; Carol is still typing.
+    conn.push({ action: "data", topic: group, from: AI_ASSISTANT_UID, senderKind: "ai_assistant", seq: 1, ts: 1, content: "42", contentType: "text" });
+    await until("the reply ends it", () => !engine.typingIn(group).includes(AI_ASSISTANT_UID));
+    expect(engine.typingIn(group)).toEqual([carol]);
+    // So does a message from anyone else who was typing.
+    conn.push({ action: "data", topic: group, from: carol, seq: 2, ts: 2, content: "thanks", contentType: "text" });
+    await until("Carol's message ends hers", () => engine.typingIn(group).length === 0);
+    expect(engine.typing.value.has(group)).toBe(false);
   });
 
   it("lists a group it created under its name at once", async () => {

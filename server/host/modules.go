@@ -45,8 +45,12 @@ type UpgradeCallSessionResult struct {
 }
 
 // GroupAI answers questions asked in a group by mentioning the assistant.
+// The host decides what the answer is and what it costs; the IM server posts
+// it in the group as the assistant.
 type GroupAI interface {
-	// AskGroupAiQa blocks until the host answers. reason is set when ok is
-	// false; a transport failure is reported as "timeout".
+	// AskGroupAiQa blocks until the host answers. When ok is false, reason
+	// says why (a transport failure is reported as "timeout") and answer may
+	// carry the host's own wording for the group; an empty answer posts the
+	// configured notice for reason.
 	AskGroupAiQa(groupTopic, askerImUID, question, groupOwnerAppUserID string, kbIds, docIds []string) (answer string, ok bool, reason string)
 }

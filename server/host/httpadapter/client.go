@@ -192,7 +192,9 @@ func (c *Client) GetProfile(viewerAppUserID, senderAppUserID string) (string, st
 // {ok:false,reason:...}); a non-2xx status or a transport-level failure
 // (including our own client-side timeout) is a genuine technical fault and is
 // reported back as reason "timeout" so the caller can show one consistent
-// "小桃子正在整理资料，请稍后再问" fallback regardless of the exact cause.
+// "小桃子正在整理资料，请稍后再问" fallback regardless of the exact cause. A
+// business failure may carry the host's own wording in "message"; it comes
+// back as answer, for the caller to post instead of its default notice.
 //
 // Callers must run this from an independent goroutine (see
 // Hub.dispatchAiQaTask) — never from the hot message-broadcast path.
@@ -238,12 +240,14 @@ func (c *Client) AskGroupAiQa(groupTopic, askerImUID, question, groupOwnerAppUse
 		Ok     bool   `json:"ok"`
 		Answer string `json:"answer"`
 		Reason string `json:"reason"`
+		// Message is the host's own wording for a failure (optional).
+		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return "", false, "internal_error"
 	}
 	if !body.Ok {
-		return "", false, body.Reason
+		return body.Message, false, body.Reason
 	}
 	return body.Answer, true, ""
 }

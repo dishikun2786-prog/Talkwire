@@ -38,6 +38,8 @@ export interface ImStrings {
   readByCount: string;
   typing: string;
   typingNamed: string;
+  /** The group assistant's name when the host does not name it. */
+  assistant: string;
   online: string;
   lastSeenMinutes: string;
   lastSeenHours: string;
@@ -100,6 +102,7 @@ export const en: ImStrings = {
   readByCount: "Read by {0}",
   typing: "Typing…",
   typingNamed: "{0} is typing…",
+  assistant: "Assistant",
   online: "Online",
   lastSeenMinutes: "Last seen {0} min ago",
   lastSeenHours: "Last seen {0} h ago",
@@ -162,6 +165,7 @@ export const zh: ImStrings = {
   readByCount: "{0} 人已读",
   typing: "对方正在输入…",
   typingNamed: "{0} 正在输入…",
+  assistant: "助手",
   online: "在线",
   lastSeenMinutes: "{0} 分钟前在线",
   lastSeenHours: "{0} 小时前在线",
@@ -224,6 +228,7 @@ export const vi: ImStrings = {
   readByCount: "{0} người đã xem",
   typing: "Đang soạn tin…",
   typingNamed: "{0} đang soạn tin…",
+  assistant: "Trợ lý",
   online: "Đang hoạt động",
   lastSeenMinutes: "Hoạt động {0} phút trước",
   lastSeenHours: "Hoạt động {0} giờ trước",

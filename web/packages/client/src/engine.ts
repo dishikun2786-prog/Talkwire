@@ -27,6 +27,7 @@ import { conversationOf, isGroupTopic, isP2pTopic, uidOf } from "@imkit/protocol
 import { RequestRefused, type HistoryPage, type ImClient, type PublishFields, type PublishOutcome } from "./client.js";
 import type { ImEvent } from "./connection.js";
 import {
+  AI_ASSISTANT_UID,
   isPending,
   messageKey,
   newConversation,
@@ -60,6 +61,12 @@ export interface EngineConfig {
   /** A message still "sending" after this long with nothing in flight becomes failed. */
   staleSendingMs?: number;
   typingTtlMs?: number;
+  /**
+   * How long "the assistant is typing" lasts in a group without its reply.
+   * The server waits up to 10 seconds for the host's answer, then posts a
+   * notice, so the reply normally ends it first.
+   */
+  aiTypingTtlMs?: number;
   presenceTtlMs?: number;
   /** `contentType` of plain text. The reference app uses `text`. */
   textContentType?: string;
@@ -157,6 +164,7 @@ export class ChatEngine {
       maxAutoRetries: 5,
       staleSendingMs: 5 * 60_000,
       typingTtlMs: 10_000,
+      aiTypingTtlMs: 15_000,
       presenceTtlMs: 180_000,
       textContentType: "text",
       windowSize: 50,
@@ -657,10 +665,7 @@ export class ChatEngine {
       case "typing": {
         const conv = this.place(ev.topic, ev.from);
         if (!conv || ev.from === this.me) return;
-        const next = new Map(this._typing.value);
-        next.set(conv, new Map(next.get(conv) ?? []).set(ev.from, this.config.clock() + this.config.typingTtlMs));
-        this._typing.set(next);
-        this.scheduleTypingExpiry();
+        this.noteTyping(conv, ev.from, this.config.typingTtlMs);
         return;
       }
       case "read":
@@ -683,9 +688,38 @@ export class ChatEngine {
       case "contactSync":
         this.events.emit({ kind: "contactChanged", what: ev.what, peerUid: ev.from });
         return;
+      case "module": {
+        // The group assistant was asked and is answering (section 15): it
+        // types under the uid its reply comes from.
+        const topic = ev.frame.topic;
+        if (ev.frame.type === "ai_typing" && typeof topic === "string" && isGroupTopic(topic) && this.convs.has(topic)) {
+          this.noteTyping(topic, AI_ASSISTANT_UID, this.config.aiTypingTtlMs);
+        }
+        return;
+      }
       default:
         return;
     }
+  }
+
+  private noteTyping(conv: ConversationId, uid: string, ttlMs: number): void {
+    const next = new Map(this._typing.value);
+    next.set(conv, new Map(next.get(conv) ?? []).set(uid, this.config.clock() + ttlMs));
+    this._typing.set(next);
+    this.scheduleTypingExpiry();
+  }
+
+  /** A message from someone ends their typing note in that conversation. */
+  private endTyping(conv: ConversationId, uid: string): void {
+    const m = this._typing.value.get(conv);
+    if (!m?.has(uid)) return;
+    const next = new Map(this._typing.value);
+    const rest = new Map(m);
+    rest.delete(uid);
+    if (rest.size) next.set(conv, rest);
+    else next.delete(conv);
+    this._typing.set(next);
+    this.scheduleTypingExpiry();
   }
 
   private async onConnected(uid: string): Promise<void> {
@@ -709,6 +743,7 @@ export class ChatEngine {
     }
     const isNew = await this.storeWire(conv, w, true);
     await this.refreshSummary(conv);
+    if (w.from !== this.me) this.endTyping(conv, w.from);
     if (isNew && w.from !== this.me) {
       const message = (await this.store.message(conv, w.seq))!;
       const ev: ChatEvent = { kind: "messageArrived", message };

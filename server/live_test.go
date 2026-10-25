@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"example.com/imkit/server/host"
 	"example.com/imkit/server/host/hmacjwt"
 	"example.com/imkit/server/host/standalone"
 	"github.com/golang-jwt/jwt/v5"
@@ -52,6 +53,14 @@ type liveOptions struct {
 	connCap int
 	// modules are the optional modules to install, with their tables.
 	modules []string
+	// groupAI, when set, answers the group AI module's questions.
+	groupAI host.GroupAI
+}
+
+// liveAIHost is the standalone host plus a group AI.
+type liveAIHost struct {
+	*standalone.Host
+	host.GroupAI
 }
 
 func newLiveServer(t *testing.T, opts liveOptions) *liveServer {
@@ -61,8 +70,12 @@ func newLiveServer(t *testing.T, opts liveOptions) *liveServer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewHub(store, hmacjwt.New(liveSecret), nil, hostImpl)
-	mods, err := installModules(h, hostImpl, opts.modules, true)
+	var api hostAPI = hostImpl
+	if opts.groupAI != nil {
+		api = liveAIHost{hostImpl, opts.groupAI}
+	}
+	h := NewHub(store, hmacjwt.New(liveSecret), nil, api)
+	mods, err := installModules(h, api, opts.modules, true)
 	if err != nil {
 		t.Fatal(err)
 	}

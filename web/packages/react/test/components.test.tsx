@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore, type ChatMessage } from "@imkit/client";
+import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, type ChatMessage } from "@imkit/client";
 import { uidOf } from "@imkit/protocol";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -122,6 +122,38 @@ describe("list and chat", () => {
     await until("sent", () => server.sent("pub").some((f) => f.content === "收到"));
     await until("stored", () => engine.messages(bob).value.some((m) => m.content === "收到" && m.seq === 2));
     expect(chat.getByText("收到")).toBeTruthy();
+    client.stop();
+    engine.close();
+  });
+
+  it("names the group assistant while it types and in its reply", async () => {
+    const server = new FakeServer();
+    const group = "grp_askai0000001";
+    // A host that names nobody: the assistant goes by strings.assistant.
+    const anonymous: ImUiHost = { profiles: async () => [] };
+    const client = new ImClient({ endpoints: ["ws://fake"], tokenProvider: () => "tok:alice", transport: server, watchNetwork: false });
+    const engine = new ChatEngine(client, new MemoryChatStore(), { appUserId: "alice", autoSync: false });
+    await engine.open();
+    await engine.ensureConversation(group, "ask");
+    client.start();
+    await client.awaitConnected(5_000);
+    const chat = render(
+      <ImKitProvider engine={engine} host={anonymous} locale="zh">
+        <ChatScreen conversation={group} />
+      </ImKitProvider>,
+    );
+    await act(async () => {
+      server.live[0]!.push({ type: "ai_typing", topic: group });
+      await until("typing", () => engine.typingIn(group).length === 1);
+    });
+    await until("subtitle", () => !!chat.queryByText("助手 正在输入…"));
+    await act(async () => {
+      server.live[0]!.push({ action: "data", topic: group, from: AI_ASSISTANT_UID, senderKind: "ai_assistant", seq: 1, ts: Date.now(), content: "42", contentType: "text" });
+      await until("reply", () => engine.typingIn(group).length === 0);
+    });
+    await until("reply shown", () => !!chat.queryByText("42"));
+    expect(chat.queryByText("助手 正在输入…"), "the reply ends the typing note").toBeNull();
+    expect(chat.getByText("助手"), "the reply is signed with the assistant's name").toBeTruthy();
     client.stop();
     engine.close();
   });

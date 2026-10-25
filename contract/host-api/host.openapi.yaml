@@ -319,9 +319,15 @@ paths:
       operationId: askGroupAi
       summary: Answer a question asked in a group by mentioning the assistant
       description: |
+        The bot hook: the host decides the answer and what it costs, and the
+        IM server posts it in the group as the assistant. Members ask by
+        writing "@" and the assistant's name (runtime config groupAi.name,
+        default 小桃子).
+
         Business outcomes answer 200 with ok=false and a reason (for example
-        quota_exceeded); the IM server posts a fallback message. Any other
-        status is a technical fault.
+        quota_exceeded); the IM server posts the host's message if it gave
+        one, else the configured notice for the reason (runtime config
+        groupAi). Any other status is a technical fault.
       x-imkit:
         requirement: module:groupai
         timeoutSeconds: 10
@@ -351,7 +357,15 @@ paths:
                 properties:
                   ok: { type: boolean }
                   answer: { type: string }
-                  reason: { type: string }
+                  reason:
+                    type: string
+                    description: |
+                      insufficient_credits, quota_exceeded, not_configured,
+                      owner_inactive, rate_limited; anything else gets the
+                      "busy" notice
+                  message:
+                    type: string
+                    description: the host's own wording for a failure, posted instead of the configured notice; ignored when ok
         "401": { $ref: "#/components/responses/Unauthorized" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/ModuleNotServed" }
@@ -442,6 +456,22 @@ components:
         callRingTimeoutSeconds: { type: integer, description: "ring time before no_answer (default 45)" }
         callMaxDurationMinutes: { type: integer, description: "read but not enforced by the IM server (default 60)" }
         pushText: { $ref: "#/components/schemas/PushText" }
+        groupAi: { $ref: "#/components/schemas/GroupAiText" }
+    GroupAiText:
+      type: object
+      description: |
+        The group assistant's name and the notices it posts when it cannot
+        answer; an empty or missing entry keeps the default (the reference
+        deployment's Chinese wording). "{name}" in a notice is replaced with
+        the name.
+      properties:
+        name: { type: string, description: 'what members write after "@" to ask the assistant (default 小桃子); also the default for pushText.assistant' }
+        insufficientCredits: { type: string }
+        quotaExceeded: { type: string }
+        notConfigured: { type: string }
+        ownerInactive: { type: string }
+        rateLimited: { type: string }
+        busy: { type: string, description: a timeout, a transport failure, or any other reason }
     PushText:
       type: object
       description: Wording of offline push notifications; an empty or missing entry keeps the default.
@@ -451,7 +481,7 @@ components:
         audio: { type: string }
         file: { type: string }
         sender: { type: string, description: name used when the host cannot name the sender }
-        assistant: { type: string, description: the group assistant's name }
+        assistant: { type: string, description: "the group assistant's name in push titles (default: groupAi.name)" }
         joinRequest: { type: string, description: '"{group}" is replaced with the group name' }
         joinApproved: { type: string }
         joinRejected: { type: string }

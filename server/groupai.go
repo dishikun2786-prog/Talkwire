@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -164,24 +165,46 @@ func (h *Hub) handleUpdateGroupAiSettings(client *Client, msg *ClientMessage) {
 }
 
 // ---------------------------------------------------------------------------
-// @小桃子 mention detection + AI QA dispatch
+// Assistant mention detection + AI QA dispatch
 // ---------------------------------------------------------------------------
 
-// aiMentionRegex matches "@小桃子" followed by ASCII/CJK whitespace, common
-// CJK/ASCII punctuation, another "@" (multi-mention with no separator), or
-// end of string — not just \s, which would miss the two most common real
-// inputs: "@小桃子，帮我查一下"（全角逗号续写）and "@小桃子@张三"（紧邻多重艾特）.
-// It still correctly rejects "@小桃子的忠实粉丝群" (not in the boundary set).
-// See plan §9.2.3.
-var aiMentionRegex = regexp.MustCompile(`@小桃子(?:[\s\x{3000}，。！？：；、,.!?:;@]|$)`)
+// aiMentionBoundary is what may follow "@" and the assistant's name (by
+// default "@小桃子") for it to count as a mention: ASCII/CJK whitespace,
+// common CJK/ASCII punctuation, another "@" (multi-mention with no
+// separator), or end of string — not just \s, which would miss the two most
+// common real inputs: "@小桃子，帮我查一下"（全角逗号续写）and "@小桃子@张三"
+// （紧邻多重艾特）. It still correctly rejects "@小桃子的忠实粉丝群" (not in the
+// boundary set). See plan §9.2.3.
+const aiMentionBoundary = `(?:[\s\x{3000}，。！？：；、,.!?:;@]|$)`
 
+// aiMention is the compiled pattern for one assistant name. The name comes
+// from the runtime config and almost never changes, so the pattern is
+// rebuilt only when it does.
+type aiMention struct {
+	name string
+	re   *regexp.Regexp
+}
+
+var aiMentionCache atomic.Pointer[aiMention]
+
+func aiMentionFor(name string) *regexp.Regexp {
+	if m := aiMentionCache.Load(); m != nil && m.name == name {
+		return m.re
+	}
+	m := &aiMention{name: name, re: regexp.MustCompile("@" + regexp.QuoteMeta(name) + aiMentionBoundary)}
+	aiMentionCache.Store(m)
+	return m.re
+}
+
+// hasValidAiMention reports whether content asks the assistant, under the
+// name the runtime config gives it.
 func hasValidAiMention(content string) bool {
-	return aiMentionRegex.MatchString(content)
+	return aiMentionFor(CurrentRuntimeConfig().GroupAI.Name).MatchString(content)
 }
 
 // aiCooldownMap tracks, per group topic, the last time an AI QA task was
 // dispatched. tryAcquireAiCooldown uses LoadOrStore/CompareAndSwap instead of
-// a Load-then-Store pair so two @小桃子 messages arriving in the same group
+// a Load-then-Store pair so two mentions arriving in the same group
 // within the same instant can't both observe "not in cooldown" and both fire
 // (plan §9.2.2 B3).
 var aiCooldownMap sync.Map // topic -> time.Time
@@ -207,7 +230,7 @@ func tryAcquireAiCooldown(topic string, cooldownSec int) bool {
 	}
 }
 
-// dispatchAiQaTask handles one @小桃子 mention end to end: settings lookup,
+// dispatchAiQaTask handles one assistant mention end to end: settings lookup,
 // per-group cooldown, a synchronous HTTP call to roubao's internal endpoint
 // (which does its own per-group-owner credit/quota/knowledge-scope checks —
 // im-go deliberately does not duplicate the daily-quota check here, see plan
@@ -222,7 +245,7 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 	// started with a bare `go` — is to crash the entire process, not just
 	// this goroutine. Unlike the rest of this file's request-handling code,
 	// this path is now reachable by any group member simply sending a
-	// message containing "@小桃子", and it does real HTTP/DB work
+	// message mentioning the assistant, and it does real HTTP/DB work
 	// (GetGroupAiSettingsCached, AskGroupAiQa, deliverMessage) plus type
 	// assertions inside those calls — any one of those failing in an
 	// unexpected way must not take down every other user's connection.
@@ -247,7 +270,7 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 
 	groupInfo, err := h.store.GetGroupInfo(topic)
 	if err != nil || groupInfo == nil || groupInfo.Owner == "" {
-		h.deliverAiFallback(topic, aiQaFailureMessage(""))
+		h.deliverAiFallback(topic, aiQaFailureMessage(CurrentRuntimeConfig().GroupAI, "", ""))
 		return
 	}
 	// Always resolve the owner fresh from im-go's own store rather than
@@ -255,13 +278,15 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 	// owns this group right now" (plan §8.2 table, last row).
 	ownerAppUserID, err := h.resolveAppUserID(groupInfo.Owner)
 	if err != nil {
-		h.deliverAiFallback(topic, aiQaFailureMessage(""))
+		h.deliverAiFallback(topic, aiQaFailureMessage(CurrentRuntimeConfig().GroupAI, "", ""))
 		return
 	}
 
+	// The host decides the answer and what it costs. On failure its answer,
+	// if it gave one, is its own wording for the group.
 	answer, ok, reason := h.aiHost.AskGroupAiQa(topic, askerUID, question, ownerAppUserID, settings.AiKbIds, settings.AiDocIds)
 	if !ok {
-		h.deliverAiFallback(topic, aiQaFailureMessage(reason))
+		h.deliverAiFallback(topic, aiQaFailureMessage(CurrentRuntimeConfig().GroupAI, answer, reason))
 		return
 	}
 	if _, _, _, err := h.deliverMessage(topic, AiAssistantUID, SenderKindAiAssistant, answer, MsgTypeText, "", "", nil, 0, nil, "", nil); err != nil {
@@ -275,27 +300,18 @@ func (h *Hub) deliverAiFallback(topic, text string) {
 	}
 }
 
-// aiQaFailureMessage turns roubao's internal failure `reason` (per the
-// protocol contract's enum) into a friendly group-chat message. Unknown/empty
-// reasons — including transport failures, which AskGroupAiQa itself already
-// normalizes to "timeout" — fall back to the same "还在整理资料" wording used for
-// an actual timeout, since from the asker's point of view both look
-// identical (no answer showed up in time).
-func aiQaFailureMessage(reason string) string {
-	switch reason {
-	case "insufficient_credits":
-		return "群主积分不足，小桃子暂时无法为本群解答问题"
-	case "quota_exceeded":
-		return "本群今日的小桃子问答次数已用完，请明天再试"
-	case "not_configured":
-		return "群主还没有为本群配置可用的知识库，请联系群主在群设置中勾选"
-	case "owner_inactive":
-		return "小桃子暂时无法为本群解答问题"
-	case "rate_limited":
-		return "问得有点快，请稍后再试"
-	default:
-		return "小桃子正在整理资料，请稍后再问"
+// aiQaFailureMessage is the group message for a question the host did not
+// answer. hostMessage, when the host gave one, is its own wording and wins;
+// otherwise it is the configured notice for the host's failure `reason`.
+// Unknown/empty reasons — including transport failures, which AskGroupAiQa
+// itself already normalizes to "timeout" — get the same "还在整理资料"
+// wording as an actual timeout, since from the asker's point of view both
+// look identical (no answer showed up in time).
+func aiQaFailureMessage(text GroupAIText, hostMessage, reason string) string {
+	if hostMessage != "" {
+		return hostMessage
 	}
+	return text.notice(reason)
 }
 
 // groupAiModule answers questions asked in a group by mentioning the
@@ -313,7 +329,7 @@ func (groupAiModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
 }
 
 func (groupAiModule) afterAck(h *Hub, c *Client, msg *ClientMessage, topic string) {
-	// @小桃子 group AI QA detection. This is the ONLY place that ever calls
+	// Assistant mention detection (by default "@小桃子"). This is the ONLY place that ever calls
 	// dispatchAiQaTask from message content — deliverMessage itself (used by
 	// forwards and by the AI's own replies) never scans content for mentions.
 	// That's a structural isolation, not a runtime senderKind check: an AI
