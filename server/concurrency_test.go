@@ -39,6 +39,18 @@ func nextFrame(t *testing.T, c *Client) frame {
 	}
 }
 
+// nextReply takes the next frame a side client was sent in reply to request
+// id, skipping others: B's presence, broadcast by the presence worker in its
+// own time, can reach a publisher subscribed to the shared topic first.
+func nextReply(t *testing.T, c *Client, id string) frame {
+	t.Helper()
+	for {
+		if f := nextFrame(t, c); f.str("id") == id {
+			return f
+		}
+	}
+}
+
 // R1: the same clientMsgId published from several connections at once is
 // stored once and broadcast once, and every publisher gets the same seq.
 func TestR1_ConcurrentDuplicatePublish(t *testing.T) {
@@ -79,7 +91,7 @@ func TestR1_ConcurrentDuplicatePublish(t *testing.T) {
 
 		var seq int64
 		for i, c := range clients {
-			ack := nextFrame(t, c)
+			ack := nextReply(t, c, "p")
 			if ack.num("code") != CodeOK {
 				t.Fatalf("round %d: publisher %d: %v", r, i, ack)
 			}
@@ -440,6 +452,179 @@ func TestR10_SendQueueFullDisconnects(t *testing.T) {
 	if fast.closed() {
 		t.Fatal("the fast connection was closed")
 	}
+}
+
+// R10: an E2EE envelope that meets a full send queue goes to the offline
+// queue instead of closing the connection. Closing is how an ordinary push
+// recovers (the reconnect pulls the missing seqs), but an envelope has no
+// seq, so nothing would ever pull it back. The queued envelopes are replayed
+// in order at the recipient's next login, after the ones that did fit.
+func TestR10_E2EEQueueFullFallsBackToOffline(t *testing.T) {
+	ls := newLiveServer(t, liveOptions{modules: []string{"e2ee"}})
+	stalled := ls.connectAt("/ws-stalled", "r10e-bob")
+	// The connection is registered before the login reply is sent, and the
+	// reply would meet a full queue and close it. Frames are handled in
+	// order, so the reply to the next request means the login reply is out.
+	// Taking the frames off empties the queue for the test. (The login's E2EE
+	// replay runs on its own goroutine and may come later; TestE2EEReplay...
+	// covers it meeting a full queue.)
+	stalled.send(frame{"action": "r10-after-login", "id": "after-login"})
+	bob, err := ls.store.EnsureUser("r10e-bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alice, err := ls.store.EnsureUser("r10e-alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var slow *Client
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		if slow == nil {
+			slow = ls.hub.clientOf(bob, "")
+		}
+		if slow != nil && hasFrameWithID(drain(slow), "after-login") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the stalled connection never finished logging in")
+		}
+	}
+
+	// More than the whole queue holds, so at least the tail cannot fit.
+	topic := ls.store.GetP2PTopic(alice, bob)
+	total := cap(slow.send) + 40
+	for i := 0; i < total; i++ {
+		ls.hub.relayE2eEnvelope(topic, alice, bob, "msg", fmt.Sprintf("c%d", i), 1)
+	}
+	if len(slow.send) != cap(slow.send) {
+		t.Fatalf("the queue holds %d of %d frames; the test never filled it", len(slow.send), cap(slow.send))
+	}
+	// An ordinary push would close the connection now (on another
+	// goroutine), so give that time to happen before deciding it did not.
+	if stalled.waitClosed(500 * time.Millisecond) {
+		t.Fatal("a full queue closed the connection for E2EE envelopes")
+	}
+	if ls.hub.clientOf(bob, "") != slow {
+		t.Fatal("the stalled connection is no longer registered")
+	}
+
+	isDeliver := func(f frame) bool { return f.str("action") == ActionE2eDeliver }
+	var got []string
+	for _, f := range drain(slow) {
+		if isDeliver(f) {
+			got = append(got, f.str("content"))
+		}
+	}
+	fitted := len(got)
+	if fitted == 0 || fitted == total {
+		t.Fatalf("%d of %d envelopes went onto the live connection", fitted, total)
+	}
+
+	// Bob comes back on a connection that reads; the login replays the rest.
+	again := ls.connect("r10e-bob")
+	for len(got) < total {
+		f, ok := again.waitFor(isDeliver, 5*time.Second)
+		if !ok {
+			t.Fatalf("got %d of %d envelopes; %d were on the live connection", len(got), total, fitted)
+		}
+		got = append(got, f.str("content"))
+	}
+	for i, c := range got {
+		if c != fmt.Sprintf("c%d", i) {
+			t.Fatalf("envelope %d is %q (%d were on the live connection)", i, c, fitted)
+		}
+	}
+	if extra, ok := again.waitFor(isDeliver, 300*time.Millisecond); ok {
+		t.Fatalf("an envelope came twice: %q", extra.str("content"))
+	}
+}
+
+// F65: the login replay of queued envelopes meets a send queue too small for
+// the backlog. What fits is sent; the rest goes back to the queue as it was,
+// the connection stays open, and the next login replays the rest in order.
+func TestE2EEReplayKeepsWhatDoesNotFit(t *testing.T) {
+	ls := newLiveServer(t, liveOptions{modules: []string{"e2ee"}})
+	bob, err := ls.store.EnsureUser("f65-bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alice, err := ls.store.EnsureUser("f65-alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const total = 300 // more than a send queue holds, under the 500 a login takes
+	topic := ls.store.GetP2PTopic(alice, bob)
+	for i := 0; i < total; i++ {
+		if err := ls.store.EnqueueE2eEnvelope(topic, bob, alice, "msg", fmt.Sprintf("c%d", i), 1, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+	}
+	queued := func() int {
+		var n int
+		if err := ls.store.db.QueryRow(`SELECT count(*) FROM im_e2e_envelopes WHERE to_uid = $1`, bob).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	stalled := ls.connectAt("/ws-stalled", "f65-bob")
+	var slow *Client
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		if slow == nil {
+			slow = ls.hub.clientOf(bob, "")
+		}
+		// The replay pops all 300 at once; the rest is back once the count
+		// is above zero again with the queue full.
+		if slow != nil && len(slow.send) == cap(slow.send) && queued() > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the replay never settled: %d queued", queued())
+		}
+	}
+	if stalled.waitClosed(300 * time.Millisecond) {
+		t.Fatal("the replay closed the connection")
+	}
+	if ls.hub.clientOf(bob, "") != slow {
+		t.Fatal("the stalled connection is no longer registered")
+	}
+
+	isDeliver := func(f frame) bool { return f.str("action") == ActionE2eDeliver }
+	var got []string
+	for _, f := range drain(slow) {
+		if isDeliver(f) {
+			got = append(got, f.str("content"))
+		}
+	}
+	fitted := len(got)
+	if fitted == 0 || fitted+queued() != total {
+		t.Fatalf("%d envelopes sent and %d back in the queue, of %d", fitted, queued(), total)
+	}
+	again := ls.connect("f65-bob")
+	for len(got) < total {
+		f, ok := again.waitFor(isDeliver, 5*time.Second)
+		if !ok {
+			t.Fatalf("got %d of %d envelopes; %d were sent at the first login", len(got), total, fitted)
+		}
+		got = append(got, f.str("content"))
+	}
+	for i, c := range got {
+		if c != fmt.Sprintf("c%d", i) {
+			t.Fatalf("envelope %d is %q (%d were sent at the first login)", i, c, fitted)
+		}
+	}
+	if extra, ok := again.waitFor(isDeliver, 300*time.Millisecond); ok {
+		t.Fatalf("an envelope came twice: %q", extra.str("content"))
+	}
+}
+
+func hasFrameWithID(fs []frame, id string) bool {
+	for _, f := range fs {
+		if f.str("id") == id {
+			return true
+		}
+	}
+	return false
 }
 
 // countingCallHost answers every call and records each settlement.

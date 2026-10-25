@@ -109,6 +109,7 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 多端同时在线：只在客户端登录带 `device` 时启用，不带时与原版相同。
 - 队列长度配置 `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` 真正生效（原版读了却没用，F62）。
 - 登录中途断开的连接不再被注册成在线（原版偶发让用户永久显示在线，F63）。
+- 离线期间排队的 E2EE 信封在下次登录时按发送顺序补投（原版取出的顺序不定，F64）；补投遇到发送队列满时，塞不下的放回队列、不断开连接（原版断开，塞不下的信封丢失，F65）。
 - 默认档位是 strict；要与原版逐帧一致须设 `IMKIT_PROTOCOL_PROFILE=legacy`。
 - 新增内部接口 `POST /api/v1/internal/im/custom-broadcast`（Phase 2）：宿主把自定义消息卡片的新状态推给一个会话的在线连接或一个用户的全部设备，帧为 `custom_update`（协议规范附录 B）。它是原版 `red-packet-broadcast` 的通用形式，后者保留。两档都有；契约见 `contract/host-api/im-internal.openapi.yaml`，测试 `custombroadcast_test.go`。
 

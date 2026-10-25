@@ -11,7 +11,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
 - 计划用例 77 个。按平台：服务端 25、宿主 8、Android 20、Web 12、iOS 12。
 - 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 24/25、宿主 8/8、Android 18/20、Web 12/12。
+- 已写用例（已写/计划）：服务端 25/25、宿主 8/8、Android 18/20、Web 12/12。
 
 图例：
 
@@ -32,7 +32,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R7](#r7) | 清空：水位 + 离线补投 + ack + 30 天清理，对离线成员生效 | 服务端、Android、Web、iOS | 符合 | `core/clear-offline` 8、9、11、12、15 | `TestR7_PendingClearsExpireAfter30Days`：服务端 1.10 已写<br>`R7_ClearOfflineReplay`：Android 3.10 已写、Web 5.8 已写、iOS 6.6 |
 | [R8](#r8) | 群事件离线队列同理 | 服务端 | 符合 | `core/group-offline-events` 6、7、8、9、10、12、13、16<br>`core/invite` 19、24 | `TestR8_GroupEventsExpireAfter30Days`：服务端 1.10 已写 |
 | [R9](#r9) | 可配项默认值等于原写死值（如消息上限 20000） | 服务端 | 符合 | `core/limits` 4、5、6<br>`core/rate-limit` 23、24<br>`core/history-paging` 12 | `TestR9_DefaultsEqualOriginalValues`：服务端 1.10 已写 |
-| [R10](#r10) | 限流、连接上限、帧上限、队列满即断开（E2EE 走降级）、重复登录拒绝 | 服务端 | 符合 | `core/rate-limit` 24<br>`core/limits` 7<br>`core/login` 3 | `TestR10_ConnectionCap`：服务端 1.11 已写<br>`TestR10_SendQueueFullDisconnects`：服务端 1.11 已写<br>`TestR10_E2EEQueueFullFallsBackToOffline`：服务端 7.1 |
+| [R10](#r10) | 限流、连接上限、帧上限、队列满即断开（E2EE 走降级）、重复登录拒绝 | 服务端 | 符合 | `core/rate-limit` 24<br>`core/limits` 7<br>`core/login` 3 | `TestR10_ConnectionCap`：服务端 1.11 已写<br>`TestR10_SendQueueFullDisconnects`：服务端 1.11 已写<br>`TestR10_E2EEQueueFullFallsBackToOffline`：服务端 7.1 已写 |
 | [R11](#r11) | 心跳间隔 0.45 × 超时 | 服务端 | 未观测 | — | `TestR11_PingIntervalIs045OfTimeout`：服务端 1.10 已写 |
 | [R12](#r12) | 推送只发数据载荷；加密消息不带预览；备注按方向 | 服务端、宿主 | 未观测 | — | `TestR12_PushPayloadIsDataOnly`：服务端 1.4 已写<br>`TestR12_EncryptedMessageHasNoPreview`：服务端 1.4 已写<br>`R12_ProfileAliasByDirection`：宿主 2.2 已写 |
 | [R13](#r13) | 内部接口鉴权；后台清空二次确认加审计 | 服务端、宿主 | 未观测 | — | `TestR13_InternalEndpointsRejectBadTokens`：服务端 2.1 已写<br>`R13_HostEndpointsRejectBadTokens`：宿主 2.1 已写<br>`R13_AdminClearNeedsConfirmAndAudit`：宿主 2.5 已写 |
@@ -192,7 +192,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `TestR10_ConnectionCap`（服务端，1.11 并发压力用例，并发压力，已写）：连接数达到上限后新连接被拒绝，已有连接不受影响
   - `TestR10_SendQueueFullDisconnects`（服务端，1.11 并发压力用例，并发压力，已写）：慢消费者的发送队列满时断开该连接，不阻塞其他人
-  - `TestR10_E2EEQueueFullFallsBackToOffline`（服务端，7.1 E2EE 模块，单测）：E2EE 信封遇到发送队列满时转入离线队列，不断开连接
+  - `TestR10_E2EEQueueFullFallsBackToOffline`（服务端，7.1 E2EE 模块，单测，已写）：E2EE 信封遇到发送队列满时转入离线队列，不断开连接
 
 <a id="r11"></a>
 

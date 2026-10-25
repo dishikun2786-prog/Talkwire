@@ -209,12 +209,14 @@ func (s *Store) AreCommonEncryptedGroupMembers(uidA, uidB string) (bool, error) 
 // E2eEnvelope is one queued-for-offline-delivery encrypted payload — see
 // im_e2e_envelopes' table comment for the retention story.
 type E2eEnvelope struct {
-	ID      int64
-	Topic   string
-	FromUID string
-	Kind    string
-	Payload string
-	MsgType int
+	ID        int64
+	Topic     string
+	FromUID   string
+	Kind      string
+	Payload   string
+	MsgType   int
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }
 
 // EnqueueE2eEnvelope persists one encrypted payload for a currently-offline
@@ -235,12 +237,20 @@ func (s *Store) EnqueueE2eEnvelope(topic, toUID, fromUID, kind, payload string, 
 // DELETE...RETURNING makes "fetch" and "consume" a single round trip so a
 // client that reconnects twice in quick succession can never be handed the
 // same envelope twice.
+//
+// F64: RETURNING hands rows back in whatever order the delete visited them,
+// not in the subquery's ORDER BY; the original returned them unordered, and
+// a backlog was replayed out of order. The outer SELECT puts them back in
+// queue order.
 func (s *Store) PopE2eEnvelopesForUID(uid string) ([]E2eEnvelope, error) {
 	rows, err := s.db.Query(`
-		DELETE FROM im_e2e_envelopes WHERE id IN (
-			SELECT id FROM im_e2e_envelopes WHERE to_uid = $1 ORDER BY id ASC LIMIT 500
+		WITH popped AS (
+			DELETE FROM im_e2e_envelopes WHERE id IN (
+				SELECT id FROM im_e2e_envelopes WHERE to_uid = $1 ORDER BY id ASC LIMIT 500
+			)
+			RETURNING id, topic, from_uid, kind, payload, msg_type, created_at, expires_at
 		)
-		RETURNING id, topic, from_uid, kind, payload, msg_type
+		SELECT id, topic, from_uid, kind, payload, msg_type, created_at, expires_at FROM popped ORDER BY id ASC
 	`, uid)
 	if err != nil {
 		return nil, err
@@ -249,12 +259,38 @@ func (s *Store) PopE2eEnvelopesForUID(uid string) ([]E2eEnvelope, error) {
 	var out []E2eEnvelope
 	for rows.Next() {
 		var e E2eEnvelope
-		if err := rows.Scan(&e.ID, &e.Topic, &e.FromUID, &e.Kind, &e.Payload, &e.MsgType); err != nil {
+		if err := rows.Scan(&e.ID, &e.Topic, &e.FromUID, &e.Kind, &e.Payload, &e.MsgType, &e.CreatedAt, &e.ExpiresAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
 	}
-	return out, nil
+	return out, rows.Err()
+}
+
+// RestoreE2eEnvelopes puts popped envelopes back as they were: same ids (so
+// queue order holds against anything queued since), same timestamps (so a
+// put-back envelope does not outlive its TTL). It is for envelopes that were
+// popped for a login replay but did not fit the connection's send queue
+// (F65); the next login replays them.
+func (s *Store) RestoreE2eEnvelopes(toUID string, envs []E2eEnvelope) error {
+	if len(envs) == 0 {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, e := range envs {
+		if _, err := tx.Exec(`
+			INSERT INTO im_e2e_envelopes (id, topic, to_uid, from_uid, kind, payload, msg_type, created_at, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (id) DO NOTHING
+		`, e.ID, e.Topic, toUID, e.FromUID, e.Kind, e.Payload, e.MsgType, e.CreatedAt, e.ExpiresAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // ReapExpiredE2eEnvelopes deletes envelopes past expires_at regardless of

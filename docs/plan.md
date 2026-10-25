@@ -71,6 +71,8 @@ Android 端（`imkit-core` 改完之后）：
 - 3.9 视频压缩：可选模块 `imkit-video-compress`（media3-transformer 1.4.1）。`MediaSender` 对大于 50 MB 或超过上限的视频先交给 `VideoCompressor`，失败或没变小就发原片（放得下时），仍超限才拒绝。
 - 7.1 E2EE 客户端模块 `imkit-e2ee`：单独发布，AGPLv3，libsignal-android 钉死 0.73.0；`tools/depcheck` 检查许可证标记与依赖，CI 查解析后的版本。按协议第 13 节实现单聊与群发送密钥、密钥包发布与补充、安全码、清空与结束会话、本机存储（可按会话加密，清空即粉碎）与 `EncryptedChatScreen`。补齐红线 R17（`R17_IdentityInitIsMutuallyExclusive`）与 C10（`C10_E2EEFailureReasons`）。单测 26 个，加解密用同版本的 JVM 构建真跑；两份 E2EE 黄金对话在 Android 上回放通过。实现时发现：群主题会扇出给全体成员，所以发送密钥改走与每个成员的单聊通道；换钥与“分发加加密”放在同一把锁里，否则成员可能拿到旧钥、消息却用新钥。
 
+服务端补上红线 R10 的 E2EE 降级用例 `TestR10_E2EEQueueFullFallsBackToOffline`（发送队列满时信封转入离线队列、不断开连接，下次登录补投），对照表服务端 25/25。写它时发现并修了两处原版缺陷：离线补投的信封顺序不定（F64，`DELETE … RETURNING` 不按子查询排序）；登录补投遇到发送队列满时断开连接，塞不下的信封已从库里删掉、就此丢失（F65），现在放回队列等下次登录。
+
 都没有真机验证。示例 App 没接 E2EE：libsignal 要求打 APK 的 App 开核心库脱糖，需要新下载 `desugar_jdk_libs`。
 
 未做：iOS 全部（P6，需要 Mac）。

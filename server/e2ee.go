@@ -17,6 +17,13 @@ import (
 // e2e_send relay would have used — see handleE2eSend. Runs off a goroutine
 // like its im_pending_clears/im_pending_group_events counterparts so a
 // slow query never delays the login ack itself.
+//
+// F65: the envelopes are already deleted when they are sent, and a backlog
+// (up to 500) can be larger than the send queue, or meet one that live
+// envelopes have filled. The original used SendJSON, which on a full queue
+// drops the frame and closes the connection, losing every envelope that did
+// not fit. TrySendJSON instead, as relayE2eEnvelope does; what does not fit
+// goes back to the queue as it was, for the next login.
 func (h *Hub) deliverPendingE2eEnvelopes(client *Client) {
 	// Only the device that published the identity holds the keys (task
 	// 1.12); the queue waits for it.
@@ -28,12 +35,21 @@ func (h *Hub) deliverPendingE2eEnvelopes(client *Client) {
 		logf("deliverPendingE2eEnvelopes: query failed for %s: %v", client.uid, err)
 		return
 	}
-	for _, e := range pending {
-		client.SendJSON(&ServerMessage{
+	for i, e := range pending {
+		if client.TrySendJSON(&ServerMessage{
 			Action: ActionE2eDeliver, Topic: e.Topic, From: e.FromUID,
 			E2eKind: e.Kind, E2eMsgType: e.MsgType, Content: e.Payload,
 			Timestamp: time.Now().UnixMilli(),
-		})
+		}) {
+			continue
+		}
+		rest := pending[i:]
+		if err := h.store.RestoreE2eEnvelopes(client.uid, rest); err != nil {
+			logf("deliverPendingE2eEnvelopes: could not put %d envelopes back for %s: %v", len(rest), client.uid, err)
+			return
+		}
+		logf("deliverPendingE2eEnvelopes: send buffer full for %s, %d envelopes back in the queue", client.uid, len(rest))
+		return
 	}
 }
 

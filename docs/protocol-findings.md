@@ -1,6 +1,6 @@
 # 协议事实记录
 
-这些是录制黄金对话时观察到的原版服务行为，是协议规范 v1 草稿（任务 0.6）的输入。F1–F57 来自 Phase 0 的录制；F58 起是 Phase 1 改造服务端时发现的，参考服务同样存在。每条注明出处：录制 = 来自 `contract/protocol/transcripts/` 中的实测帧；代码 = 读源码得到。
+这些是录制黄金对话时观察到的原版服务行为，是协议规范 v1 草稿（任务 0.6）的输入。F1–F57 来自 Phase 0 的录制；F58 起是改造服务端时发现的（F58–F63 在 Phase 1，F64、F65 在 Phase 7 补红线用例时），参考服务同样存在。每条注明出处：录制 = 来自 `contract/protocol/transcripts/` 中的实测帧；代码 = 读源码得到。
 
 | # | 事实 | 出处 | 规范里的处理 |
 | --- | --- | --- | --- |
@@ -67,3 +67,5 @@
 | F61 | 同一个新用户在两条连接上几乎同时首次登录时，后一个插入撞上 `im_users_im_user_id_key` 唯一约束（`ON CONFLICT` 只仲裁 `app_user_id`），这次登录得到 500 `server error` | 竞态测试 + 代码 `EnsureUser` | 已修（计划 1.11）：撞上该约束时重试一次；`TestEnsureUserConcurrentFirstLogin` |
 | F62 | 环境变量 `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` 被读进 `hubChanBuf`、`presenceChanBuf`，但 `NewHub` 仍用写死的 100 和 1024，两个配置项从未生效；注释写的是“原先是 NewHub 里的字面量”，接线漏了 | staticcheck U1000 + 代码 `config.go`、`NewHub` | 已修（G1 验收）：`NewHub` 用这两个变量，默认值不变；`TestHubQueueSizesAreConfigurable` |
 | F63 | 连接在登录过程中断开（已设好 uid、还没被注册）时，它的注销可能先于注册被处理：`Run` 的 `select` 在两个都就绪的通道间随机选，注销时还找不到它，什么也不做；随后注册把这条已关闭的连接加进在线表并广播上线。此后没有任何东西会移除它，该用户一直显示在线、却没有设备连着，直到同设备再次登录把它顶掉 | 竞态检测下的 `TestR4_PresenceRevMonotonic` 偶发失败（“最后一次推送是上线，打开的连接 0 条”）+ 代码 `Run`、`handleLogin`、`Disconnect`；原版同样 | 已修（G1 验收）：注册时跳过已关闭的连接；`TestClosedConnectionIsNotRegistered`（去掉修复即失败），R4 在竞态检测下连跑 10 次通过 |
+| F64 | 离线期间排队的 E2EE 信封在下次登录时一次取出并删除（`PopE2eEnvelopesForUID`：`DELETE … WHERE id IN (SELECT … ORDER BY id LIMIT 500) RETURNING …`）。`RETURNING` 按删除时访问行的顺序返回，不按子查询的 `ORDER BY`，补投的 `e2e_deliver` 因此可能不按发送顺序到达；函数注释写的却是“oldest first” | 写 `TestR10_E2EEQueueFullFallsBackToOffline` 时发现：排队的 41 条全部补投，顺序是乱的 + 代码 `store.go` 的 `PopE2eEnvelopesForUID`；原版同样 | 已修：外层再按 id 排序，两档都改；`TestPopE2eEnvelopesOldestFirst`（520 条、每次最多取 500，换回原版 SQL 即失败） |
+| F65 | 登录时补投离线 E2EE 信封（`deliverPendingE2eEnvelopes`，在登录后的 goroutine 里跑）先从库里删掉信封，再用 `SendJSON` 发出。积压最多一次取 500 条，比发送队列（256 帧）大；队列也可能已被实时信封塞满。塞不下时 `SendJSON` 丢掉这一帧并断开连接，被删掉的信封再也找不回来——信封没有 seq，重连补拉不会发现少了 | 写 `TestR10_E2EEQueueFullFallsBackToOffline` 时，竞态检测下偶发“连接被断开”，日志显示补投把 40 条信封塞进了已满的队列 + 代码 `hub.go` 的 `deliverPendingE2eEnvelopes`；原版同样 | 已修：补投改用 `TrySendJSON`，塞不下的那部分按原 id 与原时间放回队列（`RestoreE2eEnvelopes`），下次登录再补投；`TestE2EEReplayKeepsWhatDoesNotFit`（改回 `SendJSON` 或不放回都会失败） |
