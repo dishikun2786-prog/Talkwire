@@ -36,6 +36,16 @@ Compose 界面套件 `imkit-ui` 与示例完成，**M2 达成**（真机一台�
 
 未验证与未做：相册、拍摄、文件入口没在真机上点（选择器会显示私人照片）；来电时序、FCM、多设备同账号未在真机验证；视频压缩未做（首帧缩略图已做）；新设备上单聊历史全算未读（服务端只存群聊已读位置，要改服务端）；撤回不留提示行。
 
+## Phase 5 结果（2026-10-25）
+
+Web SDK 完成，在 `web/`（npm 工作区，说明见 `web/README.md`）。5.1 `@imkit/protocol`：帧类型由 JSON Schema 生成（`npm run gen:check` 防漂移），黄金对话逐帧过类型检查；5.2 `@imkit/client` 的 `ImClient`（世代号、抖动退避、登录确认前不算已连接、按 id 关联、旧服务端按 action 关联）与在线三态；5.3 同一账号的多个标签页共用一条连接：优先 SharedWorker，起不来时退回 BroadcastChannel 选主（有 Web Locks 用它，否则心跳），一个标签的发送与已读像第二台设备那样同步给其他标签；5.4 `@imkit/storage-idb`，表与 Room 对应，可选按会话的不可导出 AES-GCM 密钥加密，删会话即粉碎；5.5 `ChatEngine` 按协议规格重写同步顺序；5.6 前台横幅与系统通知的决策、Web Push 订阅与显示；5.7 媒体上传与 MediaRecorder 录音（优先 Android 能播的容器）；5.8 回放与真实服务端用例；5.9 `@imkit/react`：CSS 变量主题，英文、简体中文、越南文文案可替换，消息类型注册表与 Android 同名；5.10 示例 `web/sample`（Vite，代理示例宿主与 IM 服务端）与 Playwright 端到端用例。
+
+验收：Vitest 54 个全部通过，其中回放 9 个，另有对真实服务端的 M1 链路（strict、legacy 两档）。Playwright 在本机 Edge 上跑通三条链路：两人实时互发、建群并对话、同一账号两个标签页加第二台设备同时收到，连续 3 次通过。对照表里 Web 的计划用例 12/12 已写：新登记了 `C1_IgnoresDuplicatedFrames`、`C9_UnknownRosterMeansMember` 两个 Web 用例，红线工具现在也扫描 Web 的测试。
+
+过程中修的问题：SharedWorker 起不来时（脚本加载失败，或浏览器拦截了它的网络请求），标签页一直停在“连接中”，现在退回选主并重连；示例建群后标题一直显示群号，`ChatEngine.createGroup` 现在建群后立即按群名列出，再刷新群列表（Android 由界面层在建群后调用 `refreshGroups()`）。
+
+**M3 尚差真机一项**：“Web 示例与 Android 示例在手机上实时互发”“同一账号手机与网页同时在线都能收到”还没做，这次没有连手机。另外 Web Push 只做了订阅与显示，没有接推送服务；只在 Edge（Chromium）上跑过，Firefox、Safari 未测。
+
 ## 已定决策（2026-10-25，G1 验收）
 
 - 默认档位 strict；迁移原版项目、要与原版客户端逐帧兼容时设 `IMKIT_PROTOCOL_PROFILE=legacy`。一致性测试台测原版对话时自动用 legacy。

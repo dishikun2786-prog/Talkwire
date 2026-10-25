@@ -1,0 +1,168 @@
+import type { ChatEngine, ConnectionState, ConversationId, ConversationSummary, MediaSender, PresenceState, ReadonlySignal } from "@imkit/client";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { MessageTypeRegistry } from "./registry.js";
+import { en, stringsFor, type ImStrings } from "./strings.js";
+
+/** A person as the host knows them; the kit itself only knows uids. */
+export interface ImProfile {
+  uid: string;
+  name: string;
+  avatarUrl?: string;
+}
+
+/**
+ * Everything the components need from the app (the web counterpart of the
+ * Android `ImUiHost`): who people are, the user's contacts, and media.
+ */
+export interface ImUiHost {
+  /** Names and avatars for `uids`; missing ones fall back to a short uid. */
+  profiles(uids: string[]): Promise<ImProfile[]>;
+  /** The user's contacts, for new chats. */
+  contacts?: ReadonlySignal<ImProfile[]>;
+  /** Uploads and sends media; without it the attach and voice buttons are hidden. */
+  media?: MediaSender;
+  /** Makes a stored media URL loadable. Default: unchanged. */
+  resolveMediaUrl?(url: string | undefined): string | undefined;
+  /** A tap on someone's avatar. Default: nothing (group members cannot open each other). */
+  onOpenProfile?(uid: string): void;
+}
+
+interface ImKitValue {
+  engine: ChatEngine;
+  host: ImUiHost;
+  strings: ImStrings;
+  types: MessageTypeRegistry;
+  profiles: ProfileCache;
+}
+
+const ImKitContext = createContext<ImKitValue | null>(null);
+
+export interface ImKitProviderProps {
+  engine: ChatEngine;
+  host: ImUiHost;
+  /** A BCP 47 tag picking a built-in table (en, zh, vi), and/or single texts to replace. */
+  locale?: string;
+  strings?: Partial<ImStrings>;
+  types?: MessageTypeRegistry;
+  children: ReactNode;
+}
+
+export function ImKitProvider({ engine, host, locale, strings, types, children }: ImKitProviderProps) {
+  const profiles = useMemo(() => new ProfileCache(host), [host]);
+  const value = useMemo<ImKitValue>(
+    () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: { ...(locale ? stringsFor(locale) : en), ...strings } }),
+    [engine, host, profiles, types, locale, strings],
+  );
+  return <ImKitContext.Provider value={value}>{children}</ImKitContext.Provider>;
+}
+
+export function useImKit(): ImKitValue {
+  const v = useContext(ImKitContext);
+  if (!v) throw new Error("ImKit components need an <ImKitProvider>");
+  return v;
+}
+
+/** Subscribes a component to a signal. */
+export function useSignal<T>(signal: ReadonlySignal<T>): T {
+  return useSyncExternalStore(
+    useCallback((cb: () => void) => signal.subscribe(cb), [signal]),
+    () => signal.value,
+    () => signal.value,
+  );
+}
+
+export function useConnectionState(): ConnectionState {
+  return useSignal(useImKit().engine.client.state);
+}
+
+export function useConversations(): ConversationSummary[] {
+  return useSignal(useImKit().engine.conversations);
+}
+
+export function useConversation(id: ConversationId): ConversationSummary | undefined {
+  return useConversations().find((c) => c.id === id);
+}
+
+export function useMessages(conversation: ConversationId) {
+  const { engine } = useImKit();
+  return useSignal(useMemo(() => engine.messages(conversation), [engine, conversation]));
+}
+
+/** Presence of a user, from the engine's one tracker (C5). */
+export function usePresence(uid: string | undefined): PresenceState {
+  const { engine } = useImKit();
+  useSignal(engine.presence.version);
+  return uid ? engine.presence.state(uid) : "unknown";
+}
+
+export function useTyping(conversation: ConversationId): string[] {
+  const { engine } = useImKit();
+  useSignal(engine.typing);
+  return engine.typingIn(conversation);
+}
+
+/** A person's profile; a short uid until the host answers. */
+export function useProfile(uid: string | undefined): ImProfile | undefined {
+  const { profiles } = useImKit();
+  const [, bump] = useState(0);
+  useEffect(() => (uid ? profiles.watch(uid, () => bump((n) => n + 1)) : undefined), [profiles, uid]);
+  return uid ? profiles.get(uid) : undefined;
+}
+
+/** A shortened uid for people the host has not named yet. */
+export const shortUid = (uid: string): string => (uid.startsWith("uid_") ? uid.slice(4, 10) : uid.slice(0, 6));
+
+/** Batches profile lookups made in the same tick and caches the answers. */
+export class ProfileCache {
+  private readonly known = new Map<string, ImProfile>();
+  private readonly listeners = new Map<string, Set<() => void>>();
+  private readonly queued = new Set<string>();
+  private readonly asked = new Set<string>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly host: ImUiHost) {}
+
+  get(uid: string): ImProfile {
+    const p = this.known.get(uid);
+    if (p) return p;
+    if (!this.asked.has(uid)) {
+      this.asked.add(uid);
+      this.queued.add(uid);
+      this.timer ??= setTimeout(() => this.flush(), 0);
+    }
+    return { uid, name: shortUid(uid) };
+  }
+
+  /** Puts profiles known from elsewhere (the contact list) into the cache. */
+  put(profiles: ImProfile[]): void {
+    for (const p of profiles) {
+      this.known.set(p.uid, p);
+      this.listeners.get(p.uid)?.forEach((l) => l());
+    }
+  }
+
+  watch(uid: string, listener: () => void): () => void {
+    let set = this.listeners.get(uid);
+    if (!set) this.listeners.set(uid, (set = new Set()));
+    set.add(listener);
+    return () => set!.delete(listener);
+  }
+
+  private flush(): void {
+    this.timer = null;
+    const uids = [...this.queued];
+    this.queued.clear();
+    if (uids.length === 0) return;
+    this.host.profiles(uids).then(
+      (found) => this.put(found),
+      () => uids.forEach((u) => this.asked.delete(u)), // ask again next time
+    );
+  }
+}
+
+/** Runs `fn` once per mount with the latest props, ignoring re-renders. */
+export function useLatest<T>(value: T) {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}

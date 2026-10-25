@@ -1,0 +1,4 @@
+# test output
+test-results/
+playwright-report/
+e2e/.stack-logs/

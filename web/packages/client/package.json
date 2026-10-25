@@ -1,0 +1,20 @@
+{
+  "name": "@imkit/client",
+  "version": "0.1.0",
+  "description": "The ImKit web client: connection, sync engine, multi-tab coordination, notifications and media",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "dependencies": {
+    "@imkit/protocol": "0.1.0"
+  }
+}

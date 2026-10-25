@@ -1,0 +1,25 @@
+{
+  "name": "@imkit/react",
+  "version": "0.1.0",
+  "description": "React components for ImKit: conversation list, chat screen and message renderers",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "dependencies": {
+    "@imkit/client": "0.1.0",
+    "@imkit/protocol": "0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.2 <20",
+    "react-dom": ">=18.2 <20"
+  }
+}
