@@ -1,7 +1,10 @@
 package io.imkit.ui
 
+import android.content.Context
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.test.core.app.ApplicationProvider
 import io.imkit.core.ImIds
 import io.imkit.core.client.ImClient
 import io.imkit.core.client.ImClientConfig
@@ -32,6 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 /** The chat screen against an engine on the in-memory server. */
@@ -46,12 +50,12 @@ class ChatScreenTest {
     @After
     fun tearDown() = scope.cancel()
 
-    private fun engine(user: String, seed: Int): ChatEngine = runBlocking {
+    private fun engine(user: String, seed: Int, config: EngineConfig = EngineConfig()): ChatEngine = runBlocking {
         val client = ImClient(
             ImClientConfig(endpoints = listOf("ws://mini"), tokenProvider = TokenProvider { user }, transport = server.transport, random = Random(seed)),
             scope,
         )
-        ChatEngine(client, InMemoryChatStore(), user, scope, EngineConfig()).also {
+        ChatEngine(client, InMemoryChatStore(), user, scope, config).also {
             it.open()
             it.start()
             client.awaitConnected(5_000)
@@ -105,5 +109,41 @@ class ChatScreenTest {
         rule.setContent { ImTheme { ImChatApp(rememberImChatState(alice, host)) } }
         rule.waitUntil(5_000) { alice.conversations.value.any { it.id.id == bobUid && it.lastMessage?.content == "from before" } }
         rule.onNodeWithText("from before").assertExists()
+    }
+
+    /** Found on a phone: "typing…" stayed for good once the other person had typed. */
+    @Test
+    fun typingGoesAwayOnceTheNoteIsTooOld() {
+        val now = AtomicLong(1_000_000)
+        val alice = engine("alice", 4, EngineConfig(typingTtlMs = 10_000, clock = { now.get() }))
+        val bob = engine("bob", 5)
+        val withBob = ConversationId(server.uidOf("bob"))
+        val withAlice = ConversationId(server.uidOf("alice"))
+        runBlocking {
+            alice.ensureConversation(withBob)
+            bob.ensureConversation(withAlice)
+        }
+        rule.setContent {
+            ImTheme {
+                ImChatApp(rememberImChatState(alice, Host, start = ImDeepLink.Conversation(withBob)))
+            }
+        }
+        rule.waitForIdle()
+        val typing = ApplicationProvider.getApplicationContext<Context>().getString(R.string.imkit_typing)
+
+        bob.sendTyping(withAlice)
+        rule.waitUntil(5_000) { alice.typingIn(withBob).isNotEmpty() }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText(typing).fetchSemanticsNodes().isNotEmpty() }
+
+        // Still within the limit: the indicator stays.
+        now.addAndGet(9_000)
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.waitForIdle()
+        assertTrue(rule.onAllNodesWithText(typing).fetchSemanticsNodes().isNotEmpty())
+
+        // Past it, with nothing new from Bob: it goes on its own.
+        now.addAndGet(1_500)
+        rule.mainClock.advanceTimeBy(1_500)
+        rule.waitUntil(5_000) { rule.onAllNodesWithText(typing).fetchSemanticsNodes().isEmpty() }
     }
 }

@@ -357,7 +357,17 @@ internal fun ConversationScreen(state: ImChatState, id: ConversationId, onBack: 
                 }
             }
         } else {
-            val typingUids = typingAll[id]?.filterKeys { it != engine.me }?.keys.orEmpty()
+            // A typing note has no "stopped": it ends when it gets older than
+            // EngineConfig.typingTtlMs. typingIn() applies that limit; while
+            // someone shows as typing, look again every second so it can expire.
+            var typingCheck by remember(id) { mutableIntStateOf(0) }
+            val typingUids = remember(typingAll, typingCheck) { engine.typingIn(id).filterTo(LinkedHashSet()) { it != engine.me } }
+            if (typingUids.isNotEmpty()) {
+                LaunchedEffect(typingCheck) {
+                    delay(1_000)
+                    typingCheck++
+                }
+            }
             val subtitle = when {
                 typingUids.isNotEmpty() && id.isGroup -> stringResource(R.string.imkit_typing_named, name(typingUids.first()))
                 typingUids.isNotEmpty() -> stringResource(R.string.imkit_typing)
