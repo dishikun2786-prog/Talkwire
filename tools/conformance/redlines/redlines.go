@@ -261,14 +261,14 @@ func checkRedline(m *Matrix, rl *Redline, byName map[string]*harness.Scenario, u
 }
 
 // Written lists, per platform, the tests found in the code: which planned
-// cases exist. Only the server and Android are scanned so far.
+// cases exist. The server, Android and the web are scanned; iOS not yet.
 type Written map[string]map[string]bool
 
 // Has reports whether the platform's test of that name exists.
 func (w Written) Has(platform, name string) bool { return w[platform][name] }
 
 // ScannedPlatforms are the platforms whose tests Written can hold, in display order.
-var ScannedPlatforms = []string{"server", "android"}
+var ScannedPlatforms = []string{"server", "android", "web"}
 
 var testFunc = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\)`)
 
@@ -334,16 +334,54 @@ func AndroidTests(dir string) (map[string]bool, error) {
 	return out, err
 }
 
+// The name is the first argument, quoted with ", ' or `.
+var webRedlineTest = regexp.MustCompile(`(?m)\b(?:it|test)\(\s*["'` + "`" + `]([RC][1-9][0-9]*_\w+)["'` + "`" + `]`)
+
+// WebTests returns the Vitest and Playwright cases named after a red line
+// (it("R<n>_...") or test("C<n>_...")) in the test files (*.test.ts(x),
+// *.spec.ts) under dir, outside node_modules and build output: which web
+// cases of the matrix exist.
+func WebTests(dir string) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch name := d.Name(); {
+			case path == dir:
+			case strings.HasPrefix(name, "."), name == "node_modules", name == "dist", name == "test-results", name == "playwright-report":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := d.Name()
+		if !strings.HasSuffix(name, ".test.ts") && !strings.HasSuffix(name, ".test.tsx") && !strings.HasSuffix(name, ".spec.ts") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range webRedlineTest.FindAllStringSubmatch(string(src), -1) {
+			out[m[1]] = true
+		}
+		return nil
+	})
+	return out, err
+}
+
 // redlineTestPatterns tell, per scanned platform, which test names are named
 // after a red line; the group is the red line's id.
 var redlineTestPatterns = map[string]*regexp.Regexp{
 	"server":  regexp.MustCompile(`^Test(R[1-9][0-9]*)_`),
 	"android": regexp.MustCompile(`^([RC][1-9][0-9]*)_`),
+	"web":     regexp.MustCompile(`^([RC][1-9][0-9]*)_`),
 }
 
 // CheckWritten reports tests named after a red line (server TestR<n>_...,
-// Android R<n>_... or C<n>_...) that the matrix does not list as a case of
-// that platform: a red-line test written without its row in the matrix.
+// Android and web R<n>_... or C<n>_...) that the matrix does not list as a
+// case of that platform: a red-line test written without its row in the matrix.
 func CheckWritten(m *Matrix, written Written) []string {
 	var problems []string
 	for _, platform := range ScannedPlatforms {

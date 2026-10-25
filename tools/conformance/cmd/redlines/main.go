@@ -1,6 +1,6 @@
 // Command redlines checks the red-line matrix and renders it.
 //
-//	redlines check   # matrix vs scenarios and server/Android tests, and matrix.md is up to date
+//	redlines check   # matrix vs scenarios and server/Android/web tests, and matrix.md is up to date
 //	redlines write   # regenerate matrix.md
 package main
 
@@ -16,7 +16,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 || (os.Args[1] != "check" && os.Args[1] != "write") {
-		fmt.Fprintln(os.Stderr, "usage: redlines check|write [-matrix file] [-out file] [-scenarios dir] [-tests dir] [-android dir]")
+		fmt.Fprintln(os.Stderr, "usage: redlines check|write [-matrix file] [-out file] [-scenarios dir] [-tests dir] [-android dir] [-web dir]")
 		os.Exit(2)
 	}
 	cmd := os.Args[1]
@@ -26,6 +26,7 @@ func main() {
 	scenarioDir := fs.String("scenarios", "../../contract/protocol/scenarios", "scenario directory")
 	testDir := fs.String("tests", "../../server", "server module whose tests mark cases written")
 	androidDir := fs.String("android", "../../android", "Android project whose unit tests mark cases written")
+	webDir := fs.String("web", "../../web", "web workspace whose Vitest and Playwright cases mark cases written")
 	_ = fs.Parse(os.Args[2:])
 
 	m, err := redlines.Load(*matrixPath)
@@ -44,7 +45,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	written := redlines.Written{"server": serverTests, "android": androidTests}
+	webTests, err := redlines.WebTests(*webDir)
+	if err != nil {
+		fail(err)
+	}
+	written := redlines.Written{"server": serverTests, "android": androidTests, "web": webTests}
 	problems := append(redlines.Check(m, scs), redlines.CheckWritten(m, written)...)
 	for _, p := range problems {
 		fmt.Println("PROBLEM", p)

@@ -9,15 +9,15 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 红线 32 条：服务端与宿主 22 条（R），客户端 10 条（C）。
 - 已有黄金用例的红线 17 条，共引用 23 个场景的 118 处步骤。
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
-- 计划用例 75 个。按平台：服务端 25、宿主 8、Android 20、Web 10、iOS 12。
-- 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 8、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 21/25、Android 16/20。
+- 计划用例 77 个。按平台：服务端 25、宿主 8、Android 20、Web 12、iOS 12。
+- 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
+- 已写用例（已写/计划）：服务端 21/25、Android 16/20、Web 12/12。
 
 图例：
 
 - 参照服务：小桃子原版服务（源提交 33e23250）在黄金对话里的表现。“违反”的红线在 legacy 档按原样录、在 strict 档由计划用例修正；“未观测”是黄金对话录不到，只能靠计划用例。
 - 已录用例：已经录成黄金对话的场景与步号，ImKit 服务端用一致性测试台逐帧比对，三端 SDK 用回放服务器重放。
-- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端与 Android 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数和 `android/` 各模块 `src/test` 下的 Kotlin 测试函数得出；按红线命名（服务端 `TestR<n>_…`，Android `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。Web 与 iOS 还没有代码，不扫描。
+- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端、Android 与 Web 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数、`android/` 各模块 `src/test` 下的 Kotlin 测试函数和 `web/` 下的 Vitest 与 Playwright 用例（`*.test.ts(x)`、`*.spec.ts` 里的 `it(…)`、`test(…)`）得出；按红线命名（服务端 `TestR<n>_…`，Android 与 Web `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。iOS 还没有代码，不扫描。
 
 ## 总表
 
@@ -29,7 +29,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R4](#r4) | 在线状态串行化、版本号单调、批量查询 | 服务端 | 符合 | `core/presence` 8、9、10、12、13、14、16<br>`core/p2p` 7、14、15 | `TestR4_PresenceRevMonotonic`：服务端 1.11 已写 |
 | [R5](#r5) | 群成员写入不降级、不能改群主角色、踢人 4 道守卫 | 服务端 | 符合 | `core/group-guards` 12、13、14、15、16、17、18、19<br>`core/group-admin` 9、10、11 | `TestR5_MemberWritesNeverDowngrade`：服务端 1.10 已写 |
 | [R6](#r6) | 撤回是软删，所有读消息的查询都过滤；历史条数只在一处归一化 | 服务端 | 符合 | `core/recall` 9、10、11、12<br>`core/recall-p2p` 7、8、9、10、11<br>`core/history-paging` 9、10、11、12<br>`core/clear-media` 11、12 | `TestR6_MessageReadsFilterRecalled`：服务端 1.10 已写<br>`TestR6_HistoryLimitNormalizedOnce`：服务端 1.10 已写<br>`TestR6_RecallReclaimsVideoThumbnail`：服务端 1.9 已写 |
-| [R7](#r7) | 清空：水位 + 离线补投 + ack + 30 天清理，对离线成员生效 | 服务端、Android、Web、iOS | 符合 | `core/clear-offline` 8、9、11、12、15 | `TestR7_PendingClearsExpireAfter30Days`：服务端 1.10 已写<br>`R7_ClearOfflineReplay`：Android 3.10 已写、Web 5.8、iOS 6.6 |
+| [R7](#r7) | 清空：水位 + 离线补投 + ack + 30 天清理，对离线成员生效 | 服务端、Android、Web、iOS | 符合 | `core/clear-offline` 8、9、11、12、15 | `TestR7_PendingClearsExpireAfter30Days`：服务端 1.10 已写<br>`R7_ClearOfflineReplay`：Android 3.10 已写、Web 5.8 已写、iOS 6.6 |
 | [R8](#r8) | 群事件离线队列同理 | 服务端 | 符合 | `core/group-offline-events` 6、7、8、9、10、12、13、16<br>`core/invite` 19、24 | `TestR8_GroupEventsExpireAfter30Days`：服务端 1.10 已写 |
 | [R9](#r9) | 可配项默认值等于原写死值（如消息上限 20000） | 服务端 | 符合 | `core/limits` 4、5、6<br>`core/rate-limit` 23、24<br>`core/history-paging` 12 | `TestR9_DefaultsEqualOriginalValues`：服务端 1.10 已写 |
 | [R10](#r10) | 限流、连接上限、帧上限、队列满即断开（E2EE 走降级）、重复登录拒绝 | 服务端 | 符合 | `core/rate-limit` 24<br>`core/limits` 7<br>`core/login` 3 | `TestR10_ConnectionCap`：服务端 1.11 已写<br>`TestR10_SendQueueFullDisconnects`：服务端 1.11 已写<br>`TestR10_E2EEQueueFullFallsBackToOffline`：服务端 7.1 |
@@ -41,19 +41,19 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R16](#r16) | 通话状态用比较后替换；断线宽限；计时器显式停；用宿主用户 id | 服务端 | 符合 | `module/call` 11、13、14、19、21、25、27<br>`module/call-timeout` 6、7 | `TestR16_CallStateCASUnderRace`：服务端 1.11 已写<br>`TestR16_DisconnectGraceEndsCall`：服务端 7.2<br>`TestR16_TimersStoppedOnEveryPath`：服务端 7.2 |
 | [R17](#r17) | E2EE 只存转不透明信封；补投；本机身份初始化互斥 | 服务端、Android、iOS | 符合 | `module/e2ee-p2p` 16、20、22、25<br>`module/e2ee-group` 17、18 | `R17_IdentityInitIsMutuallyExclusive`：Android 7.1、iOS 7.1 |
 | [R18](#r18) | 用户令牌只接受 type=access，刷新、代理、管理员令牌一律拒绝 | 服务端 | 违反 | `core/login-tokens` 2、4、6、8、10、12、14 | `TestR18_OnlyAccessTokensLogIn`：服务端 1.8 已写 |
-| [R19](#r19) | 登录与在线快照应答带 id；客户端只对旧服务端按 action 关联这两种 | 服务端、Android、Web、iOS | 违反 | `core/login` 2、6<br>`core/p2p` 11<br>`core/presence` 10 | `TestR19_LoginAndSnapshotRepliesCarryId`：服务端 1.7 已写<br>`R19_CorrelateLegacyRepliesByAction`：Android 3.4 已写、Web 5.2、iOS 6.1 |
+| [R19](#r19) | 登录与在线快照应答带 id；客户端只对旧服务端按 action 关联这两种 | 服务端、Android、Web、iOS | 违反 | `core/login` 2、6<br>`core/p2p` 11<br>`core/presence` 10 | `TestR19_LoginAndSnapshotRepliesCarryId`：服务端 1.7 已写<br>`R19_CorrelateLegacyRepliesByAction`：Android 3.4 已写、Web 5.2 已写、iOS 6.1 |
 | [R20](#r20) | 好友关系在单聊首次建立时校验；解除好友经 contact_sync 收回 | 服务端 | 符合 | `core/host-contact-sync` 5、7、8、11、12、13<br>`core/p2p` 12、13 | — |
 | [R21](#r21) | 清空是全员物理删除并回收媒体 | 服务端 | 符合 | `core/clear-offline` 8、9<br>`core/clear-media` 13、14、15 | — |
 | [R22](#r22) | 在线状态查询只返回与查询者共享会话的用户（参考服务可查任意用户） | 服务端 | 违反 | `core/presence` 9、14 | `TestR22_PresenceOnlyForSharedTopics`：服务端 1.8 已写 |
-| [C1](#c1) | 重连抖动、建连前清身份、连接串行化、登录确认前不算已连接、世代号 | Android、Web、iOS | 不适用 | — | `C1_ReconnectAfterInjectedDisconnect`：Android 3.10 已写、Web 5.8、iOS 6.6<br>`C1_IgnoresDuplicatedFrames`：Android 3.10 已写 |
-| [C2](#c2) | 回执超时但连接仍在时保持“发送中”、不自动重发；媒体按 URL 对账 | Android、Web、iOS | 不适用 | — | `C2_LostPublishReplyStaysSending`：Android 3.10 已写、Web 5.8、iOS 6.6<br>`C2_MediaReconciledByUrl`：Android 3.7 已写、Web 5.8、iOS 6.6 |
-| [C3](#c3) | 离线补拉取本地连续段末尾并检测空洞 | Android、Web、iOS | 不适用 | — | `C3_ResumeFromContiguousEnd`：Android 3.10 已写、Web 5.8、iOS 6.6 |
-| [C4](#c4) | 缓存归属：换账号清空全部缓存表 | Android、Web、iOS | 不适用 | — | `C4_SwitchingAccountClearsAllCaches`：Android 3.5 已写、Web 5.4、iOS 6.3 |
-| [C5](#c5) | 在线三态加过期时间，只有一个真相源 | Android、Web、iOS | 不适用 | — | `C5_PresenceTriStateWithExpiry`：Android 3.7 已写、Web 5.2、iOS 6.1 |
+| [C1](#c1) | 重连抖动、建连前清身份、连接串行化、登录确认前不算已连接、世代号 | Android、Web、iOS | 不适用 | — | `C1_ReconnectAfterInjectedDisconnect`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C1_IgnoresDuplicatedFrames`：Android 3.10 已写、Web 5.8 已写 |
+| [C2](#c2) | 回执超时但连接仍在时保持“发送中”、不自动重发；媒体按 URL 对账 | Android、Web、iOS | 不适用 | — | `C2_LostPublishReplyStaysSending`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C2_MediaReconciledByUrl`：Android 3.7 已写、Web 5.8 已写、iOS 6.6 |
+| [C3](#c3) | 离线补拉取本地连续段末尾并检测空洞 | Android、Web、iOS | 不适用 | — | `C3_ResumeFromContiguousEnd`：Android 3.10 已写、Web 5.8 已写、iOS 6.6 |
+| [C4](#c4) | 缓存归属：换账号清空全部缓存表 | Android、Web、iOS | 不适用 | — | `C4_SwitchingAccountClearsAllCaches`：Android 3.5 已写、Web 5.4 已写、iOS 6.3 |
+| [C5](#c5) | 在线三态加过期时间，只有一个真相源 | Android、Web、iOS | 不适用 | — | `C5_PresenceTriStateWithExpiry`：Android 3.7 已写、Web 5.2 已写、iOS 6.1 |
 | [C6](#c6) | 通知抑制条件、渠道静音由 App 播声、来电通知时序与取消 | Android | 不适用 | — | `C6_NotificationDecision`：Android 3.8 已写<br>`C6_DeviceSoundAndCallTiming`：Android 4.5 |
-| [C7](#c7) | 媒体缓存；语音气泡随时长变宽；占位符用类型字段 | Android、Web、iOS | 不适用 | — | `C7_MediaCacheHitsSecondPlay`：Android 3.9 已写<br>`C7_BubblesFromContentType`：Android 4.3 已写、Web 5.9、iOS 6.7 |
+| [C7](#c7) | 媒体缓存；语音气泡随时长变宽；占位符用类型字段 | Android、Web、iOS | 不适用 | — | `C7_MediaCacheHitsSecondPlay`：Android 3.9 已写<br>`C7_BubblesFromContentType`：Android 4.3 已写、Web 5.9 已写、iOS 6.7 |
 | [C8](#c8) | 按住说话单手势；弹层语言跟随 | Android | 不适用 | — | `C8_HoldToTalkSingleGesture`：Android 4.1 已写<br>`C8_SheetsFollowAppLocale`：Android 4.2 已写<br>`C8_DeviceHoldToTalk`：Android 4.5 |
-| [C9](#c9) | 本人群角色从名册取、群同步推送触发刷新、失败回落普通成员 | Android、Web、iOS | 不适用 | — | `C9_RoleFromRoster`：Android 3.10 已写、Web 5.8、iOS 6.6<br>`C9_UnknownRosterMeansMember`：Android 3.10 已写 |
+| [C9](#c9) | 本人群角色从名册取、群同步推送触发刷新、失败回落普通成员 | Android、Web、iOS | 不适用 | — | `C9_RoleFromRoster`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C9_UnknownRosterMeansMember`：Android 3.10 已写、Web 5.8 已写 |
 | [C10](#c10) | E2EE 失败原因分类 | Android、iOS | 不适用 | — | `C10_E2EEFailureReasons`：Android 7.1、iOS 7.1 |
 
 ## 逐条明细
@@ -150,7 +150,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `TestR7_PendingClearsExpireAfter30Days`（服务端，1.10 工程化，单测，已写）：注入时钟，未 ack 的清空墓碑 30 天后清理
   - `R7_ClearOfflineReplay`（Android，3.10 Android 回放用例，回放，用 `core/clear-offline`，已写）：离线一方上线收到 topic_cleared 后清本地缓存并回 ack，再次登录不重复处理
-  - `R7_ClearOfflineReplay`（Web，5.8 Web 回放用例，回放，用 `core/clear-offline`）：同上
+  - `R7_ClearOfflineReplay`（Web，5.8 Web 回放用例，回放，用 `core/clear-offline`，已写）：同上
   - `R7_ClearOfflineReplay`（iOS，6.6 iOS 回放用例，回放，用 `core/clear-offline`）：同上
 
 <a id="r8"></a>
@@ -305,7 +305,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `TestR19_LoginAndSnapshotRepliesCarryId`（服务端，1.7 只加不改的协议改进，strict 档一致性，已写）：登录与在线快照应答带回请求 id（只加不改）
   - `R19_CorrelateLegacyRepliesByAction`（Android，3.4 Android 请求关联，回放，用 `core/login`，已写）：对旧服务端只对登录与在线快照按 action 关联，其余严格按 id
-  - `R19_CorrelateLegacyRepliesByAction`（Web，5.2 Web 客户端，回放，用 `core/login`）：同上
+  - `R19_CorrelateLegacyRepliesByAction`（Web，5.2 Web 客户端，回放，用 `core/login`，已写）：同上
   - `R19_CorrelateLegacyRepliesByAction`（iOS，6.1 iOS 核心，回放，用 `core/login`）：同上
 
 <a id="r20"></a>
@@ -349,9 +349,10 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C1_ReconnectAfterInjectedDisconnect`（Android，3.10 Android 回放用例，回放 + 故障注入，用 `core/p2p`，已写）：回放在第 9 步注入断线：重连带抖动、建连前清空身份、先登录再发请求、旧连接的迟到应答被世代号丢弃
-  - `C1_ReconnectAfterInjectedDisconnect`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/p2p`）：同上
+  - `C1_ReconnectAfterInjectedDisconnect`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/p2p`，已写）：同上
   - `C1_ReconnectAfterInjectedDisconnect`（iOS，6.6 iOS 回放用例，回放 + 故障注入，用 `core/p2p`）：同上
   - `C1_IgnoresDuplicatedFrames`（Android，3.10 Android 回放用例，回放 + 故障注入，用 `core/p2p`，已写）：每一步的帧都发两遍、应答排在最后：重复的应答、登录应答与推送都被忽略，连接不中断，请求不重发
+  - `C1_IgnoresDuplicatedFrames`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/p2p`，已写）：同上
 
 <a id="c2"></a>
 
@@ -363,8 +364,8 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `C2_LostPublishReplyStaysSending`（Android，3.10 Android 回放用例，回放 + 故障注入，用 `core/group-messaging`，已写）：回放丢弃第 8 步的帧：消息停在发送中，不自动重发（重发会被回放判为脚本外请求）
   - `C2_MediaReconciledByUrl`（Android，3.7 Android 拆仓储，单测，已写）：媒体消息的回执丢失后，从历史拉回的同一条按 fileUrl 与“发送中”的那条对账：不重发、不重复
-  - `C2_LostPublishReplyStaysSending`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/group-messaging`）：同上
-  - `C2_MediaReconciledByUrl`（Web，5.8 Web 回放用例，回放，用 `core/clear-media`）：同上
+  - `C2_LostPublishReplyStaysSending`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/group-messaging`，已写）：同上
+  - `C2_MediaReconciledByUrl`（Web，5.8 Web 回放用例，回放，用 `core/clear-media`，已写）：同上
   - `C2_LostPublishReplyStaysSending`（iOS，6.6 iOS 回放用例，回放 + 故障注入，用 `core/group-messaging`）：同上
   - `C2_MediaReconciledByUrl`（iOS，6.6 iOS 回放用例，回放，用 `core/clear-media`）：同上
 
@@ -376,7 +377,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C3_ResumeFromContiguousEnd`（Android，3.10 Android 回放用例，回放，用 `core/resubscribe`，已写）：重连后从本地连续段末尾按 afterSeq 补拉；被撤回的 seq 不算空洞（参见 core/recall-p2p）
-  - `C3_ResumeFromContiguousEnd`（Web，5.8 Web 回放用例，回放，用 `core/resubscribe`）：同上
+  - `C3_ResumeFromContiguousEnd`（Web，5.8 Web 回放用例，回放，用 `core/resubscribe`，已写）：同上
   - `C3_ResumeFromContiguousEnd`（iOS，6.6 iOS 回放用例，回放，用 `core/resubscribe`）：同上
 
 <a id="c4"></a>
@@ -387,7 +388,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C4_SwitchingAccountClearsAllCaches`（Android，3.5 Android 存储，单测，已写）：换账号时清空全部缓存表，同账号重登保留
-  - `C4_SwitchingAccountClearsAllCaches`（Web，5.4 Web 存储，单测）：同上
+  - `C4_SwitchingAccountClearsAllCaches`（Web，5.4 Web 存储，单测，已写）：同上
   - `C4_SwitchingAccountClearsAllCaches`（iOS，6.3 iOS 存储，单测）：同上
 
 <a id="c5"></a>
@@ -398,7 +399,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C5_PresenceTriStateWithExpiry`（Android，3.7 Android 拆仓储，单测，已写）：在线、离线、未知三态，过期后回到未知；会话列表与聊天页读同一个来源
-  - `C5_PresenceTriStateWithExpiry`（Web，5.2 Web 客户端，单测）：同上
+  - `C5_PresenceTriStateWithExpiry`（Web，5.2 Web 客户端，单测，已写）：同上
   - `C5_PresenceTriStateWithExpiry`（iOS，6.1 iOS 核心，单测）：同上
 
 <a id="c6"></a>
@@ -421,7 +422,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `C7_MediaCacheHitsSecondPlay`（Android，3.9 Android 媒体，单测，已写）：语音、视频第二次播放走本地缓存
   - `C7_BubblesFromContentType`（Android，4.3 Android 消息类型注册表，UI 测试，已写）：气泡按内容类型渲染，不靠占位文字；语音气泡宽度随时长变化
-  - `C7_BubblesFromContentType`（Web，5.9 Web React 组件，UI 测试）：同上
+  - `C7_BubblesFromContentType`（Web，5.9 Web React 组件，UI 测试，已写）：同上
   - `C7_BubblesFromContentType`（iOS，6.7 iOS UI 组件，UI 测试）：同上
 
 <a id="c8"></a>
@@ -443,9 +444,10 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 参照服务：不适用
 - 计划用例：
   - `C9_RoleFromRoster`（Android，3.10 Android 回放用例，回放，用 `core/group-guards`，已写）：本人角色取自 get_members 名册；grp_sync 触发名册刷新
-  - `C9_RoleFromRoster`（Web，5.8 Web 回放用例，回放，用 `core/group-guards`）：本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理
+  - `C9_RoleFromRoster`（Web，5.8 Web 回放用例，回放，用 `core/group-guards`，已写）：本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理
   - `C9_RoleFromRoster`（iOS，6.6 iOS 回放用例，回放，用 `core/group-guards`）：本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理
   - `C9_UnknownRosterMeansMember`（Android，3.10 Android 回放用例，回放 + 故障注入，用 `core/group-guards`，已写）：回放丢弃第 18 步的名册应答：本人角色按普通成员处理，下一次名册拉取成功后恢复
+  - `C9_UnknownRosterMeansMember`（Web，5.8 Web 回放用例，回放 + 故障注入，用 `core/group-guards`，已写）：同上
 
 <a id="c10"></a>
 

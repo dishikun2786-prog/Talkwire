@@ -18,6 +18,7 @@ const (
 	scenarioDir = "../../../contract/protocol/scenarios"
 	serverDir   = "../../../server"
 	androidDir  = "../../../android"
+	webDir      = "../../../web"
 )
 
 func writtenTests(t *testing.T) Written {
@@ -30,7 +31,11 @@ func writtenTests(t *testing.T) Written {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Written{"server": server, "android": android}
+	web, err := WebTests(webDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Written{"server": server, "android": android, "web": web}
 }
 
 // marked matches an "已写" mark in the summary or the details, not the legend.
@@ -314,6 +319,53 @@ func TestAndroidTests(t *testing.T) {
 		t.Fatal("an Android case is marked without its test")
 	}
 	if strings.Contains(out, "Web 5.8 已写") {
+		t.Fatal("the same name on another platform is marked")
+	}
+}
+
+// Web red-line cases are found in test files only (Vitest *.test.ts(x),
+// Playwright *.spec.ts) outside node_modules and build output, marked written
+// per platform, and one that the matrix does not list is reported.
+func TestWebTests(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, src string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("packages/client/test/a.test.ts", "describe(\"x\", () => {\n"+
+		"  it(\"C1_IgnoresDuplicatedFrames\", async () => {});\n"+
+		"  it('C1_NotInTheMatrix', () => {});\n"+
+		"  it(\"c1_lowerCaseIsNotARedLineTest\", () => {});\n"+
+		"  it(\"plain name\", () => {});\n});\n")
+	write("packages/react/test/b.test.tsx", "it(`C7_BubblesFromContentType`, () => {});\n")
+	write("e2e/c.spec.ts", "test(\n  \"R7_ClearOfflineReplay\", async () => {});\n")
+	write("packages/client/src/main.ts", "it(\"C2_NotATestFile\", () => {});\n")
+	write("node_modules/dep/x.test.ts", "it(\"C3_Dependency\", () => {});\n")
+	write("packages/client/dist/y.test.ts", "it(\"C4_BuildOutput\", () => {});\n")
+	web, err := WebTests(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(web) != 4 || !web["C1_IgnoresDuplicatedFrames"] || !web["C1_NotInTheMatrix"] || !web["C7_BubblesFromContentType"] || !web["R7_ClearOfflineReplay"] {
+		t.Fatalf("web: %v", web)
+	}
+	m, _ := load(t)
+	written := Written{"web": web}
+	problems := CheckWritten(m, written)
+	if len(problems) != 1 || !strings.Contains(problems[0], "web test C1_NotInTheMatrix") {
+		t.Fatalf("problems: %v", problems)
+	}
+	out := string(Render(m, written))
+	if !strings.Contains(out, "Web 5.8 已写") || !strings.Contains(out, "Web 5.9 已写") {
+		t.Fatal("a written web case is not marked in the summary")
+	}
+	if strings.Contains(out, "Android 3.10 已写") {
 		t.Fatal("the same name on another platform is marked")
 	}
 }

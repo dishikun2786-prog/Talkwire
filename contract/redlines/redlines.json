@@ -374,7 +374,8 @@
         {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "回放在第 9 步注入断线：重连带抖动、建连前清空身份、先登录再发请求、旧连接的迟到应答被世代号丢弃"},
         {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"},
         {"task": "6.6", "layer": "replay-fault", "platform": "ios", "name": "C1_ReconnectAfterInjectedDisconnect", "scenario": "core/p2p", "checks": "同上"},
-        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_IgnoresDuplicatedFrames", "scenario": "core/p2p", "checks": "每一步的帧都发两遍、应答排在最后：重复的应答、登录应答与推送都被忽略，连接不中断，请求不重发"}
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C1_IgnoresDuplicatedFrames", "scenario": "core/p2p", "checks": "每一步的帧都发两遍、应答排在最后：重复的应答、登录应答与推送都被忽略，连接不中断，请求不重发"},
+        {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C1_IgnoresDuplicatedFrames", "scenario": "core/p2p", "checks": "同上"}
       ]
     },
     {
@@ -476,7 +477,8 @@
         {"task": "3.10", "layer": "replay", "platform": "android", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新"},
         {"task": "5.8", "layer": "replay", "platform": "web", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
         {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C9_RoleFromRoster", "scenario": "core/group-guards", "checks": "本人角色取自 get_members 名册；grp_sync 触发名册刷新；名册拉取失败按普通成员处理"},
-        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C9_UnknownRosterMeansMember", "scenario": "core/group-guards", "checks": "回放丢弃第 18 步的名册应答：本人角色按普通成员处理，下一次名册拉取成功后恢复"}
+        {"task": "3.10", "layer": "replay-fault", "platform": "android", "name": "C9_UnknownRosterMeansMember", "scenario": "core/group-guards", "checks": "回放丢弃第 18 步的名册应答：本人角色按普通成员处理，下一次名册拉取成功后恢复"},
+        {"task": "5.8", "layer": "replay-fault", "platform": "web", "name": "C9_UnknownRosterMeansMember", "scenario": "core/group-guards", "checks": "同上"}
       ]
     },
     {
