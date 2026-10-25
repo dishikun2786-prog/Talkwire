@@ -1,0 +1,72 @@
+{
+  "name": "@imkit/host-node",
+  "version": "0.1.0",
+  "description": "ImKit host SDK for Node: the host side of the IM contract as a Fastify plugin, with storage interfaces and reference stores",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./prisma": {
+      "types": "./dist/prisma/index.d.ts",
+      "import": "./dist/prisma/index.js"
+    },
+    "./s3": {
+      "types": "./dist/media/s3.d.ts",
+      "import": "./dist/media/s3.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma/imkit.prisma",
+    "prisma/imkit.sql"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
+    "prisma:generate": "prisma generate --schema prisma",
+    "prisma:sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma --script"
+  },
+  "dependencies": {
+    "@fastify/multipart": "8.3.1",
+    "jsonwebtoken": "9.0.3",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "@prisma/client": "6.19.3",
+    "fastify": "4.29.1",
+    "minio": "8.0.7"
+  },
+  "peerDependenciesMeta": {
+    "@prisma/client": {
+      "optional": true
+    },
+    "minio": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@prisma/client": "6.19.3",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "22.19.19",
+    "ajv": "8.20.0",
+    "fastify": "4.29.1",
+    "minio": "8.0.7",
+    "prisma": "6.19.3",
+    "tsx": "4.22.3",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.2": true
+  }
+}

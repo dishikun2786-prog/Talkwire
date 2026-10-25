@@ -11,10 +11,10 @@
 ```
 python -I tools/schema/gen.py            # 重新生成
 python -I tools/schema/gen.py --check    # 生成结果与仓库不一致时退出码 1
-node tools/schema/check.mjs --ajv <目录>
+node tools/schema/check.mjs
 ```
 
-`--ajv` 指向一个 `node_modules` 里装有 ajv 8 的目录。目前借用源仓库 `D:\Program Files\roubao\server`（只读引用，不修改）。仓库独立构建前，需要在这里加一个 `package.json` 把 ajv 列为开发依赖（安装前先征得同意）。
+ajv 8 用 `host-sdk-node` 的开发依赖（先在那里 `npm install`）；`--ajv <目录>` 可以指向别的装有 ajv 的目录。
 
 ## 两份 Schema 的约定
 
@@ -23,4 +23,4 @@ node tools/schema/check.mjs --ajv <目录>
 
 ## 当前结果
 
-全部 32 个场景（核心组 25 个、模块组 7 个）的 923 帧通过（2026-10-24）。加上 strict 档的 2 个场景共 949 帧通过（2026-10-25）；用补入 strict 字段之前的 Schema 校验，strict 场景报 16 处错误，说明这些字段确实被校验到了。红绿验证：在副本里加一个未声明字段、把一个 `seq` 改成字符串、删掉一个请求的必填字段，三处都被报出，退出码 1。
+全部 32 个场景（核心组 25 个、模块组 7 个）的 923 帧通过（2026-10-24）。加上 strict 档的 2 个场景共 949 帧通过（2026-10-25）。Phase 2 加了宿主卡片更新的帧（`custom_update`、`red_packet_update`）和核心组场景 `core/host-red-packet` 后，33 个场景加 strict 档的 6 个场景共 1114 帧通过（2026-10-25）；用补入 strict 字段之前的 Schema 校验，strict 场景报 16 处错误，说明这些字段确实被校验到了。红绿验证：在副本里加一个未声明字段、把一个 `seq` 改成字符串、删掉一个请求的必填字段，三处都被报出，退出码 1。

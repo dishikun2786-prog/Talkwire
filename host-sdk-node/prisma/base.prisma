@@ -1,0 +1,12 @@
+// The SDK's own schema for its tests and the conformance host: this file plus
+// imkit.prisma (a multi-file schema; run Prisma with --schema prisma). Hosts
+// keep their own generator and datasource and copy only imkit.prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

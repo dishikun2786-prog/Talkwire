@@ -2,7 +2,10 @@
 // contract/protocol/transcripts/ (legacy) and transcripts-strict/ (the strict
 // profile's deviating scenarios, with its additions such as errCode).
 //
-// Usage: node tools/schema/check.mjs --ajv <dir containing node_modules/ajv>
+// Usage: node tools/schema/check.mjs [--ajv <dir containing node_modules/ajv>]
+//
+// ajv comes from host-sdk-node's dev dependencies (npm install there first)
+// unless --ajv names another directory.
 //
 // Frames a client sent are checked against client-frames.schema.json; frames
 // the server sent (including optional ones) against server-frames.schema.json.
@@ -11,18 +14,18 @@
 // list or the schema is wrong).
 import { createRequire } from "node:module";
 import { readFileSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
 const args = process.argv.slice(2);
-const ajvDir = args[args.indexOf("--ajv") + 1];
-if (!args.includes("--ajv") || !ajvDir) {
-  console.error("usage: node tools/schema/check.mjs --ajv <dir with node_modules/ajv>");
+const ajvDir = args.includes("--ajv") ? args[args.indexOf("--ajv") + 1] : join(root, "host-sdk-node");
+if (!ajvDir) {
+  console.error("usage: node tools/schema/check.mjs [--ajv <dir with node_modules/ajv>]");
   process.exit(2);
 }
-const require = createRequire(join(ajvDir, "noop.js"));
+const require = createRequire(resolve(ajvDir, "noop.js"));
 const Ajv2020 = require("ajv/dist/2020").default;
 
 const load = (p) => JSON.parse(readFileSync(p, "utf8"));

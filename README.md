@@ -6,7 +6,7 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 
 ## 当前状态
 
-**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1（Go 服务端核心）** 的 1.1–1.13 已全部完成（2026-10-25）：拆文件、宿主适配、推送三家、可选模块、迁移、strict 档、安全修复、并发修复、多端同时在线，以及 strict 档补修的 D1、D2、D5、D7、D8；legacy 档与原版逐帧一致，默认档位为 strict，闸门 G1 已通过。Phase 2（宿主契约与 Node 宿主 SDK）进行中；客户端代码尚未开始。各任务的结果见 `server/README.md`，完整计划见 `docs/plan.md`。
+**Phase 0（安全网与协议规范）** 的任务已完成，验收还差协议规范草稿的审阅。**Phase 1（Go 服务端核心）** 的 1.1–1.13 已全部完成（2026-10-25）：拆文件、宿主适配、推送三家、可选模块、迁移、strict 档、安全修复、并发修复、多端同时在线，以及 strict 档补修的 D1、D2、D5、D7、D8；legacy 档与原版逐帧一致，默认档位为 strict，闸门 G1 已通过。**Phase 2（宿主契约与 Node 宿主 SDK）** 已完成（2026-10-25）：宿主双向的 OpenAPI 契约、uid 黄金向量、Node 宿主 SDK、宿主卡片更新接口 `custom-broadcast` 与红包示例；用 Node SDK（Prisma 连测试库）替换假宿主后黄金对话 33/33 全绿，契约测试双向通过，“用其他语言实现宿主”的说明在 `contract/host-api/README.md`。客户端代码尚未开始。各任务的结果见 `server/README.md`、`host-sdk-node/README.md`，完整计划见 `docs/plan.md`。
 
 ## 目录
 
@@ -14,17 +14,19 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | --- | --- | --- |
 | `contract/protocol/` | 线协议：规范、JSON Schema、黄金对话（含 strict 档的偏离场景） | 草稿，已补入 Phase 1 |
 | `contract/redlines/` | 红线对照表：每条红线对应的已录用例与计划用例 | 建设中 |
-| `contract/host-api/` | 宿主 ↔ IM 的 OpenAPI 3 | 未开始 |
+| `contract/host-api/` | 宿主 ↔ IM 的 OpenAPI 3.1、uid 黄金向量、用其他语言实现宿主的说明 | Phase 2 完成 |
 | `tools/conformance/` | 原版服务（参照）、假宿主、一致性测试台、客户端回放服务器 | 建设中 |
 | `docs/` | 计划、架构决策记录、协议规范、清单 | 建设中 |
-| `server/` | Go 服务端 | Phase 1 完成，待验收 |
-| `host-sdk-node/` | Node 宿主 SDK | Phase 2 |
+| `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
+| `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
 | `android/`、`web/`、`ios/` | 三端 SDK | Phase 3–6 |
-| `admin-kit/`、`examples/` | 后台组件、业务示例 | Phase 7–8 |
+| `examples/` | 业务示例：红包卡（宿主自定义消息类型） | 红包示例已有 |
+| `admin-kit/` | 后台组件 | Phase 8 |
 
 ## 开发工具
 
 - Go 1.26.4 及以上（本机验证用的是 1.27.0）。
+- Node.js 22 及以上（`host-sdk-node/`、`examples/`、`tools/schema/check.mjs`；本机验证用的是 24.19.0）。依赖版本钉死，lockfile 已提交。
 - 文本文件一律 LF（见 `.gitattributes`）。Git for Windows 默认 `core.autocrlf=true`，不加这条，Go 源码检出后是 CRLF，哈希对不上冻结的源码，gofmt 也会报整份文件。
 - 竞态检测用 `tools/race.sh`，参数原样传给 `go test -race`（默认 `./...`）：
 

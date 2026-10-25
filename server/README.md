@@ -24,6 +24,8 @@ ImKit 的 Go 实时服务端。
 
 验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖六个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 139 个（含子测试，数据库用例需要 `IMKIT_TEST_DSN`）。
 
+Phase 2 之后（加入 `custom-broadcast` 与核心组场景 `core/host-red-packet`，2026-10-25 在最终代码上重跑）：legacy 33/33，strict 33/33，standalone 30/33（同样是那三个依赖宿主的场景），表结构比较 5 项通过，竞态检测三轮无报告，staticcheck 无报告，单测 146 个全部通过、无跳过。
+
 ## 代码结构
 
 | 文件 | 内容 |
@@ -76,7 +78,7 @@ ImKit 的 Go 实时服务端。
 
 ## 宿主接口
 
-服务端调用宿主的端点、以及暴露给宿主的内部端点，契约都在 `contract/host-api/`（OpenAPI 3.1）。uid 的算法由 `contract/host-api/uid-vectors.json` 钉住，`host/uids_test.go` 逐条核对。
+服务端调用宿主的端点、以及暴露给宿主的内部端点，契约都在 `contract/host-api/`（OpenAPI 3.1），Node 宿主 SDK 在 `host-sdk-node/`。uid 的算法由 `contract/host-api/uid-vectors.json` 钉住，`host/uids_test.go` 逐条核对。
 
 ## 构建与验证
 
