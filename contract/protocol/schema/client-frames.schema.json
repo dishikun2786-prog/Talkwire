@@ -761,6 +761,15 @@
           "token": {
             "type": "string",
             "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "fcm",
+              "apns",
+              "webpush"
+            ],
+            "description": "push service of the token; absent means fcm"
           }
         },
         "required": [
@@ -792,6 +801,15 @@
           "token": {
             "type": "string",
             "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "fcm",
+              "apns",
+              "webpush"
+            ],
+            "description": "push service of the token; absent means fcm"
           }
         },
         "required": [

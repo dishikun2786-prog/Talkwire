@@ -3,13 +3,13 @@
 package main
 
 import (
-	"errors"
+	"strings"
+	"time"
+
 	"example.com/imkit/server/host"
 	"example.com/imkit/server/migrate"
 	"example.com/imkit/server/migrations"
-	"strconv"
-	"strings"
-	"time"
+	"example.com/imkit/server/push"
 )
 
 // deliverPendingE2eEnvelopes replays every encrypted payload that arrived
@@ -123,45 +123,35 @@ func (h *Hub) relayE2eEnvelope(topic, fromUID, toUID, kind, payload string, msgT
 	// would fire a notification with no corresponding new content to show
 	// when they tap it.
 	if kind == "msg" {
-		go h.pushE2eFCM(toUID, topic)
+		go h.pushE2e(toUID, topic)
 	}
 }
 
-// pushE2eFCM wakes an offline recipient's device for a queued encrypted
+// pushE2e wakes an offline recipient's device for a queued encrypted
 // envelope. The payload is deliberately content-blind — no preview, no
 // sender name, nothing derived from the ciphertext or from anything the
 // server would have to have decrypted to know: the server structurally
 // never holds E2EE plaintext (see relayE2eEnvelope's block comment / the
-// "-- E2EE --" note above handleE2eSend), and an FCM payload is not an
-// exception to that. The client shows a fixed, locale-generic "you have a
-// new encrypted message" string regardless of what's in this payload — see
-// FcmService.onMessageReceived's data["e2e"]=="true" branch.
-func (h *Hub) pushE2eFCM(toUID, topic string) {
+// "-- E2EE --" note above handleE2eSend), and a push payload is not an
+// exception to that. push.KindE2eMessage enforces it whatever else is set.
+// The client shows a fixed "you have a new encrypted message" string — on
+// Android see FcmService.onMessageReceived's data["e2e"]=="true" branch; on
+// APNs and Web Push it is the localisation key push.LocKeyE2eMessage.
+func (h *Hub) pushE2e(toUID, topic string) {
 	rc := CurrentRuntimeConfig()
-	if !rc.FCMEnabled || h.fcm == nil {
+	if !rc.FCMEnabled || h.pusher == nil {
 		return
 	}
-	tokensByUID, err := h.store.GetFCMTokensBatch([]string{toUID})
+	tokensByUID, err := h.store.GetPushTokensBatch([]string{toUID})
 	if err != nil {
-		logf("pushE2eFCM: GetFCMTokensBatch failed: %v", err)
+		logf("pushE2e: GetPushTokensBatch failed: %v", err)
 		return
 	}
-	data := map[string]string{
-		"type":    "e2e_message",
-		"e2e":     "true",
-		"topic":   topic,
-		"isGroup": strconv.FormatBool(strings.HasPrefix(topic, "grp_")),
-	}
-	for _, token := range tokensByUID[toUID] {
-		if err := sendFCMv1(h.fcm, token, data); err != nil {
-			logf("pushE2eFCM: send failed for %s: %v", toUID, err)
-			if errors.Is(err, ErrFCMTokenUnregistered) {
-				if delErr := h.store.DeleteFCMTokenByValue(token); delErr != nil {
-					logf("pushE2eFCM: DeleteFCMTokenByValue failed: %v", delErr)
-				}
-			}
-		}
-	}
+	h.sendPush(toUID, tokensByUID[toUID], push.Notification{
+		Kind:    push.KindE2eMessage,
+		Topic:   topic,
+		IsGroup: strings.HasPrefix(topic, "grp_"),
+	}, "pushE2e")
 }
 
 // handleE2ePublishBundle stores/replaces the caller's X3DH+PQXDH prekey

@@ -4,9 +4,12 @@ import "encoding/json"
 
 // -- Client -> Server --
 type ClientMessage struct {
-	Id          string `json:"id,omitempty"`
-	Action      string `json:"action"`
-	Token       string `json:"token,omitempty"`
+	Id     string `json:"id,omitempty"`
+	Action string `json:"action"`
+	Token  string `json:"token,omitempty"`
+	// Provider names the push service of a reg_token/unreg_token token:
+	// "fcm" (the default when absent), "apns" or "webpush".
+	Provider    string `json:"provider,omitempty"`
 	Topic       string `json:"topic,omitempty"`
 	Content     string `json:"content,omitempty"`
 	ContentType string `json:"contentType,omitempty"`

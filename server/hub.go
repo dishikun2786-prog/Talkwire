@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"example.com/imkit/server/host"
+	"example.com/imkit/server/push"
 )
 
 // hostAPI is what the core asks of the host. Modules hold the host
@@ -18,18 +19,20 @@ type hostAPI interface {
 
 // Hub maintains the set of active clients and routes messages between them
 type Hub struct {
-	store      *Store
-	auth       host.Identity
-	fcm        *ServiceAccountKey            // nil disables push notifications
-	host       hostAPI                       // friendship checks, profiles and media
-	mods       *modules                      // installed optional modules
-	callHost   host.CallSessions             // set by the call module
-	aiHost     host.GroupAI                  // set by the group AI module
-	clients    map[string]*Client            // uid -> client (one active session per user)
-	topics     map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
-	mu         sync.RWMutex
-	register   chan *Client
-	unregister chan *Client
+	store  *Store
+	auth   host.Identity
+	pusher *push.Dispatcher // nil disables offline push
+	// webPushHosts are the push services a Web Push subscription may name.
+	webPushHosts push.Hosts
+	host         hostAPI                       // friendship checks, profiles and media
+	mods         *modules                      // installed optional modules
+	callHost     host.CallSessions             // set by the call module
+	aiHost       host.GroupAI                  // set by the group AI module
+	clients      map[string]*Client            // uid -> client (one active session per user)
+	topics       map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
+	mu           sync.RWMutex
+	register     chan *Client
+	unregister   chan *Client
 
 	// presenceCh serializes presence fan-out through a single worker. See
 	// runPresenceWorker for why two bare `go BroadcastPresence(...)` calls
@@ -83,11 +86,11 @@ type Hub struct {
 	pendingCallDisconnects sync.Map
 }
 
-func NewHub(store *Store, auth host.Identity, fcm *ServiceAccountKey, hostAPI hostAPI) *Hub {
+func NewHub(store *Store, auth host.Identity, pusher *push.Dispatcher, hostAPI hostAPI) *Hub {
 	return &Hub{
 		store:      store,
 		auth:       auth,
-		fcm:        fcm,
+		pusher:     pusher,
 		host:       hostAPI,
 		clients:    make(map[string]*Client),
 		topics:     make(map[string]map[string]*Client),

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"example.com/imkit/server/push"
 )
 
 type Config struct {
@@ -30,6 +32,12 @@ type Config struct {
 	// it is every module and those the host cannot support are skipped.
 	Modules         []string
 	ModulesExplicit bool
+	// Push providers besides FCM (FCMServiceAccountPath). Each is enabled by
+	// its key file; see package push.
+	APNs    push.APNsConfig
+	WebPush push.WebPushConfig
+	// PushTimeout bounds each push request, including token exchanges.
+	PushTimeout time.Duration
 }
 
 // LoadConfig builds the config from defaults plus environment overrides.
@@ -105,6 +113,7 @@ func LoadConfig() *Config {
 			}
 		}
 	}
+	loadPushConfig(cfg)
 	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
 		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
 	}
@@ -118,6 +127,44 @@ func LoadConfig() *Config {
 		log.Fatal("JWT_SECRET is required: it must match the main server's JWT_SECRET")
 	}
 	return cfg
+}
+
+// loadPushConfig reads the APNs and Web Push settings.
+//
+//	IMKIT_APNS_KEY_PATH, IMKIT_APNS_KEY_ID, IMKIT_APNS_TEAM_ID, IMKIT_APNS_TOPIC
+//	IMKIT_APNS_ENV                production (default) or sandbox
+//	IMKIT_VAPID_KEY_PATH, IMKIT_VAPID_SUBJECT
+//	IMKIT_WEBPUSH_ALLOWED_HOSTS   push services subscriptions may name
+//	IMKIT_WEBPUSH_TTL_SEC         how long a push service keeps a message
+//	IMKIT_PUSH_HTTP_TIMEOUT_SEC   per request; IM_FCM_HTTP_TIMEOUT_SEC is the
+//	                              older name, still read
+func loadPushConfig(cfg *Config) {
+	cfg.PushTimeout = envDuration("IMKIT_PUSH_HTTP_TIMEOUT_SEC", envDuration("IM_FCM_HTTP_TIMEOUT_SEC", 10*time.Second))
+	cfg.APNs = push.APNsConfig{
+		KeyPath: os.Getenv("IMKIT_APNS_KEY_PATH"),
+		KeyID:   os.Getenv("IMKIT_APNS_KEY_ID"),
+		TeamID:  os.Getenv("IMKIT_APNS_TEAM_ID"),
+		Topic:   os.Getenv("IMKIT_APNS_TOPIC"),
+		BaseURL: push.APNsProduction,
+		Timeout: cfg.PushTimeout,
+	}
+	switch v := os.Getenv("IMKIT_APNS_ENV"); v {
+	case "", "production":
+	case "sandbox":
+		cfg.APNs.BaseURL = push.APNsSandbox
+	default:
+		log.Fatalf("IMKIT_APNS_ENV must be production or sandbox, got %q", v)
+	}
+	cfg.WebPush = push.WebPushConfig{
+		KeyPath: os.Getenv("IMKIT_VAPID_KEY_PATH"),
+		Subject: os.Getenv("IMKIT_VAPID_SUBJECT"),
+		Hosts:   push.DefaultWebPushHosts,
+		TTL:     envDuration("IMKIT_WEBPUSH_TTL_SEC", 24*time.Hour),
+		Timeout: cfg.PushTimeout,
+	}
+	if v, ok := os.LookupEnv("IMKIT_WEBPUSH_ALLOWED_HOSTS"); ok {
+		cfg.WebPush.Hosts = push.ParseHosts(v)
+	}
 }
 
 // envInt reads a positive integer from an env var, falling back to def when

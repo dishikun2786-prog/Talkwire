@@ -89,6 +89,24 @@ next:
 	return out
 }
 
+// WithoutColumns returns the catalog minus the given columns, each named
+// "table.column".
+func (c Catalog) WithoutColumns(columns ...string) Catalog {
+	drop := map[[2]string]bool{}
+	for _, tc := range columns {
+		table, column, _ := strings.Cut(tc, ".")
+		drop[[2]string{"column " + table, column}] = true
+	}
+	var out Catalog
+	for _, l := range c.Lines {
+		if parts := strings.Split(l, " | "); len(parts) > 2 && drop[[2]string{parts[0], parts[2]}] {
+			continue
+		}
+		out.Lines = append(out.Lines, l)
+	}
+	return out
+}
+
 // Diff lists the lines only in a ("-") and only in b ("+").
 func (a Catalog) Diff(b Catalog) []string {
 	count := map[string]int{}

@@ -332,13 +332,23 @@ func dropHostCalls(tr *harness.Transcript) {
 	}
 }
 
-// schemaAdditions are the tables the server adds to the reference schema.
-var schemaAdditions = []string{"imkit_schema_migrations"}
+// The server's additions to the reference schema: whole tables, and columns
+// ("table.column") added to reference tables.
+var (
+	schemaAddedTables  = []string{"imkit_schema_migrations"}
+	schemaAddedColumns = []string{"im_fcm_tokens.provider"}
+)
+
+// withoutAdditions is a catalog as the reference server would have it.
+func withoutAdditions(c harness.Catalog) harness.Catalog {
+	return c.Without(schemaAddedTables...).WithoutColumns(schemaAddedColumns...)
+}
 
 // schemaCheck compares the schema the server builds with the reference
-// server's, three ways: on an empty database, after a restart (which must
-// apply nothing), and on a database the reference server already created
-// (the upgrade path of an existing deployment).
+// server's: on an empty database, after a restart (which must apply nothing),
+// and on a database the reference server already created (the upgrade path
+// of an existing deployment), where the result must also equal the empty
+// database's, additions included.
 func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int {
 	ref := o.db
 	ref.Name = oracleDB
@@ -382,9 +392,10 @@ func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int
 	must(o.db.Reset())
 	start(o.bin, o.db, "fresh")
 	fresh := catalog(o.db)
-	compare("empty database: server vs reference", reference, fresh.Without(schemaAdditions...))
-	added := len(fresh.Lines) - len(fresh.Without(schemaAdditions...).Lines)
-	fmt.Printf("         additions: %s (%d lines)\n", strings.Join(schemaAdditions, ", "), added)
+	compare("empty database: server vs reference", reference, withoutAdditions(fresh))
+	added := len(fresh.Lines) - len(withoutAdditions(fresh).Lines)
+	additions := append(append([]string{}, schemaAddedTables...), schemaAddedColumns...)
+	fmt.Printf("         additions: %s (%d lines)\n", strings.Join(additions, ", "), added)
 
 	restartLog := start(o.bin, o.db, "restart")
 	compare("restart: unchanged", fresh, catalog(o.db))
@@ -400,7 +411,9 @@ func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int
 	must(o.db.Reset())
 	start(oracleBin, o.db, "adopt-reference")
 	start(o.bin, o.db, "adopt")
-	compare("existing reference database: adopted vs reference", reference, catalog(o.db).Without(schemaAdditions...))
+	adopted := catalog(o.db)
+	compare("existing reference database: adopted vs reference", reference, withoutAdditions(adopted))
+	compare("existing reference database: adopted vs empty database", fresh, adopted)
 
 	fmt.Printf("SUMMARY  %d check(s) failed\n", failed)
 	if failed > 0 {

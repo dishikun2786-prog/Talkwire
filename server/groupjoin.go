@@ -5,10 +5,12 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"example.com/imkit/server/migrate"
-	"example.com/imkit/server/migrations"
 	"fmt"
 	"time"
+
+	"example.com/imkit/server/migrate"
+	"example.com/imkit/server/migrations"
+	"example.com/imkit/server/push"
 )
 
 // handleGroupQrToken mints-or-returns a group's current scan-to-join QR
@@ -364,7 +366,7 @@ func (h *Hub) notifyGroupManagersOfJoinRequest(topic, requesterUID, groupName st
 		return
 	}
 	h.enqueueGroupEventForOffline(topic, offline, requesterUID, PendingGroupEventJoinRequest, groupName)
-	h.pushJoinFCM(offline, groupName, "有人申请加入「"+groupName+"」，点击查看详情并审核", topic)
+	h.pushJoin(offline, groupName, "有人申请加入「"+groupName+"」，点击查看详情并审核", topic)
 }
 
 // notifyRequesterOfReview tells an applicant whether their request was
@@ -385,42 +387,27 @@ func (h *Hub) notifyRequesterOfReview(topic, requesterUID, status string) {
 	if err := h.store.EnqueuePendingGroupEvent(topic, requesterUID, kind, groupName, ""); err != nil {
 		logf("notifyRequesterOfReview: enqueue failed: %v", err)
 	}
-	h.pushJoinFCM([]string{requesterUID}, groupName, body, topic)
+	h.pushJoin([]string{requesterUID}, groupName, body, topic)
 }
 
-// pushJoinFCM is a lighter-weight sibling of pushOfflineRecipients for the
+// pushJoin is a lighter-weight sibling of pushOfflineRecipients for the
 // small recipient sets these two join-flow notifications ever address (a
 // group's manager roster is capped at CurrentRuntimeConfig().MaxAdmins+1;
 // a review notice has exactly one recipient) -- no goroutine/semaphore pool
 // needed at this scale, unlike a 500-member group's message fan-out.
-func (h *Hub) pushJoinFCM(uids []string, groupName, body, topic string) {
+func (h *Hub) pushJoin(uids []string, groupName, body, topic string) {
 	rc := CurrentRuntimeConfig()
-	if !rc.FCMEnabled || h.fcm == nil {
+	if !rc.FCMEnabled || h.pusher == nil {
 		return
 	}
-	tokensByUID, err := h.store.GetFCMTokensBatch(uids)
+	tokensByUID, err := h.store.GetPushTokensBatch(uids)
 	if err != nil {
-		logf("pushJoinFCM: GetFCMTokensBatch failed: %v", err)
+		logf("pushJoin: GetPushTokensBatch failed: %v", err)
 		return
 	}
-	data := map[string]string{
-		"type":      "group_join",
-		"topic":     topic,
-		"groupName": groupName,
-		"preview":   body,
-		"isGroup":   "true",
-	}
+	n := push.Notification{Kind: push.KindGroupJoin, Topic: topic, IsGroup: true, GroupName: groupName, Body: body}
 	for _, uid := range uids {
-		for _, token := range tokensByUID[uid] {
-			if err := sendFCMv1(h.fcm, token, data); err != nil {
-				logf("pushJoinFCM: send failed for %s: %v", uid, err)
-				if errors.Is(err, ErrFCMTokenUnregistered) {
-					if delErr := h.store.DeleteFCMTokenByValue(token); delErr != nil {
-						logf("pushJoinFCM: DeleteFCMTokenByValue failed: %v", delErr)
-					}
-				}
-			}
-		}
+		h.sendPush(uid, tokensByUID[uid], n, "pushJoin")
 	}
 }
 

@@ -26,6 +26,8 @@ UID = {"type": "string", "pattern": "^(uid_[A-Za-z0-9_-]{11}|usr.+)$"}
 STRS = {"type": "array", "items": S}
 UIDS = {"type": "array", "items": UID}
 INTS = {"type": "array", "items": I}
+PROVIDER = {"type": "string", "enum": ["fcm", "apns", "webpush"],
+            "description": "push service of the token; absent means fcm"}
 
 
 def ref(name):
@@ -66,8 +68,8 @@ CLIENT = {
     "disband_grp": ({"topic": NS}, ["topic"]),
     "get_groups": ({}, []),
     "get_members": ({"topic": NS}, ["topic"]),
-    "reg_token": ({"token": NS}, ["token"]),
-    "unreg_token": ({"token": NS}, ["token"]),
+    "reg_token": ({"token": NS, "provider": PROVIDER}, ["token"]),
+    "unreg_token": ({"token": NS, "provider": PROVIDER}, ["token"]),
     "ack_topic_cleared": ({}, ["id"]),
     "ack_group_event": ({"eventId": POS, "topic": S}, ["eventId"]),
     "forward_bundle": ({"reqId": NS, "sourceTopic": NS, "sourceMsgIds": {"type": "array", "items": POS, "minItems": 1},
