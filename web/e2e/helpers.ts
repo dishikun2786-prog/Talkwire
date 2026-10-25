@@ -45,7 +45,7 @@ export async function blankPage(browser: Browser): Promise<Page> {
 }
 
 export async function openContact(page: Page, name: string): Promise<void> {
-  const contact = page.locator(`[data-contact="${name}"]`);
+  const contact = contactItem(page, name);
   await expect(contact).toBeVisible();
   await contact.click();
   await expect(page.locator(".imkit-chat-title")).toHaveText(name);
@@ -63,6 +63,9 @@ export async function send(page: Page, text: string): Promise<void> {
   await box.fill(text);
   await box.press("Enter");
 }
+
+/** A contact in the sample's contact list (data-contact is the uid; the name is the text). */
+export const contactItem = (page: Page, name: string) => page.locator("[data-contact]", { hasText: name });
 
 /** The conversation list's entry (contacts use the same style but carry data-contact instead). */
 export const conversationItem = (page: Page, title: string) => page.locator("[data-conversation]", { hasText: title });

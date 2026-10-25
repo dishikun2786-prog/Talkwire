@@ -240,6 +240,7 @@ internal fun InfoScreen(state: ImChatState, id: ConversationId, onBack: () -> Un
                         SettingRow(stringResource(R.string.imkit_rename_group)) { newName = title; pending = Pending.Rename }
                     }
                 }
+                state.host.groupInfoExtras?.let { extras -> item { extras(id.id, myRole) } }
             }
             item {
                 Spacer(Modifier.height(8.dp))

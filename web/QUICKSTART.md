@@ -39,7 +39,7 @@ const host: ImUiHost = {
 };
 ```
 
-单聊不在协议里列出，按宿主的联系人建立：拉到联系人后对每个调 `engine.ensureConversation(uid, name)`；对方加你为好友时客户端会收到 `contactSync` 事件，再拉一次。可选：`media`（发图片、视频、语音；不给时不显示附件与语音按钮）、`onOpenProfile`（默认什么都不做：群成员之间不能互看资料）。
+单聊不在协议里列出，按宿主的联系人建立：拉到联系人后对每个调 `engine.ensureConversation(uid, name)`；对方加你为好友时客户端会收到 `contactSync` 事件，再拉一次。可选：`media`（发图片、视频、语音；不给时不显示附件与语音按钮）、`refreshContacts`（选人页打开时重新拉联系人）、`onOpenProfile`（默认什么都不做：群成员之间不能互看资料）。
 
 ## 4. 装起来
 
@@ -68,11 +68,14 @@ host.media = new MediaSender(engine, new MediaUploader(hostBaseUrl, tokenProvide
 <div className="imkit-root">
   <ImKitStyles />
   <ImKitProvider engine={engine} host={host} locale="zh">
-    <ConversationList onOpen={setOpen} />
-    {open && <ChatScreen conversation={open} onBack={() => setOpen(null)} />}
+    <ConversationList onOpen={setOpen} /> {/* 顶上带搜索框；searchable={false} 去掉 */}
+    {open && <ChatScreen conversation={open} onBack={() => setOpen(null)} onOpenInfo={() => setInfo(open)} />}
+    {info && <ConversationInfo conversation={info} onBack={() => setInfo(null)} onLeft={() => { setInfo(null); setOpen(null); }} />}
   </ImKitProvider>
 </div>
 ```
+
+会话信息页（`ConversationInfo`）管群成员与角色、加人、改群名、置顶、免打扰、清空、退群与解散；建群与加人用 `PickPeople`；通讯录用 `ContactList`（点人即建立并打开单聊）。可选模块的群内容（二维码、入群审核）经 `groupExtras` 放进群的信息页。
 
 - `deviceName` 是这个浏览器的设备名（存在 localStorage 里），同一账号的手机和网页因此能同时在线。
 - 退出登录：`engine.close()`、`tabs.close()`，再清掉自己的会话。

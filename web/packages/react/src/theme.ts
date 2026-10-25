@@ -51,12 +51,15 @@ export const imkitCss = `
 .imkit-banner { padding: 6px 12px; font-size: 13px; text-align: center; background: #fef3c7; color: #92400e; }
 .imkit-list { display: flex; flex-direction: column; background: var(--imkit-surface); height: 100%; overflow-y: auto; }
 .imkit-list-empty { padding: 32px 16px; text-align: center; color: var(--imkit-text-muted); }
+.imkit-list-searchbar { position: sticky; top: 0; z-index: 1; background: var(--imkit-surface); padding: 8px 10px 0; }
+.imkit-list-header { padding: 10px 16px 4px; font-size: 12px; color: var(--imkit-text-muted); }
+.imkit-search-hit mark { background: color-mix(in srgb, var(--imkit-accent) 28%, transparent); color: inherit; border-radius: 2px; }
 .imkit-list-item { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--imkit-border);
   background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; width: 100%; }
 .imkit-list-item:hover, .imkit-list-item[aria-current="true"] { background: color-mix(in srgb, var(--imkit-accent) 8%, transparent); }
 .imkit-list-main { flex: 1; min-width: 0; }
 .imkit-list-row { display: flex; justify-content: space-between; gap: 8px; }
-.imkit-list-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imkit-list-title { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imkit-list-time { font-size: 12px; color: var(--imkit-text-muted); flex: none; }
 .imkit-list-preview { font-size: 13px; color: var(--imkit-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imkit-list-draft { color: var(--imkit-danger); }
@@ -112,4 +115,63 @@ export const imkitCss = `
   padding: 8px 14px; border-radius: 8px; font-size: 13px; }
 .imkit-viewer { position: fixed; inset: 0; z-index: 1000; background: rgb(0 0 0 / .9); display: flex; align-items: center; justify-content: center; }
 .imkit-viewer img { max-width: 96vw; max-height: 96vh; }
+.imkit-info { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--imkit-bg); }
+.imkit-info-body { flex: 1; overflow-y: auto; padding-bottom: 24px; }
+.imkit-info-head { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--imkit-surface); margin-bottom: 8px; }
+.imkit-info-title { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.imkit-info-caption { font-size: 13px; color: var(--imkit-text-muted); padding: 8px 16px 4px; }
+.imkit-info-group { background: var(--imkit-surface); margin-bottom: 8px; display: flex; flex-direction: column; }
+.imkit-info-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; min-height: 48px; border: 0; border-bottom: 1px solid var(--imkit-border);
+  background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; }
+.imkit-info-group > .imkit-info-row:last-child { border-bottom: 0; }
+button.imkit-info-row, label.imkit-info-row { cursor: pointer; }
+button.imkit-info-row:hover, label.imkit-info-row:hover { background: color-mix(in srgb, var(--imkit-text) 5%, transparent); }
+label.imkit-info-row[aria-disabled="true"] { cursor: default; opacity: .55; }
+.imkit-info-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imkit-info-accent { color: var(--imkit-accent); }
+.imkit-info-plus { width: 40px; text-align: center; font-size: 20px; }
+.imkit-info-hint { font-size: 12px; color: var(--imkit-text-muted); margin: 0; padding: 4px 16px 12px; }
+.imkit-role { font-size: 11px; color: var(--imkit-accent); background: color-mix(in srgb, var(--imkit-accent) 12%, transparent); padding: 2px 6px; border-radius: 4px; flex: none; }
+.imkit-toggle input { width: 36px; height: 20px; accent-color: var(--imkit-accent); }
+.imkit-danger-text { color: var(--imkit-danger) !important; }
+.imkit-dialog { position: fixed; inset: 0; z-index: 900; background: rgb(0 0 0 / .4); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.imkit-dialog-card { background: var(--imkit-surface); color: var(--imkit-text); border-radius: 12px; padding: 18px; width: min(420px, 100%);
+  max-height: calc(100vh - 32px); overflow-y: auto; box-shadow: 0 12px 32px rgb(0 0 0 / .25); }
+.imkit-dialog-title { margin: 0 0 12px; font-size: 17px; }
+.imkit-dialog-text { margin: 0 0 16px; line-height: 1.5; }
+.imkit-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.imkit-text-button { border: 0; background: transparent; color: var(--imkit-accent); font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.imkit-text-button:hover { background: color-mix(in srgb, var(--imkit-accent) 10%, transparent); }
+.imkit-text-button:disabled { opacity: .5; cursor: default; }
+.imkit-field { width: 100%; border: 1px solid var(--imkit-border); border-radius: 8px; padding: 8px 12px; font: inherit; background: var(--imkit-bg); color: inherit; margin-bottom: 8px; }
+.imkit-pick-list { max-height: 50vh; overflow-y: auto; border: 1px solid var(--imkit-border); border-radius: 8px; }
+.imkit-pick-list .imkit-info-row { min-height: 52px; }
+.imkit-composer-wrap { background: var(--imkit-surface); }
+.imkit-reply-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px 0 14px; border-top: 1px solid var(--imkit-border); }
+.imkit-reply-name { font-size: 12px; color: var(--imkit-accent); }
+.imkit-reply-text, .imkit-quote-text { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imkit-reply-bar + .imkit-composer { border-top: 0; }
+.imkit-quote { display: flex; flex-direction: column; border-left: 3px solid currentColor; padding: 2px 8px; margin-bottom: 6px; border-radius: 4px;
+  background: color-mix(in srgb, currentColor 8%, transparent); opacity: .85; max-width: 100%; }
+.imkit-quote-name { font-size: 11px; font-weight: 600; }
+.imkit-row-check { align-self: center; flex: none; width: 18px; height: 18px; accent-color: var(--imkit-accent); }
+.imkit-row-selectable { cursor: pointer; }
+.imkit-row-selected .imkit-bubble, .imkit-row-selected .imkit-card { outline: 2px solid var(--imkit-accent); outline-offset: 1px; }
+/* The check box stays on the left edge, also next to own messages (their row runs right to left). */
+.imkit-row-mine .imkit-row-check { order: 99; margin-right: auto; }
+.imkit-list-item-pinned { background: color-mix(in srgb, var(--imkit-text) 4%, transparent); }
+.imkit-list-muted { font-size: 12px; opacity: .6; flex: none; }
+.imkit-readers { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.imkit-readers-faces { display: inline-flex; }
+.imkit-readers-faces > .imkit-avatar { border: 1.5px solid var(--imkit-bg); margin-left: -5px; font-size: 8px; }
+.imkit-readers-faces > .imkit-avatar:first-child { margin-left: 0; }
+.imkit-readers-more { font-size: 9px; margin-left: 2px; }
+.imkit-emoji-panel { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 2px; padding: 6px 10px 10px; max-height: 196px;
+  overflow-y: auto; background: var(--imkit-surface); border-top: 1px solid var(--imkit-border); }
+.imkit-emoji-panel button { border: 0; background: transparent; font-size: 22px; line-height: 1; padding: 6px 0; border-radius: 6px; cursor: pointer; }
+.imkit-emoji-panel button:hover { background: color-mix(in srgb, var(--imkit-text) 8%, transparent); }
+.imkit-contacts { display: flex; flex-direction: column; min-height: 0; }
+.imkit-contacts > .imkit-field { margin: 8px 10px; width: auto; }
+.imkit-contact-list { overflow-y: auto; min-height: 0; }
+.imkit-system-row { align-self: stretch; display: flex; justify-content: center; }
 `;

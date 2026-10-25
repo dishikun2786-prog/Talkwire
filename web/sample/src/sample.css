@@ -1,7 +1,7 @@
 html, body, #root { height: 100%; margin: 0; }
 .sample-root { height: 100%; display: flex; flex-direction: column; }
 .sample-bar { display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: var(--imkit-surface); border-bottom: 1px solid var(--imkit-border); }
-.sample-bar button, .sample-bar select, .sample-side-actions button, .sample-login button, .sample-dialog button {
+.sample-bar button, .sample-bar select, .sample-side-actions button, .sample-login button, .sample-dialog button:not([class*="imkit-"]) {
   font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; cursor: pointer; }
 .sample-me { font-size: 14px; color: var(--imkit-text-muted); }
 .sample-main { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -21,11 +21,11 @@ html, body, #root { height: 100%; margin: 0; }
   background: var(--imkit-surface); color: inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .2); cursor: pointer; font: inherit; }
 .sample-dialog { position: fixed; inset: 0; background: rgb(0 0 0 / .35); display: flex; align-items: center; justify-content: center; }
 .sample-dialog form { background: var(--imkit-surface); padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 300px; }
-.sample-pick { display: flex; gap: 8px; align-items: center; }
+.sample-group-extras { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 @media (max-width: 720px) {
   .sample-side { width: 100%; }
-  .sample-main:has(.imkit-chat) .sample-side { display: none; }
-  .sample-main:not(:has(.imkit-chat)) .sample-chat { display: none; }
+  .sample-main:has(.imkit-chat, .imkit-info, .sample-join) .sample-side { display: none; }
+  .sample-main:not(:has(.imkit-chat, .imkit-info, .sample-join)) .sample-chat { display: none; }
 }
 .sample-link { font-size: 12px; color: var(--imkit-text-muted); border: 1px solid var(--imkit-border); border-radius: 10px; padding: 1px 8px; }
 .sample-panel { background: var(--imkit-bg); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; width: min(420px, 92vw); max-height: 90vh; overflow: auto; }

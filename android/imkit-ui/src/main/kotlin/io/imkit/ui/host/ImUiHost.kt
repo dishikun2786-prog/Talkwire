@@ -1,9 +1,12 @@
 package io.imkit.ui.host
 
 import android.net.Uri
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.imkit.core.model.ConversationId
+import io.imkit.core.model.GroupRole
 import kotlinx.coroutines.flow.StateFlow
 
 /** A person as the host knows them. The framework itself only knows uids. */
@@ -69,6 +72,21 @@ public interface ImUiHost {
 
     /** Extra top bar actions of a conversation. */
     public fun topBarActions(conversation: ConversationId): List<TopBarAction> = emptyList()
+
+    /**
+     * Top bar content that needs composition, after [topBarActions]: an
+     * optional module's buttons that ask for a permission first (the call
+     * module's call buttons, say). Null adds nothing.
+     */
+    public val topBarExtras: (@Composable RowScope.(conversation: ConversationId) -> Unit)? get() = null
+
+    /**
+     * Sections an optional module adds to a group's info screen, after the
+     * members and before the chat settings (the group-join module's QR code
+     * and join requests, say). [role] is the user's own role in the group.
+     * Null adds nothing.
+     */
+    public val groupInfoExtras: (@Composable (topic: String, role: GroupRole) -> Unit)? get() = null
 
     /**
      * A tap on someone's avatar. The default does nothing: group members

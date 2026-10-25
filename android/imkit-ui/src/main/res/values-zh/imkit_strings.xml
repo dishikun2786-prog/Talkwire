@@ -69,6 +69,9 @@
     <string name="imkit_copied">已复制</string>
     <string name="imkit_saved">已保存</string>
     <string name="imkit_save_failed">保存失败</string>
+    <string name="imkit_recalled_preview">撤回了一条消息</string>
+    <string name="imkit_recalled_by_you">你撤回了一条消息</string>
+    <string name="imkit_recalled_by">%1$s 撤回了一条消息</string>
     <string name="imkit_recall_failed">撤回失败</string>
     <string name="imkit_action_failed">操作失败，请重试</string>
     <string name="imkit_forward_to">转发给</string>
@@ -101,6 +104,8 @@
     <string name="imkit_contacts">通讯录</string>
     <string name="imkit_no_contacts">暂无联系人</string>
     <string name="imkit_search">搜索</string>
+    <string name="imkit_search_messages">聊天记录</string>
+    <string name="imkit_no_results">无结果</string>
     <string name="imkit_group_info">群聊信息</string>
     <string name="imkit_chat_info">聊天信息</string>
     <string name="imkit_group_name">群聊名称</string>

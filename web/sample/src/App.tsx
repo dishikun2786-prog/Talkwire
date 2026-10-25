@@ -1,8 +1,8 @@
 import { NoMediaEngine } from "@imkit/call";
 import { CallButtons, CallOverlay, CallProvider, CallStyles } from "@imkit/call/react";
-import { BrowserNotifier, isGroupConversation, type ConversationId, type GroupRole } from "@imkit/client";
+import { BrowserNotifier, canManage, isGroupConversation, type ConversationId } from "@imkit/client";
 import { GroupJoinProvider, GroupJoinStyles, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel, groupJoinNotice, useGroupJoin, useGroupJoinEvents } from "@imkit/group-join/react";
-import { Avatar, ChatScreen, ConnectionBanner, ConversationList, ImKitProvider, ImKitStyles, useImKit, useSignal, type ImProfile } from "@imkit/react";
+import { ChatScreen, ConnectionBanner, ContactList, ConversationInfo, ConversationList, ImKitProvider, ImKitStyles, PickPeople, useSignal } from "@imkit/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminConsole, isAdminHash } from "./Admin.js";
 import { buildStack, devLogin, saveSession, savedSession, type Stack } from "./stack.js";
@@ -10,9 +10,9 @@ import { buildStack, devLogin, saveSession, savedSession, type Stack } from "./s
 type Locale = "en" | "zh" | "vi";
 
 const ui = {
-  en: { title: "ImKit sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", groupName: "Group name", create: "Create", cancel: "Cancel", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", groupQr: "Group QR", close: "Close", admin: "Admin" },
-  zh: { title: "ImKit 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", groupName: "群名称", create: "创建", cancel: "取消", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", groupQr: "群二维码", close: "关闭", admin: "管理后台" },
-  vi: { title: "Mẫu ImKit", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", groupName: "Tên nhóm", create: "Tạo", cancel: "Hủy", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", groupQr: "Mã QR nhóm", close: "Đóng", admin: "Quản trị" },
+  en: { title: "ImKit sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", close: "Close", admin: "Admin" },
+  zh: { title: "ImKit 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", close: "关闭", admin: "管理后台" },
+  vi: { title: "Mẫu ImKit", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", close: "Đóng", admin: "Quản trị" },
 } as const;
 
 function initialLocale(): Locale {
@@ -128,7 +128,8 @@ const joinLink = (qrToken: string) => `${location.origin}${location.pathname}#/j
 function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
   const [open, setOpen] = useState<ConversationId | null>(() => route().chat);
   const [joining, setJoining] = useState<string | null>(() => route().join);
-  const [panel, setPanel] = useState<ConversationId | null>(null);
+  // The open chat's settings page, in place of the chat.
+  const [info, setInfo] = useState<ConversationId | null>(null);
   const [banner, setBanner] = useState<{ title: string; body: string; conversation: string } | null>(null);
   const [making, setMaking] = useState(false);
   const contacts = useSignal(stack.host.contacts);
@@ -151,6 +152,7 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
   }, []);
   const openChat = (c: ConversationId | null) => {
     setJoining(null);
+    setInfo(null);
     setOpen(c);
   };
 
@@ -208,13 +210,7 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
         <ConversationList onOpen={openChat} activeConversation={open} />
         <details className="sample-contacts" open>
           <summary>{t.contacts} ({contacts.length})</summary>
-          {contacts.length === 0 && <p className="sample-hint">{t.noContacts}</p>}
-          {contacts.map((c) => (
-            <button key={c.uid} type="button" className="imkit-list-item" onClick={() => openChat(c.uid)} data-contact={c.name}>
-              <Avatar uid={c.uid} name={c.name} url={c.avatarUrl} size={32} />
-              <span>{c.name}</span>
-            </button>
-          ))}
+          {contacts.length === 0 ? <p className="sample-hint">{t.noContacts}</p> : <ContactList onOpen={openChat} />}
         </details>
       </aside>
       <main className="sample-chat">
@@ -223,20 +219,27 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
             <JoinGroupScreen qrToken={joining} onOpen={openChat} />
             <button type="button" onClick={() => setJoining(null)}>{t.close}</button>
           </div>
+        ) : open && info === open ? (
+          <ConversationInfo
+            key={"info" + open}
+            conversation={open}
+            onBack={() => setInfo(null)}
+            onLeft={() => openChat(null)}
+            groupExtras={(topic, role) => (
+              <div className="sample-group-extras">
+                <GroupQrCard topic={topic} canRefresh={canManage(role)} linkFor={joinLink} />
+                <JoinApprovalSetting topic={topic} editable={role === "owner"} />
+                {canManage(role) && <JoinRequestsPanel topic={topic} />}
+              </div>
+            )}
+          />
         ) : open ? (
           <ChatScreen
             key={open}
             conversation={open}
             onBack={() => setOpen(null)}
-            headerActions={
-              isGroupConversation(open) ? (
-                <button type="button" className="imkit-icon-button" onClick={() => setPanel(open)}>
-                  {t.groupQr}
-                </button>
-              ) : (
-                <CallButtons peer={open} onRefused={(text) => setBanner({ title: "", body: text, conversation: open })} />
-              )
-            }
+            onOpenInfo={() => setInfo(open)}
+            headerActions={isGroupConversation(open) ? null : <CallButtons peer={open} onRefused={(text) => setBanner({ title: "", body: text, conversation: open })} />}
           />
         ) : (
           <div className="sample-empty">{t.pick}</div>
@@ -247,32 +250,13 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
           <strong>{banner.title}</strong> {banner.body}
         </button>
       )}
-      {panel && <GroupPanel topic={panel} t={t} onClose={() => setPanel(null)} />}
-      {making && <NewGroup contacts={contacts} t={t} onClose={() => setMaking(false)} onCreate={async (name, members) => openChat(await stack.engine.createGroup(name, members))} />}
-    </div>
-  );
-}
-
-/** A group's QR code, the approval switch and, for managers, the join requests. */
-function GroupPanel({ topic, t, onClose }: { topic: ConversationId; t: (typeof ui)[Locale]; onClose(): void }) {
-  const { engine } = useImKit();
-  const [role, setRole] = useState<GroupRole | null>(null);
-  useEffect(() => {
-    let live = true;
-    void engine.myRole(topic).then((r) => live && setRole(r));
-    return () => {
-      live = false;
-    };
-  }, [engine, topic]);
-  const manager = role === "owner" || role === "admin";
-  return (
-    <div className="sample-dialog" role="dialog" aria-label={t.groupQr}>
-      <div className="sample-panel">
-        <GroupQrCard topic={topic} canRefresh={manager} linkFor={joinLink} />
-        {role && <JoinApprovalSetting topic={topic} editable={role === "owner"} />}
-        {manager && <JoinRequestsPanel topic={topic} />}
-        <button type="button" onClick={onClose}>{t.close}</button>
-      </div>
+      {making && (
+        <div className="sample-dialog" role="dialog" aria-label={t.newGroup}>
+          <div className="sample-panel">
+            <PickPeople onDone={(c) => { setMaking(false); openChat(c); }} onCancel={() => setMaking(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -284,34 +268,5 @@ function LinkBadge({ stack }: { stack: Stack }) {
     <span className="sample-link" data-testid="link" title="worker · leader · follower · solo">
       {role}
     </span>
-  );
-}
-
-function NewGroup({ contacts, t, onClose, onCreate }: { contacts: ImProfile[]; t: (typeof ui)[Locale]; onClose(): void; onCreate(name: string, members: string[]): Promise<void> }) {
-  const [picked, setPicked] = useState<string[]>([]);
-  const [name, setName] = useState("");
-  return (
-    <div className="sample-dialog" role="dialog" aria-label={t.newGroup}>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          await onCreate(name.trim(), picked);
-          onClose();
-        }}
-      >
-        <h3>{t.newGroup}</h3>
-        <input aria-label={t.groupName} placeholder={t.groupName} value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} />
-        {contacts.map((c) => (
-          <label key={c.uid} className="sample-pick">
-            <input type="checkbox" checked={picked.includes(c.uid)} onChange={(e) => setPicked(e.target.checked ? [...picked, c.uid] : picked.filter((u) => u !== c.uid))} />
-            {c.name}
-          </label>
-        ))}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button type="button" onClick={onClose}>{t.cancel}</button>
-          <button type="submit" disabled={!name.trim() || picked.length === 0}>{t.create}</button>
-        </div>
-      </form>
-    </div>
   );
 }

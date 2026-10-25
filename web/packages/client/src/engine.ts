@@ -29,8 +29,11 @@ import type { ImEvent } from "./connection.js";
 import {
   AI_ASSISTANT_UID,
   isPending,
+  isRecalled,
   messageKey,
+  messageKind,
   newConversation,
+  recalledCopy,
   timelineOrder,
   type ChatMessage,
   type ConversationId,
@@ -474,6 +477,26 @@ export class ChatEngine {
     return this.updateConv(conversation, (c) => ({ ...c, muted }));
   }
 
+  // ------------------------------------------------------------------ local search
+
+  /**
+   * Text messages stored on this device that contain `query` (case does not
+   * matter), newest first. Reads the `scanPerConversation` most recent
+   * messages of each conversation through the store, so it also works when
+   * message text is encrypted at rest; older messages are not searched.
+   */
+  async searchMessages(query: string, limit = 50, scanPerConversation = 500): Promise<ChatMessage[]> {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const hits: ChatMessage[] = [];
+    for (const c of await this.store.conversations()) {
+      for (const m of await this.store.latestMessages(c.id, scanPerConversation)) {
+        if (messageKind(m.contentType, m.fileUrl) === "text" && m.content.toLowerCase().includes(q)) hits.push(m);
+      }
+    }
+    return hits.sort((a, b) => b.ts - a.ts).slice(0, limit);
+  }
+
   // ------------------------------------------------------------------ groups
 
   /** The group list from the server; also finds groups I left while away. Null when the request failed. */
@@ -915,10 +938,20 @@ export class ChatEngine {
     await this.touch(conversation, stored.ts);
   }
 
+  /**
+   * A recalled message becomes a tombstone (who sent it and when, no
+   * content), so the chat can show "… unsent a message"; one this device
+   * never had leaves only the recalled seq. Either way the seq counts as
+   * recalled for the sync cursor.
+   */
   private async removeRecalled(conversation: ConversationId, seq: number, refresh = true): Promise<void> {
-    await this.store.deleteMessage(conversation, seq);
+    const held = await this.store.message(conversation, seq);
+    if (held && !isRecalled(held)) {
+      const tomb = recalledCopy(held);
+      await this.store.putMessage(tomb);
+      this.applyToWindow(tomb);
+    }
     await this.store.addRecalled(conversation, seq);
-    this.removeFromWindow(conversation, (m) => m.seq === seq);
     if (refresh) await this.refreshSummary(conversation);
   }
 

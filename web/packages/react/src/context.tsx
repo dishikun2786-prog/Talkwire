@@ -17,8 +17,10 @@ export interface ImProfile {
 export interface ImUiHost {
   /** Names and avatars for `uids`; missing ones fall back to a short uid. */
   profiles(uids: string[]): Promise<ImProfile[]>;
-  /** The user's contacts, for new chats. */
+  /** The user's contacts, for new chats and new groups. */
   contacts?: ReadonlySignal<ImProfile[]>;
+  /** Reloads `contacts`, for example when a picker opens. */
+  refreshContacts?(): Promise<void>;
   /** Uploads and sends media; without it the attach and voice buttons are hidden. */
   media?: MediaSender;
   /** Makes a stored media URL loadable. Default: unchanged. */
@@ -106,12 +108,30 @@ export function useTyping(conversation: ConversationId): string[] {
   return engine.typingIn(conversation);
 }
 
-/** A person's profile; a short uid until the host answers. */
+/**
+ * A person's profile; a short uid until the host answers. Read through
+ * `useSyncExternalStore`, so an answer that lands between the render and the
+ * subscription is not missed.
+ */
 export function useProfile(uid: string | undefined): ImProfile | undefined {
   const { profiles } = useImKit();
-  const [, bump] = useState(0);
-  useEffect(() => (uid ? profiles.watch(uid, () => bump((n) => n + 1)) : undefined), [profiles, uid]);
-  return uid ? profiles.get(uid) : undefined;
+  const known = useSyncExternalStore(
+    useCallback((cb: () => void) => (uid ? profiles.watch(uid, cb) : () => {}), [profiles, uid]),
+    () => (uid ? profiles.peek(uid) : undefined),
+  );
+  return uid ? (known ?? profiles.get(uid)) : undefined;
+}
+
+/**
+ * Re-renders when any profile arrives, for components that show many people
+ * (a member list); read the names with `profiles.get`.
+ */
+export function useProfilesVersion(): number {
+  const { profiles } = useImKit();
+  return useSyncExternalStore(
+    useCallback((cb: () => void) => profiles.watchAll(cb), [profiles]),
+    () => profiles.version,
+  );
 }
 
 /** A shortened uid for people the host has not named yet. */
@@ -121,6 +141,8 @@ export const shortUid = (uid: string): string => (uid.startsWith("uid_") ? uid.s
 export class ProfileCache {
   private readonly known = new Map<string, ImProfile>();
   private readonly listeners = new Map<string, Set<() => void>>();
+  private readonly anyListeners = new Set<() => void>();
+  private _version = 0;
   private readonly queued = new Set<string>();
   private readonly asked = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -142,12 +164,29 @@ export class ProfileCache {
     return { uid, name: this.fallbackName(uid) };
   }
 
+  /** The profile the host gave, without asking for it; undefined when there is none yet. */
+  peek(uid: string): ImProfile | undefined {
+    return this.known.get(uid);
+  }
+
+  /** Grows each time profiles arrive. */
+  get version(): number {
+    return this._version;
+  }
+
   /** Puts profiles known from elsewhere (the contact list) into the cache. */
   put(profiles: ImProfile[]): void {
-    for (const p of profiles) {
-      this.known.set(p.uid, p);
-      this.listeners.get(p.uid)?.forEach((l) => l());
-    }
+    if (profiles.length === 0) return;
+    for (const p of profiles) this.known.set(p.uid, p);
+    this._version++;
+    for (const p of profiles) this.listeners.get(p.uid)?.forEach((l) => l());
+    this.anyListeners.forEach((l) => l());
+  }
+
+  /** Called whenever any profile arrives. */
+  watchAll(listener: () => void): () => void {
+    this.anyListeners.add(listener);
+    return () => void this.anyListeners.delete(listener);
   }
 
   watch(uid: string, listener: () => void): () => void {

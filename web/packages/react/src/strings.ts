@@ -67,6 +67,68 @@ export interface ImStrings {
   historyCleared: string;
   loading: string;
   back: string;
+  groupInfo: string;
+  chatInfo: string;
+  membersCount: string;
+  roleOwner: string;
+  roleAdmin: string;
+  addMembers: string;
+  membersPrivate: string;
+  renameGroup: string;
+  pinChat: string;
+  muteNotifications: string;
+  clearHistory: string;
+  clearHistoryConfirm: string;
+  disbandGroup: string;
+  disbandConfirm: string;
+  leaveGroup: string;
+  leaveConfirm: string;
+  makeAdmin: string;
+  removeAdmin: string;
+  adminLimit: string;
+  removeMember: string;
+  removeConfirm: string;
+  transferOwner: string;
+  transferConfirm: string;
+  save: string;
+  cancel: string;
+  contacts: string;
+  noContacts: string;
+  createGroup: string;
+  groupName: string;
+  addCount: string;
+  createCount: string;
+  search: string;
+  actionReply: string;
+  actionForward: string;
+  actionSelect: string;
+  actionSave: string;
+  replyingTo: string;
+  selectedCount: string;
+  forwardTo: string;
+  sendCount: string;
+  noChats: string;
+  forwardedOk: string;
+  forwardFailed: string;
+  copied: string;
+  close: string;
+  pin: string;
+  unpin: string;
+  mute: string;
+  unmute: string;
+  deleteChat: string;
+  deleteChatConfirm: string;
+  newChat: string;
+  ok: string;
+  readByFooterPartial: string;
+  readByFooterAll: string;
+  emoji: string;
+  recalledPreview: string;
+  recalledByYou: string;
+  recalledBy: string;
+  searchMessages: string;
+  noResults: string;
+  searchChats: string;
 }
 
 export const en: ImStrings = {
@@ -130,6 +192,68 @@ export const en: ImStrings = {
   historyCleared: "Chat history was cleared",
   loading: "Loading…",
   back: "Back",
+  groupInfo: "Group info",
+  chatInfo: "Chat info",
+  membersCount: "Members ({0})",
+  roleOwner: "Owner",
+  roleAdmin: "Admin",
+  addMembers: "Add members",
+  membersPrivate: "Members can't view each other's profiles or add each other.",
+  renameGroup: "Rename group",
+  pinChat: "Pin chat",
+  muteNotifications: "Mute notifications",
+  clearHistory: "Clear chat history",
+  clearHistoryConfirm: "Clear the history for everyone in this chat? This can't be undone.",
+  disbandGroup: "Disband group",
+  disbandConfirm: "Disband this group? Everyone will be removed.",
+  leaveGroup: "Leave group",
+  leaveConfirm: "Leave this group?",
+  makeAdmin: "Make admin",
+  removeAdmin: "Remove as admin",
+  adminLimit: "This group already has as many admins as it can have",
+  removeMember: "Remove from group",
+  removeConfirm: "Remove {0} from the group?",
+  transferOwner: "Make owner",
+  transferConfirm: "Make {0} the owner? You'll become a member.",
+  save: "Save",
+  cancel: "Cancel",
+  contacts: "Contacts",
+  noContacts: "No contacts",
+  createGroup: "New group",
+  groupName: "Group name",
+  addCount: "Add ({0})",
+  createCount: "Create ({0})",
+  search: "Search",
+  actionReply: "Reply",
+  actionForward: "Forward",
+  actionSelect: "Select",
+  actionSave: "Save",
+  replyingTo: "Reply to {0}",
+  selectedCount: "{0} selected",
+  forwardTo: "Forward to",
+  sendCount: "Send ({0})",
+  noChats: "No chats yet",
+  forwardedOk: "Forwarded",
+  forwardFailed: "Couldn't forward to {0} chats",
+  copied: "Copied",
+  close: "Close",
+  pin: "Pin",
+  unpin: "Unpin",
+  mute: "Mute",
+  unmute: "Unmute",
+  deleteChat: "Delete chat",
+  deleteChatConfirm: "Delete this chat? Its messages are removed from this device only.",
+  newChat: "New chat",
+  ok: "OK",
+  readByFooterPartial: "{0} members · {1} haven't read it",
+  readByFooterAll: "All {0} members have read it",
+  emoji: "Emoji",
+  recalledPreview: "Message unsent",
+  recalledByYou: "You unsent a message",
+  recalledBy: "{0} unsent a message",
+  searchMessages: "Messages",
+  noResults: "No results",
+  searchChats: "Search chats and messages",
 };
 
 export const zh: ImStrings = {
@@ -193,6 +317,68 @@ export const zh: ImStrings = {
   historyCleared: "聊天记录已清空",
   loading: "加载中…",
   back: "返回",
+  groupInfo: "群聊信息",
+  chatInfo: "聊天信息",
+  membersCount: "群成员（{0}）",
+  roleOwner: "群主",
+  roleAdmin: "管理员",
+  addMembers: "添加成员",
+  membersPrivate: "群成员之间不可查看资料或添加好友",
+  renameGroup: "修改群名",
+  pinChat: "置顶聊天",
+  muteNotifications: "消息免打扰",
+  clearHistory: "清空聊天记录",
+  clearHistoryConfirm: "为聊天中的所有人清空记录？此操作无法撤销。",
+  disbandGroup: "解散群聊",
+  disbandConfirm: "确定解散群聊？所有成员都将被移出。",
+  leaveGroup: "退出群聊",
+  leaveConfirm: "确定退出群聊？",
+  makeAdmin: "设为管理员",
+  removeAdmin: "取消管理员",
+  adminLimit: "管理员人数已达上限",
+  removeMember: "移出群聊",
+  removeConfirm: "将 {0} 移出群聊？",
+  transferOwner: "转让群主",
+  transferConfirm: "将群主转让给 {0}？你将成为普通成员。",
+  save: "保存",
+  cancel: "取消",
+  contacts: "通讯录",
+  noContacts: "暂无联系人",
+  createGroup: "创建群聊",
+  groupName: "群聊名称",
+  addCount: "添加（{0}）",
+  createCount: "创建（{0}）",
+  search: "搜索",
+  actionReply: "回复",
+  actionForward: "转发",
+  actionSelect: "多选",
+  actionSave: "保存",
+  replyingTo: "回复 {0}",
+  selectedCount: "已选 {0} 条",
+  forwardTo: "转发给",
+  sendCount: "发送（{0}）",
+  noChats: "还没有会话",
+  forwardedOk: "已转发",
+  forwardFailed: "{0} 个会话转发失败",
+  copied: "已复制",
+  close: "关闭",
+  pin: "置顶",
+  unpin: "取消置顶",
+  mute: "免打扰",
+  unmute: "取消免打扰",
+  deleteChat: "删除聊天",
+  deleteChatConfirm: "删除该聊天？只会清除本机上的记录。",
+  newChat: "发起聊天",
+  ok: "确定",
+  readByFooterPartial: "共 {0} 人 · 还有 {1} 人未读",
+  readByFooterAll: "共 {0} 人，全部已读",
+  emoji: "表情",
+  recalledPreview: "撤回了一条消息",
+  recalledByYou: "你撤回了一条消息",
+  recalledBy: "{0} 撤回了一条消息",
+  searchMessages: "聊天记录",
+  noResults: "无结果",
+  searchChats: "搜索聊天和聊天记录",
 };
 
 export const vi: ImStrings = {
@@ -256,6 +442,68 @@ export const vi: ImStrings = {
   historyCleared: "Lịch sử trò chuyện đã bị xóa",
   loading: "Đang tải…",
   back: "Quay lại",
+  groupInfo: "Thông tin nhóm",
+  chatInfo: "Thông tin trò chuyện",
+  membersCount: "Thành viên ({0})",
+  roleOwner: "Trưởng nhóm",
+  roleAdmin: "Quản trị viên",
+  addMembers: "Thêm thành viên",
+  membersPrivate: "Thành viên không thể xem hồ sơ hoặc kết bạn với nhau.",
+  renameGroup: "Đổi tên nhóm",
+  pinChat: "Ghim cuộc trò chuyện",
+  muteNotifications: "Tắt thông báo",
+  clearHistory: "Xóa lịch sử trò chuyện",
+  clearHistoryConfirm: "Xóa lịch sử cho mọi người trong cuộc trò chuyện? Không thể hoàn tác.",
+  disbandGroup: "Giải tán nhóm",
+  disbandConfirm: "Giải tán nhóm? Mọi người sẽ bị xóa khỏi nhóm.",
+  leaveGroup: "Rời nhóm",
+  leaveConfirm: "Rời khỏi nhóm này?",
+  makeAdmin: "Đặt làm quản trị viên",
+  removeAdmin: "Bỏ quyền quản trị viên",
+  adminLimit: "Nhóm đã có số quản trị viên tối đa",
+  removeMember: "Xóa khỏi nhóm",
+  removeConfirm: "Xóa {0} khỏi nhóm?",
+  transferOwner: "Chuyển quyền trưởng nhóm",
+  transferConfirm: "Chuyển quyền trưởng nhóm cho {0}? Bạn sẽ trở thành thành viên.",
+  save: "Lưu",
+  cancel: "Hủy",
+  contacts: "Danh bạ",
+  noContacts: "Chưa có liên hệ",
+  createGroup: "Tạo nhóm",
+  groupName: "Tên nhóm",
+  addCount: "Thêm ({0})",
+  createCount: "Tạo ({0})",
+  search: "Tìm kiếm",
+  actionReply: "Trả lời",
+  actionForward: "Chuyển tiếp",
+  actionSelect: "Chọn nhiều",
+  actionSave: "Lưu",
+  replyingTo: "Trả lời {0}",
+  selectedCount: "Đã chọn {0}",
+  forwardTo: "Chuyển tiếp đến",
+  sendCount: "Gửi ({0})",
+  noChats: "Chưa có cuộc trò chuyện",
+  forwardedOk: "Đã chuyển tiếp",
+  forwardFailed: "Không chuyển tiếp được đến {0} cuộc trò chuyện",
+  copied: "Đã sao chép",
+  close: "Đóng",
+  pin: "Ghim",
+  unpin: "Bỏ ghim",
+  mute: "Tắt thông báo",
+  unmute: "Bật thông báo",
+  deleteChat: "Xóa cuộc trò chuyện",
+  deleteChatConfirm: "Xóa cuộc trò chuyện? Chỉ xóa tin nhắn trên thiết bị này.",
+  newChat: "Trò chuyện mới",
+  ok: "OK",
+  readByFooterPartial: "{0} thành viên · {1} người chưa xem",
+  readByFooterAll: "Cả {0} thành viên đã xem",
+  emoji: "Biểu tượng cảm xúc",
+  recalledPreview: "Tin nhắn đã bị thu hồi",
+  recalledByYou: "Bạn đã thu hồi một tin nhắn",
+  recalledBy: "{0} đã thu hồi một tin nhắn",
+  searchMessages: "Tin nhắn",
+  noResults: "Không có kết quả",
+  searchChats: "Tìm cuộc trò chuyện và tin nhắn",
 };
 
 export const builtInStrings = { en, zh, vi } as const;

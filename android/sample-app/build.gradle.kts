@@ -21,6 +21,8 @@ android {
         // `adb reverse tcp:6001 tcp:6001` and `adb reverse tcp:6062 tcp:6062`.
         buildConfigField("String", "HOST_URL", "\"http://127.0.0.1:6001\"")
         buildConfigField("String", "IM_URL", "\"ws://127.0.0.1:6062/ws/im\"")
+        // The web sample (`npm run sample` in web/): group QR codes made here link to its join page.
+        buildConfigField("String", "WEB_URL", "\"http://127.0.0.1:5173/\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -43,8 +45,12 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
     implementation(project(":imkit-ui"))
     implementation(project(":imkit-storage-room"))
-    // Optional: re-encodes large videos before they are sent.
+    // Optional modules: re-encoding large videos before they are sent, calls
+    // (signalling and the call screen; the sample has no RTC service), and
+    // joining groups by QR code.
     implementation(project(":imkit-video-compress"))
+    implementation(project(":imkit-call"))
+    implementation(project(":imkit-group-join"))
     // The host's own message type, joined through the registry only.
     implementation(project(":example-red-packet"))
     implementation("androidx.activity:activity-compose:1.8.1")

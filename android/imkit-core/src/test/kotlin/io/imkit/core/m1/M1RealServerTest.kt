@@ -223,11 +223,12 @@ class M1RealServerTest {
         bob.client.start()
         until("Bob back") { bob.synced() > bobBack }
 
-        // Recall: gone on both sides.
+        // Recall: the content is gone on both sides; a tombstone says who unsent it.
         val target = aliceWin.value.first { it.content == "while away 0" }
         alice.engine.recall(target)
-        assertTrue(aliceWin.value.none { it.seq == target.seq })
-        until("recall reaches Bob") { bobWin.value.none { it.seq == target.seq } }
+        assertTrue(aliceWin.value.single { it.seq == target.seq }.isRecalled)
+        until("recall reaches Bob") { bobWin.value.singleOrNull { it.seq == target.seq }?.isRecalled == true }
+        assertEquals(aliceUid, bobWin.value.single { it.seq == target.seq }.from)
 
         // Read receipts.
         bob.engine.markRead(withAlice)

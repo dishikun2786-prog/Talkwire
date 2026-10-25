@@ -50,4 +50,6 @@ object SampleConfig {
     /** The sample host and the IM server, reached on the phone through `adb reverse`. */
     val HOST_URL: String = BuildConfig.HOST_URL
     val IM_URL: String = BuildConfig.IM_URL
+    /** The web sample, for links other people open in a browser. */
+    val WEB_URL: String = BuildConfig.WEB_URL
 }

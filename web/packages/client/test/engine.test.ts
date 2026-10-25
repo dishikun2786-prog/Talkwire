@@ -1,6 +1,6 @@
 import { p2pTopic, uidOf } from "@imkit/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, recalledWhileAway, resumeSeq, type EngineConfig } from "../src/index.js";
+import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, RECALLED_CONTENT_TYPE, recalledWhileAway, resumeSeq, type EngineConfig } from "../src/index.js";
 import { FakeServer, type Frame } from "./fake-server.js";
 import { until } from "./replay.js";
 
@@ -147,7 +147,12 @@ describe("engine", () => {
     await until("frames applied", () => engine.conversation(bob)?.peerReadSeq === 2);
     const window = engine.messages(bob);
     await engine.idle(); // the window loads from the store
-    expect(window.value.map((m) => [m.seq, m.status])).toEqual([[2, "sent"]]);
+    // Bob's recalled message stays as a tombstone: his, no content, not unread.
+    expect(window.value.map((m) => [m.seq, m.status, m.contentType])).toEqual([
+      [1, "received", RECALLED_CONTENT_TYPE],
+      [2, "sent", "text"],
+    ]);
+    expect(window.value[0]).toMatchObject({ from: bob, content: "" });
     expect(engine.conversation(bob)?.unread).toBe(0);
   });
 

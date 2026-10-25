@@ -61,7 +61,7 @@ public enum class MessageKind {
             val t = contentType.lowercase()
             return when {
                 t.isEmpty() || t == "text" || t.startsWith("text/") -> TEXT
-                t == "system" -> SYSTEM
+                t == "system" || t == ChatMessage.RECALLED_CONTENT_TYPE -> SYSTEM
                 t == "image" || t.startsWith("image/") -> IMAGE
                 t == "video" || t.startsWith("video/") -> VIDEO
                 t == "voice" || t == "audio" || t.startsWith("audio/") -> VOICE
@@ -104,9 +104,33 @@ public data class ChatMessage(
 
     val kind: MessageKind get() = MessageKind.of(contentType, fileUrl)
 
+    /** A recalled message kept as a tombstone: who sent it and when, nothing else. */
+    val isRecalled: Boolean get() = contentType == RECALLED_CONTENT_TYPE
+
+    /** This message as a recall tombstone: the same seq, sender and time, no content or files. */
+    public fun recalled(): ChatMessage = copy(
+        content = "",
+        contentType = RECALLED_CONTENT_TYPE,
+        fileUrl = null,
+        fileName = null,
+        duration = 0,
+        extra = null,
+        forwardFromMsgId = null,
+        forwardFromTopic = null,
+        failure = null,
+    )
+
     public companion object {
         public const val SENDER_USER: String = "user"
         public const val SENDER_AI: String = "ai_assistant"
+
+        /**
+         * The content type of a recall tombstone. Local only, never sent: a
+         * recalled message stays in the store under it so the chat can say
+         * who unsent a message. Its kind is [MessageKind.SYSTEM], so it never
+         * counts as unread.
+         */
+        public const val RECALLED_CONTENT_TYPE: String = "application/vnd.imkit.recalled"
 
         /** The uid the group assistant's answers come from (spec 15.2). */
         public const val AI_ASSISTANT_UID: String = "assistant_xiaotaozi"

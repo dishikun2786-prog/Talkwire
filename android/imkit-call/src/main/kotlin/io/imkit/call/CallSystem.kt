@@ -162,8 +162,9 @@ public class CallForegroundService : Service() {
 /**
  * Keeps the system in step with the [CallManager]'s state: the incoming-call
  * notice (through imkit-android's [NotificationController], which also cancels
- * it however the call ends) while it rings, and the [CallForegroundService]
- * while this device is calling or in a call. Start it once with the manager.
+ * it however the call ends) and the ring while it rings, the ringback while
+ * this device calls, and the [CallForegroundService] while this device is
+ * calling or in a call. Start it once with the manager.
  */
 public class CallSystem(
     context: Context,
@@ -174,8 +175,11 @@ public class CallSystem(
     private val incomingNotice: (CallState.Incoming) -> CallNotification,
     /** The ongoing-call notice. */
     private val ongoingNotice: (CallState) -> OngoingCallNotice,
+    /** Plays the ring and the ringback; default the system's sounds, null for silence. */
+    ringer: CallRinger? = SystemCallRinger(context),
 ) {
     private val app = context.applicationContext
+    private val rings = ringer?.let { RingFollower(it) }
     private var job: Job? = null
 
     public fun start() {
@@ -184,6 +188,7 @@ public class CallSystem(
             var previous: CallState = CallState.Idle
             var serviceVideo: Boolean? = null
             manager.state.collect { s ->
+                rings?.onState(s)
                 val wasRinging = previous as? CallState.Incoming
                 if (s is CallState.Incoming && wasRinging?.callSessionId != s.callSessionId) {
                     wasRinging?.let { notifications.onCallEnded(it.callSessionId, CallNoticeTracker.End.ENDED) }
@@ -213,6 +218,7 @@ public class CallSystem(
     public fun stop() {
         job?.cancel()
         job = null
+        rings?.stop()
         CallForegroundService.stop(app)
     }
 

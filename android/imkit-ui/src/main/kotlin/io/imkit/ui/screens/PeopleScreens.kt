@@ -74,7 +74,7 @@ internal fun SimpleTopBar(title: String, onBack: () -> Unit, action: (@Composabl
 }
 
 @Composable
-internal fun SearchField(value: String, onChange: (String) -> Unit) {
+internal fun SearchField(value: String, tag: String = "imkit_search", onChange: (String) -> Unit) {
     val colors = ImTheme.colors
     Surface(shape = RoundedCornerShape(8.dp), color = colors.inputBackground, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         BasicTextField(
@@ -83,7 +83,7 @@ internal fun SearchField(value: String, onChange: (String) -> Unit) {
             singleLine = true,
             textStyle = TextStyle(fontSize = 15.sp, color = colors.textPrimary),
             cursorBrush = SolidColor(colors.accent),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp).testTag(tag),
             decorationBox = { inner ->
                 if (value.isEmpty()) Text(stringResource(R.string.imkit_search), color = colors.textHint, fontSize = 15.sp)
                 inner()

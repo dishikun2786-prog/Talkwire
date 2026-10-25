@@ -1,9 +1,22 @@
 package io.imkit.ui
 
 import android.content.Context
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import io.imkit.core.ImIds
 import io.imkit.core.client.ImClient
@@ -14,6 +27,7 @@ import io.imkit.core.engine.EngineConfig
 import io.imkit.core.engine.OutgoingMessage
 import io.imkit.core.json.jsonObject
 import io.imkit.core.model.ConversationId
+import io.imkit.core.model.GroupRole
 import io.imkit.core.store.InMemoryChatStore
 import io.imkit.core.testing.MiniServer
 import io.imkit.ui.host.ImDeepLink
@@ -167,5 +181,121 @@ class ChatScreenTest {
 
         server.pushTo(aliceUid, jsonObject { put("type", "ai_typing"); put("topic", group.id) })
         rule.waitUntil(5_000) { rule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** The slots optional modules use: the top bar of a chat, and a group's info with the user's role. */
+    @Test
+    fun theHostAddsToTheTopBarAndTheGroupInfo() {
+        val group = ConversationId("grp_slotslotslot")
+        val aliceUid = server.uidOf("alice")
+        server.groups[group.id] = MiniServer.Group("team", mutableMapOf(aliceUid to "owner"))
+        val alice = engine("alice", 7)
+        val withBob = ConversationId(server.uidOf("bob"))
+        runBlocking {
+            alice.ensureConversation(withBob)
+            alice.ensureConversation(group)
+        }
+        val host = object : ImUiHost {
+            override val contacts: StateFlow<List<ImProfile>> = MutableStateFlow(emptyList())
+            override suspend fun profiles(uids: Collection<String>): Map<String, ImProfile> = emptyMap()
+            override val topBarExtras: (@Composable RowScope.(ConversationId) -> Unit) = { id -> Text("bar:${id.id}") }
+            override val groupInfoExtras: (@Composable (String, GroupRole) -> Unit) = { topic, role -> Text("info:$topic:$role") }
+        }
+        val link = MutableStateFlow<ImDeepLink>(ImDeepLink.Conversation(withBob))
+        rule.setContent {
+            ImTheme {
+                val state = rememberImChatState(alice, host)
+                val l by link.collectAsState()
+                LaunchedEffect(l) { state.open(l) }
+                ImChatApp(state)
+            }
+        }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("bar:${withBob.id}").fetchSemanticsNodes().isNotEmpty() }
+
+        link.value = ImDeepLink.GroupInfo(group.id)
+        // The role comes from the member list, so it is the owner's once that has loaded.
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Owner").fetchSemanticsNodes().isNotEmpty() }
+        // Below the members, so off this small screen until scrolled to.
+        rule.onNodeWithTag("imkit_info").performScrollToNode(hasText("info:${group.id}:OWNER"))
+        rule.onNodeWithText("info:${group.id}:OWNER").assertExists()
+    }
+
+    /** The list's search box finds chats by name and messages by their words, and opens the chat. */
+    @Test
+    fun searchFindsChatsAndMessages() {
+        val alice = engine("alice", 10)
+        val bob = engine("bob", 11)
+        val withBob = ConversationId(server.uidOf("bob"))
+        val withAlice = ConversationId(server.uidOf("alice"))
+        runBlocking {
+            alice.ensureConversation(withBob)
+            bob.ensureConversation(withAlice)
+            bob.send(withAlice, OutgoingMessage("Lunch at noon?"))
+            bob.send(withAlice, OutgoingMessage("unrelated"))
+        }
+        rule.waitUntil(5_000) { alice.messages(withBob).value.count { it.seq != null } == 2 }
+        val host = object : ImUiHost {
+            override val contacts: StateFlow<List<ImProfile>> = MutableStateFlow(emptyList())
+            override suspend fun profiles(uids: Collection<String>): Map<String, ImProfile> =
+                uids.associateWith { ImProfile(it, if (it == server.uidOf("bob")) "Bobby" else "Someone") }
+        }
+        rule.setContent { ImTheme { ImChatApp(rememberImChatState(alice, host)) } }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Bobby").fetchSemanticsNodes().isNotEmpty() }
+
+        // By name: the chat, no message section.
+        rule.onNodeWithTag("imkit_search").performTextInput("bob")
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("imkit_search_results").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("imkit_search_results").performScrollToNode(hasText("Bobby"))
+        Thread.sleep(400)
+        rule.waitForIdle()
+        assertTrue(rule.onAllNodesWithText("Messages").fetchSemanticsNodes().isEmpty())
+
+        rule.onNodeWithTag("imkit_search").performTextReplacement("zzz")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("No results").fetchSemanticsNodes().isNotEmpty() }
+
+        // By words: the message, opening its chat.
+        rule.onNodeWithTag("imkit_search").performTextReplacement("LUNCH")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Messages").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Lunch at noon?").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("imkit_search").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithText("Lunch at noon?").assertExists()
+    }
+
+    /** A recalled message leaves a note saying who unsent it, on both sides and in the list. */
+    @Test
+    fun aRecallLeavesANoteSayingWho() {
+        val alice = engine("alice", 8)
+        val bob = engine("bob", 9)
+        val withBob = ConversationId(server.uidOf("bob"))
+        val withAlice = ConversationId(server.uidOf("alice"))
+        runBlocking {
+            alice.ensureConversation(withBob)
+            bob.ensureConversation(withAlice)
+        }
+        val host = object : ImUiHost {
+            override val contacts: StateFlow<List<ImProfile>> = MutableStateFlow(emptyList())
+            override suspend fun profiles(uids: Collection<String>): Map<String, ImProfile> =
+                uids.associateWith { ImProfile(it, if (it == server.uidOf("alice")) "Alice" else "Someone") }
+        }
+        rule.setContent {
+            ImTheme { ImChatApp(rememberImChatState(bob, host, start = ImDeepLink.Conversation(withAlice))) }
+        }
+        val sent = runBlocking { alice.send(withBob, OutgoingMessage("wrong chat")) }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("wrong chat").fetchSemanticsNodes().isNotEmpty() }
+        val stored = run {
+            var m: io.imkit.core.model.ChatMessage? = null
+            rule.waitUntil(5_000) { m = alice.messages(withBob).value.firstOrNull { it.seq != null && it.content == "wrong chat" }; m != null }
+            m!!
+        }
+        runBlocking { alice.recall(stored) }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val note = context.getString(R.string.imkit_recalled_by, "Alice")
+        rule.waitUntil(5_000) { rule.onAllNodesWithText(note).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithText("wrong chat").fetchSemanticsNodes().isEmpty())
+        // On Alice's side the tombstone is hers; nobody counts it as unread.
+        assertTrue(alice.messages(withBob).value.single { it.seq == stored.seq }.isRecalled)
+        rule.waitUntil(5_000) { bob.conversations.value.firstOrNull { it.id == withAlice }?.lastMessage?.isRecalled == true }
+        assertEquals(0, bob.conversations.value.first { it.id == withAlice }.unread)
+        assertEquals(sent.localId, stored.localId)
     }
 }

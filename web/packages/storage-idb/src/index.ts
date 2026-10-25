@@ -19,6 +19,7 @@
 import {
   MemoryChatStore,
   isPending,
+  messageKind,
   timelineOrder,
   type ChatMessage,
   type ChatStore,
@@ -279,7 +280,7 @@ export class IdbChatStore implements ChatStore {
 
   async countUnread(conversation: ConversationId, afterSeq: number, me: string): Promise<number> {
     const rows = await this.all<MessageRow>("messages", IDBKeyRange.bound([conversation, afterSeq], [conversation, Infinity], true, false));
-    return rows.filter((r) => r.from !== me && r.contentType !== "system").length;
+    return rows.filter((r) => r.from !== me && messageKind(r.contentType, r.fileUrl) !== "system").length;
   }
 
   // ------------------------------------------------------------- tombstones, watermark, cursors

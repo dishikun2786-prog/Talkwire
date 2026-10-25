@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
-import { NoMediaEngine } from "@imkit/call";
+import { NoMediaEngine, type CallRinger } from "@imkit/call";
 import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
 import { uidOf } from "@imkit/protocol";
 import { ImKitProvider, type ImUiHost } from "@imkit/react";
@@ -29,7 +29,7 @@ function answering(handlers: Record<string, (f: Frame) => Frame[]>): FakeServer 
   return server;
 }
 
-async function setup(server: FakeServer, user = "alice") {
+async function setup(server: FakeServer, user = "alice", ringer: CallRinger | null = null) {
   const client = new ImClient({ endpoints: ["ws://fake"], tokenProvider: () => "tok:" + user, transport: server, watchNetwork: false });
   const engine = new ChatEngine(client, new MemoryChatStore(), { appUserId: user, autoSync: false });
   stops.push(() => {
@@ -43,7 +43,7 @@ async function setup(server: FakeServer, user = "alice") {
   const wrap = (node: ReactNode) => (
     <StrictMode>
       <ImKitProvider engine={engine} host={host} locale="zh">
-        <CallProvider media={media} channel={null}>
+        <CallProvider media={media} channel={null} ringer={ringer}>
           {node}
         </CallProvider>
       </ImKitProvider>
@@ -60,7 +60,9 @@ describe("call components", () => {
       call_invite: (f) => [{ code: 200, topic: f.topic, callSessionId: "cs-1" }, { type: "call_answered", callSessionId: "cs-1", ...creds }],
       call_hangup: (f) => [{ code: 200, callSessionId: f.callSessionId }],
     });
-    const { wrap, media } = await setup(server);
+    const sounds: string[] = [];
+    const ringer: CallRinger = { ring: () => sounds.push("ring"), ringback: () => sounds.push("ringback"), stop: () => sounds.push("stop") };
+    const { wrap, media } = await setup(server, "alice", ringer);
     const ui = render(
       wrap(
         <>
@@ -73,6 +75,7 @@ describe("call components", () => {
     await until("in the call", () => /^\d+:\d\d$/.test(ui.container.querySelector("[data-call-status]")?.textContent ?? ""));
     expect(ui.getByRole("dialog", { name: "Bob" })).toBeTruthy();
     expect(media.log).toEqual(["join voice ch"]);
+    expect(sounds, "the ringback stops once answered").toEqual(["ringback", "stop"]);
     fireEvent.click(ui.getByRole("button", { name: "静音" }));
     expect(ui.getByRole("button", { name: "取消静音" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(ui.getByRole("button", { name: "挂断" }));

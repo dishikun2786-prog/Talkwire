@@ -8,18 +8,18 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 
 | 模块 | 类型 | 内容 | 主要依赖 |
 | --- | --- | --- | --- |
-| `imkit-core` | 纯 Kotlin/JVM 库 | `ImClient`：连接、登录、多线路地址、重连与退避、请求关联。`ChatEngine`：发送队列与重试（C2）、接收排序与空洞检测（C3）、撤回墓碑、已读游标、未读与草稿、群名册与本人角色（C9）、清空水位、缓存归属（C4）。另有 `ChatStore` 接口与内存实现、在线三态（C5）、通知决策（C6 的纯函数部分）、推送令牌注册、媒体上传接口、线协议常量与 JSON。 | kotlinx-coroutines 1.9.0、OkHttp 4.12.0。不依赖 Android、Room、Compose。 |
+| `imkit-core` | 纯 Kotlin/JVM 库 | `ImClient`：连接、登录、多线路地址、重连与退避、请求关联。`ChatEngine`：发送队列与重试（C2）、接收排序与空洞检测（C3）、撤回墓碑、本地消息搜索（`searchMessages`）、已读游标、未读与草稿、群名册与本人角色（C9）、清空水位、缓存归属（C4）。另有 `ChatStore` 接口与内存实现、在线三态（C5）、通知决策（C6 的纯函数部分）、推送令牌注册、媒体上传接口、线协议常量与 JSON。 | kotlinx-coroutines 1.9.0、OkHttp 4.12.0。不依赖 Android、Room、Compose。 |
 | `imkit-storage-room` | Android 库 | 用 Room 实现的 `ChatStore`：新库从 v1 开始，schema 导出在 `schemas/`。可选的加密粉碎：每个会话一把数据密钥，由宿主提供的 `KeyWrapper` 包裹；删会话、清空、换账号时连密钥一起销毁。另有源项目 v18 旧库的只读导入器 `LegacyChatImporter`。 | Room 2.6.1 |
 | `imkit-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
 | `imkit-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `ImkitMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
-| `imkit-ui` | Android 库（Compose） | 整套聊天界面：会话列表、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口）、深链接 `imkit://`。另有 `imkit-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
+| `imkit-ui` | Android 库（Compose） | 整套聊天界面：会话列表（带搜索：会话名与本机存的文字消息）、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享；撤回后留“某某撤回了一条消息”）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口；可选模块的界面经它的 `topBarExtras`、`groupInfoExtras` 两个槽位接入）、深链接 `imkit://`。另有 `imkit-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
 | `imkit-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。 | `imkit-ui` |
-| `imkit-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `imkit-ui`、activity-compose 1.8.1 |
+| `imkit-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、来电铃声与回铃音、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `imkit-ui`、activity-compose 1.8.1 |
 | `imkit-call-dingrtc` | RTC 适配器 | 用阿里云 ARTC 3.0（DingRTC）实现 `CallMediaEngine`，说明见 `examples/artc/README.md`。SDK 只在这里出现。 | `imkit-call`、`com.ding.rtc:dingrtc-full:3.0.0`（阿里云 Maven） |
 | `imkit-video-compress` | 可选模块 | 发送前重新编码大视频（H.264 + AAC，计划 3.9）：`Media3VideoCompressor`，交给 `MediaSender(videoCompressor = …)`。单独成模块，不发大视频的 App 不必带上编码器与 ExoPlayer。 | `imkit-android`、media3-transformer 1.4.1 |
 | `imkit-e2ee` | 可选模块（Compose），**AGPLv3** | 端到端加密（协议第 13 节）：`E2eeSignaling`（协议层，不链接 libsignal）、`E2eeCrypto`（libsignal：身份、密钥包、单聊会话、群发送密钥、安全码）、`E2eeChats`（收发、本机存储、清空与结束）、`EncryptedChatScreen`。说明见下文“端到端加密”。 | `imkit-ui`、`org.signal:libsignal-android:0.73.0`（钉死）、Room 2.6.1 |
 | `example-red-packet`（`examples/red-packet/android`） | 示例 | 红包卡片：只靠注册一个 `MessageType` 接入，状态由宿主推送实时更新。服务端一侧在 `examples/red-packet/src`。 | `imkit-ui` |
-| `sample-app` | 示例 App | 接入方要写的三样东西（令牌、联系人与资料、推送配置）的完整例子，配 `examples/sample-host`（Node 开发宿主）在本机跑。包名 `io.imkit.sample`。 | 以上全部 |
+| `sample-app` | 示例 App | 接入方要写的三样东西（令牌、联系人与资料、推送配置）的完整例子，配 `examples/sample-host`（Node 开发宿主）在本机跑。另接了通话（只有信令，媒体用 `NoMediaEngine`）与扫码入群两个可选模块。包名 `io.imkit.sample`。 | 以上全部（加密与 FCM 除外） |
 
 构建环境与源项目一致：AGP 8.4.2、Kotlin 1.9.24、Gradle 8.7、JDK 17、compileSdk 34。minSdk 是 26。计划 3.1 写的是 27，但源项目自己是 26，这里先按源项目，待定。
 
@@ -131,7 +131,6 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - `ChatUtilitiesTest`、`ChatUITest`：时间格式化、消息气泡分组、文件图标、输入框、草稿界面状态，属于 UI，Phase 4 在 `imkit-ui` 的 `ChatLogicTest`（分组、日期分隔、未读分隔线、列表规则、时间）与 `RedLineUiTest`（C7）里重新写了，没有逐个搬。
 - `ConversationPeerNameTest`、`NotificationSenderNameTest`、`AvatarProfileTest`、`ChatApiModelsTest`，以及 `ChatIntegrationTest` 里的联系人部分：备注、昵称回退、头像、自定义聊天号、联系人解析都归宿主（框架不管人的资料，只给 uid）。
 - 源项目自己的实现细节（`keyAction`、`ConversationLoader`、`conversation tick`）随实现一起换掉了。
-- 源项目 `searchMessages` 的本地搜索：核心 SDK 暂未提供。
 
 ## 已知缺口
 
@@ -139,7 +138,8 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - **视频压缩只在 JVM 上测了发送逻辑**：`MediaSender` 对大于 50 MB（或超过上限）的视频先交给 `VideoCompressor` 重新编码，失败或没变小就发原片（放得下时），仍超限才拒绝；这些分支有单测。`Media3VideoCompressor` 真正的编码要真机，只测了“读不了的文件返回 false 且不留文件”。旋转视频编码后方向是否正确、首帧缩略图按旋转角调整宽高，都没拿真机拍的视频验证过。
 - **群助手“正在输入”**（`ai_typing`，协议第 15 节）：本人所在的群收到它时，`typingIn` 里出现 `ChatMessage.AI_ASSISTANT_UID` 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。只在单测与界面测试里验证过。
 - **新设备上单聊的历史全算未读**：已修，但要 strict 档服务端：它存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 同步时据此推进本地已读位置（只前进）。legacy 档服务端与原版一致不存，接它时照旧。没有在真机上复核，见 DEVICE_CHECKS.md。
-- **撤回不留提示行**（“你撤回了一条消息”）：引擎只记被撤回的 seq。
+- **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，没有在真机上看过。
 - 保存图片与视频到相册需要 Android 10（API 29）以上，更低的系统不显示“保存”。
 - 旧库导入只用按源项目 v18 schema 构造的库测过，没有拿真实用户的旧库验证。
-- 本地消息搜索未做（见上）。
+- **本地消息搜索**（`ChatEngine.searchMessages`，会话列表顶上的搜索框）只搜本机存的文字消息，每个会话读最近 500 条（`scanPerConversation`），按时间倒序；点结果打开那个会话，不跳到那条消息。没有在真机上用过。
+- **来电铃声与回铃音**：`CallSystem` 默认用 `SystemCallRinger`，来电时循环播放手机的铃声（铃声流）并振动，跟随情景模式（静音不响也不振，振动只振），呼出时放系统回铃音（425 Hz，响 1 秒停 4 秒）；`ringer = null` 关掉，也可以传自己的 `CallRinger`。振动要 App 清单里有 `VIBRATE`。只在 Robolectric 里测了振动与情景模式，铃声本身没有在真机上听过。

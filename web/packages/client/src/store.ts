@@ -10,7 +10,7 @@
  * `promote` turns one into the other atomically.
  */
 
-import { isPending, timelineOrder, type ChatMessage, type ClearState, type ConversationId, type StoredConversation } from "./model.js";
+import { isPending, messageKind, timelineOrder, type ChatMessage, type ClearState, type ConversationId, type StoredConversation } from "./model.js";
 
 export interface ChatStore {
   // ownership (C4)
@@ -171,7 +171,7 @@ export class MemoryChatStore implements ChatStore {
   async countUnread(conversation: ConversationId, afterSeq: number, me: string) {
     let n = 0;
     for (const m of this.stored.get(conversation)?.values() ?? []) {
-      if (m.seq! > afterSeq && m.from !== me && m.contentType !== "system") n++;
+      if (m.seq! > afterSeq && m.from !== me && messageKind(m.contentType, m.fileUrl) !== "system") n++;
     }
     return n;
   }

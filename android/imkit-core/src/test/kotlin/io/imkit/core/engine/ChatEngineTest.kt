@@ -103,6 +103,29 @@ class ChatEngineTest {
     }
 
     @Test
+    fun searchFindsStoredTextNewestFirst() = runBlocking {
+        val store = InMemoryChatStore()
+        store.setOwner(alice)
+        val carol = ImIds.uid("carol")
+        val withCarol = ConversationId(carol)
+        store.putConversation(StoredConversation(withBob))
+        store.putConversation(StoredConversation(withCarol))
+        store.putMessage(ChatMessage(withBob, 1, null, bob, "Lunch at noon?", "text", ts = 10, status = MessageStatus.RECEIVED))
+        store.putMessage(ChatMessage(withBob, 2, null, bob, "lunch.png", "image/png", fileUrl = "https://m.example/l.png", ts = 20, status = MessageStatus.RECEIVED))
+        store.putMessage(ChatMessage(withBob, 3, null, bob, "", ChatMessage.RECALLED_CONTENT_TYPE, ts = 25, status = MessageStatus.RECEIVED))
+        store.putMessage(ChatMessage(withCarol, 1, null, carol, "see you at LUNCH", "text", ts = 30, status = MessageStatus.RECEIVED))
+        val e = engine(store = store)
+        e.open()
+        // Text only (not the image, not the tombstone), any case, newest first.
+        assertEquals(listOf(withCarol to 1L, withBob to 1L), e.searchMessages("  lunch ").map { it.conversation to it.seq })
+        assertEquals(1, e.searchMessages("lunch", limit = 1).size)
+        assertTrue(e.searchMessages("  ").isEmpty())
+        // Only the latest messages of each conversation are read: Bob's latest is the tombstone.
+        assertEquals(listOf(withCarol to 1L), e.searchMessages("lunch", scanPerConversation = 1).map { it.conversation to it.seq })
+        e.close()
+    }
+
+    @Test
     fun sendsAndReceives() {
         val a = engine("alice")
         val b = engine("bob")
@@ -208,7 +231,7 @@ class ChatEngineTest {
     }
 
     @Test
-    fun c3_pullsFromTheContiguousEndAndDropsWhatWasRecalledAway() {
+    fun c3_pullsFromTheContiguousEndAndTombstonesWhatWasRecalledAway() {
         val topic = ImIds.p2pTopic(alice, bob)
         for (i in 1..4) server.inject(topic, bob, "m$i")
         val a = engine()
@@ -227,8 +250,13 @@ class ChatEngineTest {
         runBlocking { a.syncConversation(withBob) }
         val get = server.requests.first { it.string("action") == "get" }
         assertEquals("from the end of the run, not the maximum", 4L, get.long("afterSeq"))
-        eventually { a.msgs().map { it.seq } == listOf(2L, 3L, 4L, 5L, 7L) }
-        // 6 is a tombstone now, not a hole: the next pull starts at 7.
+        eventually { a.msgs().filterNot { it.isRecalled }.map { it.seq } == listOf(2L, 3L, 4L, 5L, 7L) }
+        // 6 stays as a tombstone: who sent it and when, no content.
+        val tomb = a.msgs().single { it.seq == 6L }
+        assertTrue(tomb.isRecalled)
+        assertEquals(bob, tomb.from)
+        assertEquals("", tomb.content)
+        // A tombstone, not a hole: the next pull starts at 7.
         server.requests.clear()
         runBlocking { a.syncConversation(withBob) }
         assertEquals(7L, server.requests.first { it.string("action") == "get" }.long("afterSeq"))
@@ -244,12 +272,13 @@ class ChatEngineTest {
         // bob recalls 2 live.
         server.recallSilently(topic, 2)
         server.pushTo(alice, jsonObject { put("action", "recalled"); put("topic", alice); put("seq", 2); put("from", bob) })
-        eventually { a.msgs().map { it.seq } == listOf(1L, 3L) }
+        eventually { a.msgs().singleOrNull { it.seq == 2L }?.isRecalled == true }
+        assertEquals(listOf(1L, 3L), a.msgs().filterNot { it.isRecalled }.map { it.seq })
         server.inject(topic, bob, "m4")
         server.requests.clear()
         runBlocking { a.syncConversation(withBob) }
         assertEquals(3L, server.requests.first { it.string("action") == "get" }.long("afterSeq"))
-        eventually { a.msgs().map { it.seq } == listOf(1L, 3L, 4L) }
+        eventually { a.msgs().filterNot { it.isRecalled }.map { it.seq } == listOf(1L, 3L, 4L) }
     }
 
     @Test

@@ -6,17 +6,17 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { closeDevices, conversationItem, device, expectStored, openConversation, run, send, user } from "./helpers.js";
+import { closeDevices, contactItem, conversationItem, device, expectStored, openConversation, run, send, user } from "./helpers.js";
 
 test.afterAll(closeDevices);
 
 async function createGroup(page: Page, name: string, member: string): Promise<void> {
-  await expect(page.locator(`[data-contact="${member}"]`)).toBeVisible();
+  await expect(contactItem(page, member)).toBeVisible();
   await page.getByRole("button", { name: "New group" }).click();
   const dialog = page.getByRole("dialog", { name: "New group" });
   await dialog.getByLabel("Group name").fill(name);
-  await dialog.locator(".sample-pick", { hasText: member }).getByRole("checkbox").check();
-  await dialog.getByRole("button", { name: "Create" }).click();
+  await dialog.locator(".imkit-info-row", { hasText: member }).getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: /^Create/ }).click();
   await expect(page.locator(".imkit-chat-title")).toHaveText(name);
 }
 
@@ -28,12 +28,13 @@ test("join a group by its link, then with approval", async ({ browser }) => {
   await device(browser, friend);
   await createGroup(o, group, friend);
 
-  // The owner shares the group's link.
-  await o.getByRole("button", { name: "Group QR" }).click();
-  const panel = o.getByRole("dialog", { name: "Group QR" });
+  // The owner shares the group's link from the group's info page.
+  await o.getByRole("button", { name: "Group info" }).click();
+  const panel = o.locator(".imkit-info");
   const link = panel.locator("[data-qr-link]");
   await expect(link).toContainText("#/join/");
   const url = (await link.textContent())!.trim();
+  await panel.getByRole("button", { name: "Back" }).click();
 
   // Someone opens it, joins at once and talks.
   const joiner = user("gj_joiner");
@@ -49,6 +50,7 @@ test("join a group by its link, then with approval", async ({ browser }) => {
   await expectStored(o, "found you by the link", false);
 
   // With approval on, the next person asks and waits.
+  await o.getByRole("button", { name: "Group info" }).click();
   await panel.getByLabel("Admins approve people who join by QR code").check();
   await expect(panel.getByLabel("Admins approve people who join by QR code")).toBeChecked();
   const asker = user("gj_asker");
@@ -72,5 +74,6 @@ test("join a group by its link, then with approval", async ({ browser }) => {
   await expect(conversationItem(a, group)).toBeVisible();
   await openConversation(a, group);
   await send(a, "approved and in");
+  await panel.getByRole("button", { name: "Back" }).click();
   await expectStored(o, "approved and in", false);
 });

@@ -9,4 +9,15 @@
     <string name="sample_channel_calls">Calls</string>
     <string name="sample_new_message">New message</string>
     <string name="sample_red_packet">Red packet</string>
+    <string name="sample_someone">Someone</string>
+    <string name="sample_incoming_voice">Incoming voice call</string>
+    <string name="sample_incoming_video">Incoming video call</string>
+    <string name="sample_ongoing_call">Call in progress</string>
+    <string name="sample_ongoing_call_text">Tap to return to the call</string>
+    <string name="sample_join_group">Join a group</string>
+    <string name="sample_join_hint">Paste a group link or code</string>
+    <string name="sample_join_open">Open</string>
+    <string name="sample_join_bad_link">That is not a group link</string>
+    <string name="sample_cancel">Cancel</string>
+    <string name="sample_close">Close</string>
 </resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sample_title">Mẫu ImKit</string>
+    <string name="sample_dev_hint">Đăng nhập vào máy chủ mẫu cục bộ bằng tên. Chỉ dùng khi phát triển.</string>
+    <string name="sample_name">Tên của bạn</string>
+    <string name="sample_sign_in">Đăng nhập</string>
+    <string name="sample_sign_out">Đăng xuất</string>
+    <string name="sample_channel_messages">Tin nhắn</string>
+    <string name="sample_channel_calls">Cuộc gọi</string>
+    <string name="sample_new_message">Tin nhắn mới</string>
+    <string name="sample_red_packet">Lì xì</string>
+    <string name="sample_someone">Ai đó</string>
+    <string name="sample_incoming_voice">Cuộc gọi thoại đến</string>
+    <string name="sample_incoming_video">Cuộc gọi video đến</string>
+    <string name="sample_ongoing_call">Đang gọi</string>
+    <string name="sample_ongoing_call_text">Chạm để quay lại cuộc gọi</string>
+    <string name="sample_join_group">Tham gia nhóm</string>
+    <string name="sample_join_hint">Dán liên kết hoặc mã nhóm</string>
+    <string name="sample_join_open">Mở</string>
+    <string name="sample_join_bad_link">Đây không phải liên kết nhóm</string>
+    <string name="sample_cancel">Hủy</string>
+    <string name="sample_close">Đóng</string>
+</resources>

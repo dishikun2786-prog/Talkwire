@@ -26,6 +26,7 @@ import io.imkit.ui.screens.defaultGroupName
 import io.imkit.ui.screens.lastLine
 import io.imkit.ui.screens.listKey
 import io.imkit.ui.screens.listedConversations
+import io.imkit.ui.screens.searchSnippet
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -235,6 +236,15 @@ class ChatLogicTest {
         scope.advanceUntilIdle()
         assertEquals(listOf(setOf("a", "b"), setOf("b")), host.calls)
         scope.cancel()
+    }
+
+    @Test
+    fun searchSnippetCutsALongLeadAndKeepsTheMatchCase() {
+        val s = searchSnippet("a\nb c", "B")
+        assertEquals(listOf("a ", "b", " c"), listOf(s.before, s.match, s.after))
+        val long = searchSnippet("x".repeat(40) + "Needle tail", "needle", lead = 5)
+        assertEquals(listOf("…xxxxx", "Needle", " tail"), listOf(long.before, long.match, long.after))
+        assertEquals("", searchSnippet("abc", "zz").match)
     }
 }
 

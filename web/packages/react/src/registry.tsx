@@ -7,8 +7,9 @@
  * for clients that do not know the type (C7).
  */
 
-import { messageKind, type ChatMessage } from "@imkit/client";
+import { isRecalled, messageKind, type ChatMessage } from "@imkit/client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useProfile } from "./context.js";
 import { format, type ImStrings } from "./strings.js";
 
 /** What a message type gets from the screen it is drawn on. */
@@ -21,7 +22,35 @@ export interface MessageScope {
   openImage(url: string): void;
 }
 
-export type MessageAction = "copy" | "recall" | "retry" | "discard";
+/**
+ * What a message's menu can offer, in this order. `reply`, `forward` and
+ * `select` need a stored message (one with a seq); `recall`, `retry` and
+ * `discard` only ever apply to own messages.
+ */
+export type MessageAction = "copy" | "save" | "reply" | "forward" | "select" | "recall" | "retry" | "discard";
+
+export const MESSAGE_ACTION_ORDER: readonly MessageAction[] = ["copy", "save", "reply", "forward", "select", "recall", "retry", "discard"];
+
+/** The message a reply quotes, carried in `extra.replyTo` of the reply (as the Android kit writes it). */
+export interface ReplyRef {
+  seq: number;
+  from: string;
+  text: string;
+}
+
+/** The quoted message of a reply; null when `message` quotes nothing. */
+export function replyRefOf(message: ChatMessage): ReplyRef | null {
+  const r = extraOf(message, "replyTo");
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  const o = r as Record<string, unknown>;
+  if (typeof o.seq !== "number") return null;
+  return { seq: o.seq, from: typeof o.from === "string" ? o.from : "", text: typeof o.text === "string" ? o.text : "" };
+}
+
+/** The `extra` of a reply to `ref`; the quoted text is cut to keep messages small. */
+export function replyExtra(ref: ReplyRef): { replyTo: ReplyRef } {
+  return { replyTo: { seq: ref.seq, from: ref.from, text: Array.from(ref.text).slice(0, 120).join("") } };
+}
 
 export interface MessageType {
   /** A stable name, for tests and debugging. */
@@ -97,9 +126,11 @@ function mediaBox(width: number, height: number, max = 220): { width: number; he
   return { width: Math.max(80, Math.round(width * scale)), height: Math.max(60, Math.round(height * scale)) };
 }
 
-const ownActions = (m: ChatMessage, extra: MessageAction[] = []): MessageAction[] => {
+/** What every message offers, plus `extra`: reply, forward and select once stored, recall when sent, retry and discard when failed. */
+const baseActions = (m: ChatMessage, extra: MessageAction[] = []): MessageAction[] => {
   if (m.status === "failed") return [...extra, "retry", "discard"];
-  return m.status === "sent" ? [...extra, "recall"] : extra;
+  const stored: MessageAction[] = m.seq !== null ? ["reply", "forward", "select"] : [];
+  return [...extra, ...stored, ...(m.status === "sent" ? (["recall"] as MessageAction[]) : [])];
 };
 
 export const TextType: MessageType = {
@@ -107,7 +138,7 @@ export const TextType: MessageType = {
   matches: (m) => messageKind(m.contentType, m.fileUrl) === "text",
   render: (m) => <span className="imkit-text">{m.content}</span>,
   preview: (m) => m.content,
-  actions: (m) => ownActions(m, ["copy"]),
+  actions: (m) => baseActions(m, ["copy"]),
 };
 
 export const ImageType: MessageType = {
@@ -124,7 +155,7 @@ export const ImageType: MessageType = {
     );
   },
   preview: (_m, s) => s.previewImage,
-  actions: (m) => ownActions(m),
+  actions: (m) => baseActions(m, m.fileUrl ? ["save"] : []),
 };
 
 export const VideoType: MessageType = {
@@ -133,7 +164,7 @@ export const VideoType: MessageType = {
   framed: false,
   render: (m, scope) => <VideoContent message={m} scope={scope} />,
   preview: (_m, s) => s.previewVideo,
-  actions: (m) => ownActions(m),
+  actions: (m) => baseActions(m, m.fileUrl ? ["save"] : []),
 };
 
 function VideoContent({ message, scope }: { message: ChatMessage; scope: MessageScope }) {
@@ -157,7 +188,7 @@ export const VoiceType: MessageType = {
   matches: (m) => messageKind(m.contentType, m.fileUrl) === "voice",
   render: (m, scope) => <VoiceContent message={m} scope={scope} />,
   preview: (_m, s) => s.previewVoice,
-  actions: (m) => ownActions(m),
+  actions: (m) => baseActions(m, m.fileUrl ? ["save"] : []),
 };
 
 function VoiceContent({ message, scope }: { message: ChatMessage; scope: MessageScope }) {
@@ -194,8 +225,23 @@ export const FileType: MessageType = {
     </a>
   ),
   preview: (m, s) => format(s.previewFile, m.fileName ?? ""),
-  actions: (m) => ownActions(m),
+  actions: (m) => baseActions(m, m.fileUrl ? ["save"] : []),
 };
+
+/** A recalled message's tombstone: a centered note saying who unsent it. */
+export const RecalledType: MessageType = {
+  name: "recalled",
+  matches: (m) => isRecalled(m),
+  framed: false,
+  render: (m, scope) => <RecalledNote message={m} scope={scope} />,
+  preview: (_m, s) => s.recalledPreview,
+  actions: () => [],
+};
+
+function RecalledNote({ message, scope }: { message: ChatMessage; scope: MessageScope }) {
+  const who = useProfile(scope.isMine ? undefined : message.from);
+  return <span className="imkit-system">{scope.isMine ? scope.strings.recalledByYou : format(scope.strings.recalledBy, who?.name ?? "")}</span>;
+}
 
 export const SystemType: MessageType = {
   name: "system",
@@ -212,7 +258,7 @@ export const UnknownType: MessageType = {
   matches: () => true,
   render: (m, scope) => <span className="imkit-text imkit-unknown">{m.content || scope.strings.unsupportedMessage}</span>,
   preview: (m, s) => m.content || s.previewUnsupported,
-  actions: (m) => ownActions(m),
+  actions: (m) => baseActions(m, m.content ? ["copy"] : []),
 };
 
-export const BuiltInTypes: readonly MessageType[] = [TextType, ImageType, VideoType, VoiceType, FileType, SystemType];
+export const BuiltInTypes: readonly MessageType[] = [RecalledType, TextType, ImageType, VideoType, VoiceType, FileType, SystemType];

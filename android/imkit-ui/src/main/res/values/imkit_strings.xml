@@ -69,6 +69,9 @@
     <string name="imkit_copied">Copied</string>
     <string name="imkit_saved">Saved</string>
     <string name="imkit_save_failed">Couldn\'t save</string>
+    <string name="imkit_recalled_preview">Message unsent</string>
+    <string name="imkit_recalled_by_you">You unsent a message</string>
+    <string name="imkit_recalled_by">%1$s unsent a message</string>
     <string name="imkit_recall_failed">Couldn\'t unsend this message</string>
     <string name="imkit_action_failed">Something went wrong. Please try again.</string>
     <string name="imkit_forward_to">Forward to</string>
@@ -101,6 +104,8 @@
     <string name="imkit_contacts">Contacts</string>
     <string name="imkit_no_contacts">No contacts</string>
     <string name="imkit_search">Search</string>
+    <string name="imkit_search_messages">Messages</string>
+    <string name="imkit_no_results">No results</string>
     <string name="imkit_group_info">Group info</string>
     <string name="imkit_chat_info">Chat info</string>
     <string name="imkit_group_name">Group name</string>

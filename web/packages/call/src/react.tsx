@@ -7,7 +7,7 @@
 
 import { useImKit, useProfile, useSignal } from "@imkit/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CallManager, type CallEndReason, type CallMediaEngine, type CallState, type CallType, type TabChannel } from "./index.js";
+import { CallManager, ToneRinger, ringWith, type CallEndReason, type CallMediaEngine, type CallRinger, type CallState, type CallType, type TabChannel } from "./index.js";
 
 // ------------------------------------------------------------------ strings
 
@@ -208,18 +208,25 @@ export interface CallProviderProps {
   /** How tabs agree on which takes a call; default a BroadcastChannel per account, null for none. */
   channel?: TabChannel | null;
   strings?: Partial<CallStrings>;
+  /** Plays the ring and the ringback; default a `ToneRinger`, null for silence. Keep it stable across renders. */
+  ringer?: CallRinger | null;
   children: ReactNode;
 }
 
 /** Makes calls available below; one per `<ImKitProvider>`. */
-export function CallProvider({ media, channel, strings, children }: CallProviderProps) {
+export function CallProvider({ media, channel, strings, ringer, children }: CallProviderProps) {
   const { engine, locale } = useImKit();
   const manager = useMemo(() => new CallManager(engine.client, engine.me, channel === undefined ? { media } : { media, channel }), [engine, media, channel]);
+  const sound = useMemo(() => (ringer === undefined ? new ToneRinger() : ringer), [ringer]);
   // Start in the effect too: StrictMode runs the cleanup once before mounting again.
   useEffect(() => {
     manager.start();
-    return () => manager.dispose();
-  }, [manager]);
+    const off = sound ? ringWith(manager, sound) : null;
+    return () => {
+      off?.();
+      manager.dispose();
+    };
+  }, [manager, sound]);
   const value = useMemo(() => ({ manager, strings: { ...callStringsFor(locale), ...strings } }), [manager, locale, strings]);
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 }

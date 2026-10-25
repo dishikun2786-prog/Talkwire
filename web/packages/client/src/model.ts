@@ -34,10 +34,17 @@ export type MessageStatus =
  */
 export type MessageKind = "text" | "image" | "video" | "voice" | "file" | "system" | "custom";
 
+/**
+ * The content type of a recall tombstone. Local only, never sent: a recalled
+ * message stays in the store under it so the chat can say who unsent a
+ * message. Its kind is "system", so it never counts as unread.
+ */
+export const RECALLED_CONTENT_TYPE = "application/vnd.imkit.recalled";
+
 export function messageKind(contentType: string, fileUrl?: string | null): MessageKind {
   const t = contentType.toLowerCase();
   if (t === "" || t === "text" || t.startsWith("text/")) return "text";
-  if (t === "system") return "system";
+  if (t === "system" || t === RECALLED_CONTENT_TYPE) return "system";
   if (t === "image" || t.startsWith("image/")) return "image";
   if (t === "video" || t.startsWith("video/")) return "video";
   if (t === "voice" || t === "audio" || t.startsWith("audio/")) return "voice";
@@ -81,6 +88,15 @@ export interface ChatMessage {
   ts: number;
   status: MessageStatus;
   failure?: SendFailure;
+}
+
+/** A recalled message kept as a tombstone: who sent it and when, nothing else. */
+export const isRecalled = (m: ChatMessage): boolean => m.contentType === RECALLED_CONTENT_TYPE;
+
+/** `m` as a recall tombstone: the same seq, sender and time, no content or files. */
+export function recalledCopy(m: ChatMessage): ChatMessage {
+  const { fileUrl: _f, fileName: _n, extra: _e, forwardFromMsgId: _fm, forwardFromTopic: _ft, failure: _x, ...rest } = m;
+  return { ...rest, content: "", contentType: RECALLED_CONTENT_TYPE, duration: 0 };
 }
 
 /** A key that stays unique in a list: the seq once stored, the local id before. */

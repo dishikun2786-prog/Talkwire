@@ -2,6 +2,7 @@ package io.imkit.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -64,6 +68,8 @@ import io.imkit.ui.components.ImConfirmDialog
 import io.imkit.ui.components.ImTime
 import io.imkit.ui.host.ProfileCache
 import io.imkit.ui.theme.ImTheme
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -92,6 +98,17 @@ internal fun lastLine(summary: ConversationSummary, preview: (ChatMessage) -> St
     return if (summary.id.isGroup && m.from != me && m.senderKind == ChatMessage.SENDER_USER) senderLabel(senderName(m.from), text) else text
 }
 
+/** The text around a search match: what comes before (a long lead cut to "…"), the match, the rest. */
+internal data class Snippet(val before: String, val match: String, val after: String)
+
+internal fun searchSnippet(text: String, query: String, lead: Int = 16): Snippet {
+    val flat = text.replace(Regex("\\s+"), " ")
+    val at = flat.indexOf(query, ignoreCase = true)
+    if (at < 0) return Snippet(flat, "", "")
+    val start = maxOf(0, at - lead)
+    return Snippet((if (start > 0) "…" else "") + flat.substring(start, at), flat.substring(at, at + query.length), flat.substring(at + query.length))
+}
+
 @Composable
 internal fun ConversationListScreen(state: ImChatState, onExit: (() -> Unit)?) {
     val engine = state.engine
@@ -105,9 +122,53 @@ internal fun ConversationListScreen(state: ImChatState, onExit: (() -> Unit)?) {
     var menu by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<ConversationSummary?>(null) }
     val visible = remember(summaries) { listedConversations(summaries) }
+    // Search: chats by name, and the text messages stored on this device, a moment after typing stops.
+    var query by remember { mutableStateOf("") }
+    val q = query.trim()
+    var hits by remember { mutableStateOf<Pair<String, List<ChatMessage>>?>(null) }
+    LaunchedEffect(q) {
+        if (q.isEmpty()) return@LaunchedEffect
+        delay(250)
+        hits = q to try {
+            engine.searchMessages(q)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    val messageHits = hits?.takeIf { it.first == q }?.second
 
     LaunchedEffect(visible) {
         state.profiles.request(visible.flatMap { s -> listOfNotNull(s.id.id.takeIf { !s.id.isGroup }, s.lastMessage?.from) })
+    }
+    LaunchedEffect(messageHits) {
+        messageHits?.let { ms -> state.profiles.request(ms.flatMap { m -> listOfNotNull(m.from, m.conversation.id.takeIf { !m.conversation.isGroup }) }) }
+    }
+
+    val row: @Composable (ConversationSummary) -> Unit = { s ->
+        val title = state.title(s.id, s, groups, people)
+        val online = !s.id.isGroup && presence.containsKey(s.id.id) && engine.presence.state(s.id.id) == PresenceState.ONLINE
+        ConversationItem(
+            summary = s,
+            title = title,
+            avatarUrl = if (s.id.isGroup) null else state.host.resolveMediaUrl(people[s.id.id]?.avatarUrl),
+            online = online,
+            line = lastLine(
+                s,
+                preview = { m -> state.types.preview(m, context) },
+                senderName = { uid -> people[uid]?.name ?: ProfileCache.fallbackName(context, uid) },
+                me = engine.me,
+                draftLabel = { d -> context.getString(R.string.imkit_draft, d) },
+                senderLabel = { n, t -> context.getString(R.string.imkit_sender_preview, n, t) },
+            ),
+            time = ImTime.conversationTime(context, s.lastMessage?.ts ?: s.updatedAt),
+            onClick = { state.navigate(ImDestination.Chat(s.id)) },
+            onPin = { scope.launch { runCatching { engine.setPinned(s.id, !s.pinned) } } },
+            onMute = { scope.launch { runCatching { engine.setMuted(s.id, !s.muted) } } },
+            onDelete = { deleting = s },
+        )
+        Divider(Modifier.padding(start = 76.dp), color = colors.divider, thickness = 0.5.dp)
     }
 
     Column(Modifier.fillMaxSize().background(colors.background)) {
@@ -130,36 +191,46 @@ internal fun ConversationListScreen(state: ImChatState, onExit: (() -> Unit)?) {
                 }
             }
         }
-        if (visible.isEmpty()) {
+        if (visible.isNotEmpty() || query.isNotEmpty()) SearchField(query) { query = it }
+        if (q.isNotEmpty()) {
+            val chatHits = visible.filter { state.title(it.id, it, groups, people).contains(q, ignoreCase = true) }
+            val shownHits = messageHits.orEmpty()
+            if (messageHits != null && chatHits.isEmpty() && shownHits.isEmpty()) {
+                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.imkit_no_results), color = colors.textSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize().testTag("imkit_search_results")) {
+                    if (chatHits.isNotEmpty()) {
+                        item(key = "h_chats") { SectionHeader(stringResource(R.string.imkit_chats)) }
+                        items(chatHits, key = { "c_" + it.id.id }) { s -> row(s) }
+                    }
+                    if (shownHits.isNotEmpty()) {
+                        item(key = "h_messages") { SectionHeader(stringResource(R.string.imkit_search_messages)) }
+                        items(shownHits, key = { m -> "m_${m.conversation.id}:${m.seq ?: m.localId}" }) { m ->
+                            val c = m.conversation
+                            val sender = if (c.isGroup && m.from != engine.me) people[m.from]?.name ?: ProfileCache.fallbackName(context, m.from) else null
+                            SearchHitItem(
+                                title = state.title(c, summaries.firstOrNull { it.id == c }, groups, people),
+                                isGroup = c.isGroup,
+                                avatarUrl = if (c.isGroup) null else state.host.resolveMediaUrl(people[c.id]?.avatarUrl),
+                                senderPrefix = sender?.let { context.getString(R.string.imkit_sender_preview, it, "") },
+                                snippet = searchSnippet(m.content, q),
+                                time = ImTime.conversationTime(context, m.ts),
+                                onClick = { state.navigate(ImDestination.Chat(c)) },
+                            )
+                            Divider(Modifier.padding(start = 76.dp), color = colors.divider, thickness = 0.5.dp)
+                        }
+                    }
+                }
+            }
+        } else if (visible.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.imkit_no_conversations), color = colors.textSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
             }
         } else {
             LazyColumn(Modifier.fillMaxSize().testTag("imkit_conversations")) {
-                items(visible, key = { it.id.id }) { s ->
-                    val title = state.title(s.id, s, groups, people)
-                    val online = !s.id.isGroup && presence.containsKey(s.id.id) && engine.presence.state(s.id.id) == PresenceState.ONLINE
-                    ConversationItem(
-                        summary = s,
-                        title = title,
-                        avatarUrl = if (s.id.isGroup) null else state.host.resolveMediaUrl(people[s.id.id]?.avatarUrl),
-                        online = online,
-                        line = lastLine(
-                            s,
-                            preview = { m -> state.types.preview(m, context) },
-                            senderName = { uid -> people[uid]?.name ?: ProfileCache.fallbackName(context, uid) },
-                            me = engine.me,
-                            draftLabel = { d -> context.getString(R.string.imkit_draft, d) },
-                            senderLabel = { n, t -> context.getString(R.string.imkit_sender_preview, n, t) },
-                        ),
-                        time = ImTime.conversationTime(context, s.lastMessage?.ts ?: s.updatedAt),
-                        onClick = { state.navigate(ImDestination.Chat(s.id)) },
-                        onPin = { scope.launch { runCatching { engine.setPinned(s.id, !s.pinned) } } },
-                        onMute = { scope.launch { runCatching { engine.setMuted(s.id, !s.muted) } } },
-                        onDelete = { deleting = s },
-                    )
-                    Divider(Modifier.padding(start = 76.dp), color = colors.divider, thickness = 0.5.dp)
-                }
+                items(visible, key = { it.id.id }) { s -> row(s) }
             }
         }
     }
@@ -173,6 +244,52 @@ internal fun ConversationListScreen(state: ImChatState, onExit: (() -> Unit)?) {
             onConfirm = { deleting = null; scope.launch { runCatching { engine.deleteConversation(s.id) } } },
             onDismiss = { deleting = null },
         )
+    }
+}
+
+@Composable
+private fun SectionHeader(label: String) {
+    Text(label, fontSize = 12.sp, color = ImTheme.colors.textSecondary, modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp))
+}
+
+/** A message found by search: the chat it is in, the text around the match. */
+@Composable
+private fun SearchHitItem(
+    title: String,
+    isGroup: Boolean,
+    avatarUrl: String?,
+    senderPrefix: String?,
+    snippet: Snippet,
+    time: String,
+    onClick: () -> Unit,
+) {
+    val colors = ImTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isGroup) {
+            Box(Modifier.size(ImTheme.dimens.avatarInList).clip(CircleShape).background(colors.accent.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Groups, null, tint = colors.accent)
+            }
+        } else {
+            ImAvatar(avatarUrl, title, size = ImTheme.dimens.avatarInList)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontSize = 16.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (time.isNotEmpty()) Text(time, fontSize = 12.sp, color = colors.textHint)
+            }
+            Spacer(Modifier.height(2.dp))
+            val line = buildAnnotatedString {
+                senderPrefix?.let { append(it) }
+                append(snippet.before)
+                withStyle(SpanStyle(background = colors.accent.copy(alpha = 0.28f))) { append(snippet.match) }
+                append(snippet.after)
+            }
+            Text(line, fontSize = 13.sp, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

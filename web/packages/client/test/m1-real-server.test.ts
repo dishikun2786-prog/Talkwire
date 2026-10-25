@@ -15,6 +15,7 @@ import {
   ImClient,
   MemoryChatStore,
   WebSocketTransport,
+  isRecalled,
   type ChatEvent,
   type ChatMessage,
   type ImSocket,
@@ -180,11 +181,12 @@ async function flow(server: RealServer, profile: "strict" | "legacy"): Promise<v
     bob.client.start();
     await until("Bob back", () => bob.synced() > bobBack);
 
-    // Recall: gone on both sides.
+    // Recall: the content is gone on both sides; a tombstone says who unsent it.
     const target = aliceWin.value.find((m) => m.content === "while away 0")!;
     await alice.engine.recall(target);
-    expect(aliceWin.value.some((m) => m.seq === target.seq)).toBe(false);
-    await until("recall reaches Bob", () => !bobWin.value.some((m) => m.seq === target.seq));
+    expect(isRecalled(aliceWin.value.find((m) => m.seq === target.seq)!)).toBe(true);
+    await until("recall reaches Bob", () => bobWin.value.some((m) => m.seq === target.seq && isRecalled(m)));
+    expect(bobWin.value.find((m) => m.seq === target.seq)!.from).toBe(aliceUid);
 
     // Read receipts.
     await bob.engine.markRead(aliceUid);

@@ -9,4 +9,15 @@
     <string name="sample_channel_calls">通话</string>
     <string name="sample_new_message">新消息</string>
     <string name="sample_red_packet">红包</string>
+    <string name="sample_someone">有人</string>
+    <string name="sample_incoming_voice">语音来电</string>
+    <string name="sample_incoming_video">视频来电</string>
+    <string name="sample_ongoing_call">通话中</string>
+    <string name="sample_ongoing_call_text">点按返回通话</string>
+    <string name="sample_join_group">加入群聊</string>
+    <string name="sample_join_hint">粘贴群链接或入群码</string>
+    <string name="sample_join_open">打开</string>
+    <string name="sample_join_bad_link">这不是群链接</string>
+    <string name="sample_cancel">取消</string>
+    <string name="sample_close">关闭</string>
 </resources>

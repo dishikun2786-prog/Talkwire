@@ -23,6 +23,7 @@ import io.imkit.core.model.ConversationId
 import io.imkit.core.model.GroupInfo
 import io.imkit.core.model.GroupMember
 import io.imkit.core.model.GroupRole
+import io.imkit.core.model.MessageKind
 import io.imkit.core.model.MessageStatus
 import io.imkit.core.model.SendFailure
 import io.imkit.core.protocol.Reply
@@ -382,10 +383,19 @@ public class ChatEngine(
         val seq = requireNotNull(message.seq) { "only stored messages can be recalled; use discard" }
         val reply = client.recall(message.conversation.wireTopic, seq)
         if (!reply.ok) throw ImException.Refused(reply)
-        withConversation(message.conversation) {
-            store.deleteMessage(message.conversation, seq)
-            store.addRecalled(message.conversation, seq)
-        }
+        withConversation(message.conversation) { tombstoneLocked(message.conversation, seq) }
+    }
+
+    /**
+     * A recalled message becomes a tombstone (who sent it and when, no
+     * content), so the chat can show "… unsent a message"; one this device
+     * never had leaves only the recalled seq. Either way the seq counts as
+     * recalled for the sync cursor.
+     */
+    private suspend fun tombstoneLocked(c: ConversationId, seq: Long) {
+        val held = store.message(c, seq)
+        if (held != null && !held.isRecalled) store.putMessage(held.recalled())
+        store.addRecalled(c, seq)
     }
 
     /** Clears the conversation for every member, permanently (spec 11.2). */
@@ -435,6 +445,26 @@ public class ChatEngine(
             val c = store.conversation(conversation) ?: StoredConversation(conversation)
             store.putConversation(change(c))
         }
+    }
+
+    // ---------------------------------------------------------------- local search
+
+    /**
+     * Text messages stored on this device that contain [query] (case does
+     * not matter), newest first. Reads the [scanPerConversation] most recent
+     * messages of each conversation through the store, so it also works when
+     * message text is encrypted at rest; older messages are not searched.
+     */
+    public suspend fun searchMessages(query: String, limit: Int = 50, scanPerConversation: Int = 500): List<ChatMessage> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val hits = ArrayList<ChatMessage>()
+        for (c in store.conversations()) {
+            for (m in store.latestMessages(c.id, scanPerConversation)) {
+                if (m.kind == MessageKind.TEXT && m.content.contains(q, ignoreCase = true)) hits += m
+            }
+        }
+        return hits.sortedByDescending { it.ts }.take(limit)
     }
 
     // ---------------------------------------------------------------- groups (C9)
@@ -559,8 +589,7 @@ public class ChatEngine(
                 page.readCursors?.forEach { (uid, seq) -> if (uid != me) store.setReadCursor(conversation, uid, seq) }
                 if (afterSeq != null) {
                     for (s in SyncMath.recalledWhileAway(store.seqs(conversation), afterSeq, page.messages.map { it.seq })) {
-                        store.deleteMessage(conversation, s)
-                        store.addRecalled(conversation, s)
+                        tombstoneLocked(conversation, s)
                     }
                 }
                 for (m in page.messages) applyIncomingLocked(conversation, m, live = false)
@@ -588,10 +617,7 @@ public class ChatEngine(
                 is ImEvent.Disconnected -> Unit
                 is ImEvent.Message -> onMessage(e.message)
                 is ImEvent.Recalled -> resolve(e.topic, e.from)?.let { c ->
-                    withConversation(c) {
-                        store.deleteMessage(c, e.seq)
-                        store.addRecalled(c, e.seq)
-                    }
+                    withConversation(c) { tombstoneLocked(c, e.seq) }
                 }
                 is ImEvent.TopicCleared -> {
                     resolve(e.topic, e.from)?.let { c ->

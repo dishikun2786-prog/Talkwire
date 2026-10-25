@@ -35,7 +35,7 @@ class MyHost(override val media: MediaSender) : ImUiHost {
 }
 ```
 
-用 Node 宿主 SDK（`@imkit/host-node`）时，`/api/v1/chat/contacts` 与 `/api/v1/chat/profiles` 已经现成，`sample-app` 的 `SampleHost` 就是这样接的。可选：`attachmentActions`（附件面板里加自己的入口）、`topBarActions`、`onOpenProfile`（默认什么都不做：群成员之间不能互看资料）。
+用 Node 宿主 SDK（`@imkit/host-node`）时，`/api/v1/chat/contacts` 与 `/api/v1/chat/profiles` 已经现成，`sample-app` 的 `SampleHost` 就是这样接的。可选：`attachmentActions`（附件面板里加自己的入口）、`topBarActions`、`onOpenProfile`（默认什么都不做：群成员之间不能互看资料），以及给可选模块用的两个界面槽位 `topBarExtras`（会话页头）、`groupInfoExtras`（群信息页，带本人角色），见第 7 节。
 
 ## 4. 装起来
 
@@ -85,6 +85,33 @@ val state = rememberImChatState(engine, host, types)
 ```
 
 类型按 `contentType`（和 `extra`）认，不看 `content` 的文字；`content` 是给不认识这个类型的客户端看的兜底文字。完整例子见 `examples/red-packet/android`。
+
+## 7. 可选模块：通话与扫码入群
+
+可选模块的界面经 `ImUiHost` 的两个槽位接进聊天界面，SDK 本身不依赖这些模块。`sample-app` 两个都接了：
+
+```kotlin
+val calls = CallManager(client, engine.me, MyRtcEngine(), scope)   // 媒体走自己的 RTC；NoMediaEngine 只有信令
+val groupJoin = GroupJoinClient(client)
+
+class MyHost(…, private val calls: CallManager, private val groupJoin: GroupJoinClient) : ImUiHost {
+    // 单聊页头的语音、视频按钮。按下时先要麦克风（视频再要摄像头）权限
+    override val topBarExtras: (@Composable RowScope.(ConversationId) -> Unit) = { id ->
+        if (!id.isGroup) CallButtons(calls, peer = id.id, onRefused = { reason -> toast(reason) })
+    }
+    // 群信息页：二维码人人可见，换码与审批只给群主和管理员，审核开关只有群主能改
+    override val groupInfoExtras: (@Composable (String, GroupRole) -> Unit) = { topic, role ->
+        Column {
+            GroupQrCard(groupJoin, topic, canRefresh = role.canManage, linkFor = { token -> "https://app.example.com/join/$token" })
+            JoinApprovalSetting(groupJoin, topic, editable = role == GroupRole.OWNER)
+            if (role.canManage) JoinRequestsPanel(groupJoin, topic)
+        }
+    }
+}
+```
+
+- 通话：`calls.start()` 之后再起 `CallSystem(context, calls, notifications, scope, incomingNotice, ongoingNotice)`，它负责来电全屏通知、来电铃声与回铃音、通话中的前台服务（铃声默认用系统的，`ringer = null` 静音；要振动，清单里加 `VIBRATE`）；通话界面 `CallScreen(calls)` 盖在聊天界面之上。来电要在锁屏上亮屏显示，响铃和通话期间对 Activity 调 `setShowWhenLocked(true)`、`setTurnScreenOn(true)`，清单里加 `USE_FULL_SCREEN_INTENT`。
+- 扫码入群：二维码里放什么由 App 决定（`linkFor`），扫码与解析也是 App 的事；拿到令牌后显示 `JoinGroupScreen(groupJoin, engine, token, onOpen = …)`。`groupJoin.events` 是审批结果等推送，用 `groupJoinNotice(context, event, nameOf)` 得到一句可显示的话。`sample-app` 的二维码里放的是 Web 示例的入群页链接，同一个码浏览器和 App 都能打开；App 内可以粘贴链接，或打开 `imkitsample://join/<令牌>`。
 
 ## 在本机跑 sample-app
 

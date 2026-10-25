@@ -6,10 +6,16 @@ import android.content.Intent
 import android.provider.Settings
 import io.imkit.android.crypto.AndroidKeystoreKeyWrapper
 import io.imkit.android.media.MediaSender
+import io.imkit.android.notify.CallNotification
 import io.imkit.android.notify.ImNotifier
 import io.imkit.android.notify.MessageNotification
 import io.imkit.android.notify.NotificationController
 import io.imkit.android.notify.SoundPoolAlertPlayer
+import io.imkit.call.CallManager
+import io.imkit.call.CallSystem
+import io.imkit.call.CallType
+import io.imkit.call.NoMediaEngine
+import io.imkit.call.OngoingCallNotice
 import io.imkit.core.client.ImClient
 import io.imkit.core.client.ImClientConfig
 import io.imkit.core.client.TokenProvider
@@ -20,6 +26,7 @@ import io.imkit.examples.redpacket.RedPacketApi
 import io.imkit.examples.redpacket.RedPacketSender
 import io.imkit.examples.redpacket.RedPacketStore
 import io.imkit.examples.redpacket.RedPacketType
+import io.imkit.groupjoin.GroupJoinClient
 import io.imkit.storage.room.RoomChatStore
 import io.imkit.ui.host.ImDeepLink
 import io.imkit.ui.message.MessageTypeRegistry
@@ -68,12 +75,25 @@ class ChatSession(context: Context, val account: Account, http: OkHttpClient) {
     /** The built-in types plus the host's red packet: registering is all it takes. */
     val types: MessageTypeRegistry = MessageTypeRegistry.Builder().register(RedPacketType(redPackets)).build()
 
+    /**
+     * Calls (optional module imkit-call). The sample has no RTC service, so
+     * the media engine only logs: ringing, answering, the call screen and the
+     * notices work, sound and video do not. An app passes a real adapter,
+     * such as imkit-call-dingrtc's DingRtcMediaEngine.
+     */
+    val calls = CallManager(client, engine.me, NoMediaEngine(), scope)
+
+    /** Joining groups by QR code (optional module imkit-group-join). */
+    val groupJoin = GroupJoinClient(client)
+
     val host = SampleHost(
         http,
         tokens,
         MediaSender(app, engine, MediaUploader(SampleConfig.HOST_URL, tokens, http), videoCompressor = Media3VideoCompressor(app)),
         redPacketSender,
         app.getString(R.string.sample_red_packet),
+        calls,
+        groupJoin,
     )
 
     val banners = ImBannerState()
@@ -97,9 +117,34 @@ class ChatSession(context: Context, val account: Account, http: OkHttpClient) {
         scope,
     )
 
+    private val callSystem = CallSystem(
+        app,
+        calls,
+        notifications,
+        scope,
+        incomingNotice = { ring ->
+            CallNotification(
+                title = ring.callerName ?: app.getString(R.string.sample_someone),
+                text = app.getString(if (ring.callType == CallType.VIDEO) R.string.sample_incoming_video else R.string.sample_incoming_voice),
+                fullScreenIntent = appIntent(),
+                contentIntent = appIntent(),
+            )
+        },
+        ongoingNotice = {
+            OngoingCallNotice(
+                app.getString(R.string.sample_ongoing_call),
+                app.getString(R.string.sample_ongoing_call_text),
+                R.drawable.ic_sample_notification,
+                appIntent(),
+            )
+        },
+    )
+
     fun start() {
         notifier.createChannels()
         notifications.start()
+        calls.start()
+        callSystem.start()
         scope.launch {
             engine.start()
             runCatching { host.refreshContacts() }
@@ -107,10 +152,18 @@ class ChatSession(context: Context, val account: Account, http: OkHttpClient) {
     }
 
     fun close() {
+        callSystem.stop()
+        calls.stop()
         notifications.stop()
         client.stop()
         engine.close()
         scope.cancel()
+    }
+
+    /** Brings the app to the front as it was; the call screen shows over whatever is open. */
+    private fun appIntent(): PendingIntent {
+        val i = Intent(app, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(app, 0, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     private fun openIntent(link: ImDeepLink): PendingIntent {

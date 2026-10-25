@@ -638,6 +638,159 @@ export class CallManager {
   }
 }
 
+// ------------------------------------------------------------------ ringing
+
+/** Plays the ring of an incoming call and the ringback of an outgoing one, until stopped. */
+export interface CallRinger {
+  ring(): void;
+  ringback(): void;
+  stop(): void;
+}
+
+/** The sound a call state wants: a ring while a call rings here, a ringback while the other side has not answered. */
+export function ringToneFor(state: CallState): "ring" | "ringback" | null {
+  if (state.phase === "incoming") return "ring";
+  if (state.phase === "outgoing") return "ringback";
+  return null;
+}
+
+/**
+ * Keeps `ringer` in step with a manager's state: starts a sound when the
+ * wanted one changes (or another call rings), stops it when the call is
+ * answered, refused or over. Returns the unsubscribe, which also stops it.
+ */
+export function ringWith(source: { readonly state: ReadonlySignal<CallState> }, ringer: CallRinger): Unsubscribe {
+  let playing: string | null = null;
+  const apply = (s: CallState) => {
+    const tone = ringToneFor(s);
+    const key = tone === "ring" && s.phase === "incoming" ? `ring:${s.callSessionId}` : tone;
+    if (key === playing) return;
+    if (playing) ringer.stop();
+    playing = key;
+    if (tone === "ring") ringer.ring();
+    else if (tone === "ringback") ringer.ringback();
+  };
+  apply(source.state.value);
+  const off = source.state.subscribe(apply);
+  return () => {
+    off();
+    if (playing) ringer.stop();
+    playing = null;
+  };
+}
+
+/** What `ToneRinger` needs of Web Audio; a stand-in in tests. */
+export interface ToneContext {
+  readonly currentTime: number;
+  readonly state: string;
+  readonly destination: unknown;
+  resume(): Promise<void>;
+  createOscillator(): { frequency: { value: number }; connect(to: unknown): unknown; start(at: number): void; stop(at: number): void };
+  createGain(): { gain: { setValueAtTime(v: number, at: number): unknown; linearRampToValueAtTime(v: number, at: number): unknown }; connect(to: unknown): unknown };
+}
+
+export interface ToneRingerOptions {
+  /** 0..1; default 0.25. */
+  volume?: number;
+  /** Vibrate with the ring where the browser can (phones). Default true. */
+  vibrate?: boolean;
+  /** Makes the audio context, on the first sound; default a new AudioContext, none where there is no Web Audio. */
+  audioContext?: () => ToneContext | null;
+}
+
+/**
+ * A ringer that synthesizes its sounds with Web Audio, so the kit ships no
+ * audio files: a two-note chime twice every three seconds for the ring, a
+ * 425 Hz tone one second in five for the ringback (the usual Chinese and
+ * European cadence). Browsers keep audio silent until the page has had a
+ * click or key press; a call to an untouched tab rings without sound.
+ */
+export class ToneRinger implements CallRinger {
+  private ctx: ToneContext | null | undefined;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private oscillators: { stop(at: number): void }[] = [];
+  private readonly volume: number;
+  private readonly vibrate: boolean;
+  private readonly makeContext: () => ToneContext | null;
+
+  constructor(options: ToneRingerOptions = {}) {
+    this.volume = options.volume ?? 0.25;
+    this.vibrate = options.vibrate ?? true;
+    this.makeContext =
+      options.audioContext ??
+      (() => {
+        const AC = (globalThis as { AudioContext?: new () => ToneContext }).AudioContext;
+        return AC ? new AC() : null;
+      });
+  }
+
+  ring(): void {
+    this.loop(3_000, (at) => {
+      // Two rising notes, twice.
+      this.note(659.25, at, 0.18);
+      this.note(783.99, at + 0.2, 0.25);
+      this.note(659.25, at + 0.6, 0.18);
+      this.note(783.99, at + 0.8, 0.25);
+      if (this.vibrate) (globalThis.navigator as { vibrate?: (p: number[]) => boolean } | undefined)?.vibrate?.([400, 200, 400]);
+    });
+  }
+
+  ringback(): void {
+    this.loop(5_000, (at) => this.note(425, at, 1));
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    const now = this.ctx?.currentTime ?? 0;
+    for (const o of this.oscillators.splice(0)) {
+      try {
+        o.stop(now);
+      } catch {
+        // already stopped
+      }
+    }
+    (globalThis.navigator as { vibrate?: (p: number) => boolean } | undefined)?.vibrate?.(0);
+  }
+
+  private loop(periodMs: number, cycle: (at: number) => void): void {
+    this.stop();
+    if (this.ctx === undefined) {
+      try {
+        this.ctx = this.makeContext();
+      } catch {
+        this.ctx = null;
+      }
+    }
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+    const once = () => {
+      this.oscillators = this.oscillators.slice(-16);
+      cycle(ctx.currentTime + 0.05);
+    };
+    once();
+    this.timer = setInterval(once, periodMs);
+  }
+
+  private note(freq: number, at: number, seconds: number): void {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    // Short fades so the tone starts and ends without a click.
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(this.volume, at + 0.02);
+    gain.gain.setValueAtTime(this.volume, at + seconds - 0.03);
+    gain.gain.linearRampToValueAtTime(0, at + seconds);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + seconds);
+    this.oscillators.push(osc);
+  }
+}
+
 function defaultChannel(me: string): TabChannel | null {
   return typeof BroadcastChannel === "undefined" ? null : (new BroadcastChannel(`imkit-call:${me}`) as unknown as TabChannel);
 }

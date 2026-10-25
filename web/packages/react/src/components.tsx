@@ -1,7 +1,9 @@
-import { isGroupConversation, type ChatMessage, type ConversationId, type ConversationSummary, type VoiceClip, VoiceRecorder } from "@imkit/client";
+import { isGroupConversation, isRecalled, type ChatMessage, type ConversationId, type ConversationSummary, type VoiceClip, VoiceRecorder } from "@imkit/client";
+import { p2pTopic } from "@imkit/protocol";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { shortUid, useConnectionState, useConversation, useConversations, useImKit, useMessages, usePresence, useProfile, useSignal, useTyping } from "./context.js";
-import type { MessageAction, MessageScope } from "./registry.js";
+import { shortUid, useConnectionState, useConversation, useConversations, useImKit, useMessages, usePresence, useProfile, useProfilesVersion, useSignal, useTyping } from "./context.js";
+import { MESSAGE_ACTION_ORDER, replyExtra, replyRefOf, type MessageAction, type MessageScope, type ReplyRef } from "./registry.js";
+import { ConfirmDialog, Dialog, PopupMenu } from "./dialogs.js";
 import { format, type ImStrings } from "./strings.js";
 import { imkitCss } from "./theme.js";
 
@@ -73,19 +75,33 @@ function ConversationTitle({ c }: { c: ConversationSummary }) {
   return <>{c.isGroup ? (c.title ?? shortUid(c.id)) : (profile?.name ?? c.title ?? shortUid(c.id))}</>;
 }
 
-function ConversationRow({ c, active, onOpen }: { c: ConversationSummary; active: boolean; onOpen(id: ConversationId): void }) {
+function ConversationRow({ c, active, onOpen, onMenu }: { c: ConversationSummary; active: boolean; onOpen(id: ConversationId): void; onMenu(x: number, y: number): void }) {
   const { strings, types } = useImKit();
   const profile = useProfile(c.isGroup ? undefined : c.id);
   const sender = useProfile(c.isGroup && c.lastMessage && c.lastMessage.status === "received" ? c.lastMessage.from : undefined);
   const presence = usePresence(c.isGroup ? undefined : c.id);
   let preview = c.lastMessage ? types.preview(c.lastMessage, strings) : "";
   if (c.isGroup && c.lastMessage && sender) preview = format(strings.senderPreview, sender.name, preview);
+  const press = useLongPress(onMenu);
   return (
-    <button type="button" className="imkit-list-item" aria-current={active} onClick={() => onOpen(c.id)} data-conversation={c.id}>
+    <button
+      type="button"
+      className={"imkit-list-item" + (c.pinned ? " imkit-list-item-pinned" : "")}
+      aria-current={active}
+      onClick={() => onOpen(c.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
+      {...press}
+      data-conversation={c.id}
+    >
       <Avatar uid={c.id} name={c.isGroup ? c.title : profile?.name} url={profile?.avatarUrl} online={presence === "online"} />
       <span className="imkit-list-main">
         <span className="imkit-list-row">
           <span className="imkit-list-title"><ConversationTitle c={c} /></span>
+          {c.muted && <span className="imkit-list-muted" role="img" aria-label={strings.mute}>🔕</span>}
+          <span style={{ flex: 1 }} />
           <span className="imkit-list-time">{listTime(c.lastMessage?.ts ?? c.updatedAt, strings)}</span>
         </span>
         <span className="imkit-list-row">
@@ -99,25 +115,123 @@ function ConversationRow({ c, active, onOpen }: { c: ConversationSummary; active
   );
 }
 
+/** `text` around the first match of `query`, the match marked; a long lead is cut. */
+export function snippet(text: string, query: string, lead = 16): { before: string; match: string; after: string } {
+  const flat = text.replace(/\s+/g, " ");
+  const at = flat.toLowerCase().indexOf(query.toLowerCase());
+  if (at < 0) return { before: flat, match: "", after: "" };
+  const start = Math.max(0, at - lead);
+  return { before: (start > 0 ? "…" : "") + flat.slice(start, at), match: flat.slice(at, at + query.length), after: flat.slice(at + query.length) };
+}
+
+/** A message found by search: the chat it is in, the text around the match. Opens the chat. */
+function SearchHitRow({ m, query, onOpen }: { m: ChatMessage; query: string; onOpen(id: ConversationId): void }) {
+  const { engine, strings } = useImKit();
+  const c = useConversation(m.conversation);
+  const isGroup = isGroupConversation(m.conversation);
+  const peer = useProfile(isGroup ? undefined : m.conversation);
+  const sender = useProfile(isGroup && m.from !== engine.me ? m.from : undefined);
+  const title = isGroup ? (c?.title ?? shortUid(m.conversation)) : (peer?.name ?? c?.title ?? shortUid(m.conversation));
+  const s = snippet(m.content, query);
+  return (
+    <button type="button" role="listitem" className="imkit-list-item imkit-search-hit" data-hit={`${m.conversation}:${m.seq ?? m.localId}`} onClick={() => onOpen(m.conversation)}>
+      <Avatar uid={m.conversation} name={title} url={peer?.avatarUrl} />
+      <span className="imkit-list-main">
+        <span className="imkit-list-row">
+          <span className="imkit-list-title">{title}</span>
+          <span style={{ flex: 1 }} />
+          <span className="imkit-list-time">{listTime(m.ts, strings)}</span>
+        </span>
+        <span className="imkit-list-row">
+          <span className="imkit-list-preview">
+            {sender && <>{sender.name}: </>}
+            {s.before}
+            <mark>{s.match}</mark>
+            {s.after}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export interface ConversationListProps {
   onOpen(conversation: ConversationId): void;
   /** The conversation shown next to the list, highlighted. */
   activeConversation?: ConversationId | null;
   /** Which conversations to show; default all but groups I left and empty single chats. */
   filter?: (c: ConversationSummary) => boolean;
+  /** A search box over chat names and the messages stored on this device; default true. */
+  searchable?: boolean;
 }
 
-export function ConversationList({ onOpen, activeConversation, filter }: ConversationListProps) {
-  const { strings } = useImKit();
+export function ConversationList({ onOpen, activeConversation, filter, searchable = true }: ConversationListProps) {
+  const { engine, strings, profiles } = useImKit();
   const all = useConversations();
   const shown = all.filter(filter ?? ((c) => !(c.isGroup && c.left && !c.lastMessage) && (c.isGroup || !!c.lastMessage || !!c.draft)));
+  // Right click or long press: pin, mute, delete (this device only).
+  const [menu, setMenu] = useState<{ c: ConversationSummary; x: number; y: number } | null>(null);
+  const [deleting, setDeleting] = useState<ConversationSummary | null>(null);
+  const [query, setQuery] = useState("");
+  const q = query.trim();
+  useProfilesVersion();
+  const nameOf = (c: ConversationSummary) => (c.isGroup ? (c.title ?? "") : (profiles.peek(c.id)?.name ?? c.title ?? ""));
+  const chatHits = q ? shown.filter((c) => nameOf(c).toLowerCase().includes(q.toLowerCase())) : [];
+  // Message hits come from the store, a moment after typing stops; null while looking.
+  const [hits, setHits] = useState<{ q: string; messages: ChatMessage[] } | null>(null);
+  useEffect(() => {
+    if (!q) return;
+    let live = true;
+    const t = setTimeout(() => {
+      void engine.searchMessages(q).then(
+        (messages) => live && setHits({ q, messages }),
+        () => live && setHits({ q, messages: [] }),
+      );
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [engine, q]);
+  const messageHits = hits && hits.q === q ? hits.messages : null;
   return (
-    <div className="imkit-list" role="list" aria-label={strings.chats}>
-      {shown.length === 0 ? (
-        <div className="imkit-list-empty">{strings.noConversations}</div>
-      ) : (
-        shown.map((c) => <ConversationRow key={c.id} c={c} active={c.id === activeConversation} onOpen={onOpen} />)
+    <div className="imkit-list">
+      {searchable && (
+        <div className="imkit-list-searchbar">
+          <input className="imkit-field" type="search" aria-label={strings.searchChats} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
       )}
+      {q ? (
+        <div role="list" aria-label={strings.search}>
+          {chatHits.length > 0 && <div className="imkit-list-header">{strings.chats}</div>}
+          {chatHits.map((c) => <ConversationRow key={c.id} c={c} active={c.id === activeConversation} onOpen={onOpen} onMenu={(x, y) => setMenu({ c, x, y })} />)}
+          {messageHits && messageHits.length > 0 && <div className="imkit-list-header">{strings.searchMessages}</div>}
+          {messageHits?.map((m) => <SearchHitRow key={`${m.conversation}:${m.seq ?? m.localId}`} m={m} query={q} onOpen={onOpen} />)}
+          {messageHits && messageHits.length === 0 && chatHits.length === 0 && <div className="imkit-list-empty">{strings.noResults}</div>}
+        </div>
+      ) : (
+        <div role="list" aria-label={strings.chats}>
+          {shown.length === 0 ? (
+            <div className="imkit-list-empty">{strings.noConversations}</div>
+          ) : (
+            shown.map((c) => <ConversationRow key={c.id} c={c} active={c.id === activeConversation} onOpen={onOpen} onMenu={(x, y) => setMenu({ c, x, y })} />)
+          )}
+        </div>
+      )}
+      {menu && (
+        <PopupMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)}>
+          <button type="button" role="menuitem" onClick={() => { setMenu(null); void engine.setPinned(menu.c.id, !menu.c.pinned); }}>
+            {menu.c.pinned ? strings.unpin : strings.pin}
+          </button>
+          <button type="button" role="menuitem" onClick={() => { setMenu(null); void engine.setMuted(menu.c.id, !menu.c.muted); }}>
+            {menu.c.muted ? strings.unmute : strings.mute}
+          </button>
+          <button type="button" role="menuitem" className="imkit-danger-text" onClick={() => { setMenu(null); setDeleting(menu.c); }}>
+            {strings.deleteChat}
+          </button>
+        </PopupMenu>
+      )}
+      {deleting && <ConfirmDialog message={strings.deleteChatConfirm} action={strings.deleteChat} onClose={() => setDeleting(null)} onConfirm={() => void engine.deleteConversation(deleting.id)} />}
     </div>
   );
 }
@@ -129,10 +243,17 @@ export interface ChatScreenProps {
   onBack?: () => void;
   /** Extra buttons on the right of the header. */
   headerActions?: ReactNode;
+  /** Opens the conversation's settings (members, pin, mute, clear); without it there is no info button. */
+  onOpenInfo?: () => void;
 }
 
-export function ChatScreen({ conversation, onBack, headerActions }: ChatScreenProps) {
+export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: ChatScreenProps) {
   const { engine, strings } = useImKit();
+  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
+  // Seqs of the picked messages while selecting several; null when not selecting.
+  const [selection, setSelection] = useState<ReadonlySet<number> | null>(null);
+  const [forwarding, setForwarding] = useState<{ seqs: number[] } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const summary = useConversation(conversation);
   const isGroup = isGroupConversation(conversation);
   const profile = useProfile(isGroup ? undefined : conversation);
@@ -155,8 +276,65 @@ export function ChatScreen({ conversation, onBack, headerActions }: ChatScreenPr
   }
   const title = isGroup ? (summary?.title ?? shortUid(conversation)) : (profile?.name ?? shortUid(conversation));
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // The server knows a single chat by its p2p topic, not by the peer's uid.
+  const topicOf = (c: ConversationId) => (isGroupConversation(c) ? c : p2pTopic(engine.me, c));
+  const forward = async (targets: ConversationId[]) => {
+    const job = forwarding;
+    setForwarding(null);
+    if (!job || targets.length === 0) return;
+    try {
+      if (job.seqs.length === 1) {
+        // One message to many chats.
+        const results = await engine.client.forwardBroadcast(topicOf(conversation), job.seqs[0]!, targets.map(topicOf));
+        const failed = targets.length - results.filter((r) => r.ok).length;
+        setToast(failed === 0 ? strings.forwardedOk : format(strings.forwardFailed, failed));
+      } else {
+        // Several messages, in order, into one chat.
+        const r = await engine.client.forwardBundle(topicOf(conversation), job.seqs, topicOf(targets[0]!));
+        setToast(r.ok ? strings.forwardedOk : strings.actionFailed);
+      }
+    } catch {
+      setToast(strings.actionFailed);
+    }
+  };
+
+  const toggle = (seq: number) =>
+    setSelection((sel) => {
+      if (!sel) return sel;
+      const next = new Set(sel);
+      if (next.has(seq)) next.delete(seq);
+      else next.add(seq);
+      return next;
+    });
+
   return (
     <section className="imkit-chat" aria-label={title} style={{ position: "relative" }}>
+      {selection ? (
+        <header className="imkit-chat-header imkit-select-bar">
+          <button type="button" className="imkit-icon-button" onClick={() => setSelection(null)} aria-label={strings.cancel}>
+            ✕
+          </button>
+          <div className="imkit-chat-title" style={{ flex: 1 }}>{format(strings.selectedCount, selection.size)}</div>
+          <button
+            type="button"
+            className="imkit-text-button"
+            disabled={selection.size === 0}
+            onClick={() => {
+              const seqs = [...selection].sort((a, b) => a - b);
+              setSelection(null);
+              setForwarding({ seqs });
+            }}
+          >
+            {strings.actionForward}
+          </button>
+        </header>
+      ) : (
       <header className="imkit-chat-header">
         {onBack && (
           <button type="button" className="imkit-icon-button" onClick={onBack} aria-label={strings.back}>
@@ -169,16 +347,116 @@ export function ChatScreen({ conversation, onBack, headerActions }: ChatScreenPr
           <div className="imkit-chat-subtitle" aria-live="polite">{subtitle}</div>
         </div>
         {headerActions}
+        {onOpenInfo && (
+          <button type="button" className="imkit-icon-button" onClick={onOpenInfo} aria-label={isGroup ? strings.groupInfo : strings.chatInfo}>
+            ⋯
+          </button>
+        )}
       </header>
+      )}
       <ConnectionBanner />
-      <MessageList conversation={conversation} summary={summary} />
-      {summary?.left ? <div className="imkit-banner">{strings.removedFromGroup}</div> : <Composer conversation={conversation} />}
+      <MessageList
+        conversation={conversation}
+        summary={summary}
+        selection={selection}
+        onToggle={toggle}
+        onReply={setReplyTo}
+        onForward={(seq) => setForwarding({ seqs: [seq] })}
+        onSelect={(seq) => setSelection(new Set([seq]))}
+      />
+      {summary?.left ? (
+        <div className="imkit-banner">{strings.removedFromGroup}</div>
+      ) : selection ? null : (
+        <Composer conversation={conversation} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+      )}
+      {forwarding && <ForwardDialog multiple={forwarding.seqs.length === 1} exclude={conversation} onConfirm={(targets) => void forward(targets)} onClose={() => setForwarding(null)} />}
+      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
     </section>
   );
 }
 
-function MessageList({ conversation, summary }: { conversation: ConversationId; summary: ConversationSummary | undefined }) {
-  const { engine, strings, host } = useImKit();
+/**
+ * Picks where to forward. With `multiple`, several chats and a send button
+ * (one message to many chats); otherwise a click picks the one chat
+ * (several messages bundled into one chat).
+ */
+function ForwardDialog({ multiple, exclude, onConfirm, onClose }: { multiple: boolean; exclude?: ConversationId; onConfirm(targets: ConversationId[]): void; onClose(): void }) {
+  const { strings } = useImKit();
+  const targets = useConversations().filter((c) => !c.left && c.id !== exclude);
+  const [picked, setPicked] = useState<ReadonlySet<ConversationId>>(new Set());
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="imkit-dialog" role="dialog" aria-modal="true" aria-label={strings.forwardTo} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="imkit-dialog-card">
+        <h3 className="imkit-dialog-title">{strings.forwardTo}</h3>
+        <div className="imkit-pick-list" role="list">
+          {targets.length === 0 ? (
+            <div className="imkit-list-empty">{strings.noChats}</div>
+          ) : (
+            targets.map((c) =>
+              multiple ? (
+                <label key={c.id} className="imkit-info-row" role="listitem" data-target={c.id}>
+                  <input
+                    type="checkbox"
+                    checked={picked.has(c.id)}
+                    onChange={(e) => {
+                      const next = new Set(picked);
+                      if (e.target.checked) next.add(c.id);
+                      else next.delete(c.id);
+                      setPicked(next);
+                    }}
+                  />
+                  <TargetRow c={c} />
+                </label>
+              ) : (
+                <button key={c.id} type="button" className="imkit-info-row" role="listitem" data-target={c.id} onClick={() => onConfirm([c.id])}>
+                  <TargetRow c={c} />
+                </button>
+              ),
+            )
+          )}
+        </div>
+        <div className="imkit-dialog-actions">
+          <button type="button" className="imkit-text-button" onClick={onClose}>{strings.cancel}</button>
+          {multiple && (
+            <button type="button" className="imkit-send" disabled={picked.size === 0} onClick={() => onConfirm(targets.filter((c) => picked.has(c.id)).map((c) => c.id))}>
+              {format(strings.sendCount, picked.size)}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TargetRow({ c }: { c: ConversationSummary }) {
+  const { host } = useImKit();
+  const profile = useProfile(c.isGroup ? undefined : c.id);
+  const url = c.isGroup ? undefined : host.resolveMediaUrl ? host.resolveMediaUrl(profile?.avatarUrl) : profile?.avatarUrl;
+  return (
+    <>
+      <Avatar uid={c.id} name={c.isGroup ? c.title : profile?.name} url={url} size={36} />
+      <span className="imkit-info-name"><ConversationTitle c={c} /></span>
+    </>
+  );
+}
+
+interface MessageListProps {
+  conversation: ConversationId;
+  summary: ConversationSummary | undefined;
+  selection: ReadonlySet<number> | null;
+  onToggle(seq: number): void;
+  onReply(ref: ReplyRef): void;
+  onForward(seq: number): void;
+  onSelect(seq: number): void;
+}
+
+function MessageList({ conversation, summary, selection, onToggle, onReply, onForward, onSelect }: MessageListProps) {
+  const { engine, strings, host, types } = useImKit();
   const messages = useMessages(conversation);
   const isGroup = isGroupConversation(conversation);
   const box = useRef<HTMLDivElement | null>(null);
@@ -188,10 +466,26 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
   const [menu, setMenu] = useState<{ message: ChatMessage; x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const cursors = useSignal(useMemo(() => engine.readCursors(conversation), [engine, conversation]));
+  // The group's members, for who has read each own message.
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isGroup) return;
+    let live = true;
+    const load = (refresh: boolean) => void engine.members(conversation, refresh).then((list) => live && list && setMembers(list.map((m) => m.uid)));
+    load(false);
+    const off = engine.events.on((e) => {
+      if (e.kind === "groupChanged" && e.conversation === conversation) load(true);
+    });
+    return () => {
+      live = false;
+      off();
+    };
+  }, [engine, conversation, isGroup]);
 
-  // The "new messages" line goes above the first unread message as it was when the chat opened.
-  const [divider] = useState(() => summary?.lastReadSeq ?? 0);
-  const firstUnread = messages.find((m) => m.seq !== null && m.seq > divider && m.from !== engine.me)?.seq ?? null;
+  // The "new messages" line goes above the first unread message as it was when the chat opened,
+  // and only when something was unread then: what arrives while the user looks is not "new".
+  const [opened] = useState(() => ({ lastReadSeq: summary?.lastReadSeq ?? 0, hadUnread: (summary?.unread ?? 0) > 0 }));
+  const firstUnread = opened.hadUnread ? (messages.find((m) => m.seq !== null && m.seq > opened.lastReadSeq && m.from !== engine.me && !isRecalled(m))?.seq ?? null) : null;
 
   const scope: MessageScope = useMemo(
     () => ({ isMine: false, strings, resolveUrl: (u) => (host.resolveMediaUrl ? host.resolveMediaUrl(u) : u || undefined), openImage: setViewer }),
@@ -243,7 +537,13 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
   const run = async (action: MessageAction, m: ChatMessage) => {
     setMenu(null);
     try {
-      if (action === "copy") await navigator.clipboard?.writeText(m.content);
+      if (action === "copy") {
+        await navigator.clipboard?.writeText(m.content);
+        setToast(strings.copied);
+      } else if (action === "save") saveMedia(scope.resolveUrl(m.fileUrl), m);
+      else if (action === "reply" && m.seq !== null) onReply({ seq: m.seq, from: m.from, text: types.preview(m, strings) });
+      else if (action === "forward" && m.seq !== null) onForward(m.seq);
+      else if (action === "select" && m.seq !== null) onSelect(m.seq);
       else if (action === "recall") await engine.recall(m).catch(() => setToast(strings.recallFailed));
       else if (action === "retry") await engine.retry(m);
       else if (action === "discard") await engine.discard(m);
@@ -252,8 +552,8 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
     }
   };
 
-  // Own messages show their state; a read mark only on the newest one the peer has read.
-  const lastOwnSeq = [...messages].reverse().find((m) => m.from === engine.me && m.seq !== null)?.seq ?? null;
+  // Own messages show their state: in a single chat "Read" on the newest one the peer has read, in a group who has read each.
+  const lastOwnSeq = [...messages].reverse().find((m) => m.from === engine.me && m.seq !== null && !isRecalled(m))?.seq ?? null;
 
   const rows: ReactNode[] = [];
   let day = -1;
@@ -273,13 +573,10 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
             {strings.sendFailedRetry}
           </button>
         );
-      else if (m.seq === lastOwnSeq) {
-        if (!isGroup && (summary?.peerReadSeq ?? 0) >= m.seq!) status = <span className="imkit-status">{strings.read}</span>;
-        else if (isGroup) {
-          const readers = [...cursors].filter(([uid, seq]) => uid !== engine.me && seq >= m.seq!).length;
-          if (readers > 0) status = <span className="imkit-status">{format(strings.readByCount, readers)}</span>;
-        }
-      }
+      else if (isGroup && m.seq !== null) {
+        const readers = readersOf(m, cursors, members);
+        if (readers.length > 0) status = <ReadReceipts readers={readers} groupSize={members.length} />;
+      } else if (m.seq === lastOwnSeq && (summary?.peerReadSeq ?? 0) >= m.seq!) status = <span className="imkit-status">{strings.read}</span>;
     }
     rows.push(
       <MessageRow
@@ -289,7 +586,10 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
         showSender={isGroup}
         scope={scope}
         status={status}
-        onMenu={(x, y) => setMenu({ message: m, x, y })}
+        selecting={selection !== null}
+        selected={m.seq !== null && !!selection?.has(m.seq)}
+        onToggle={() => m.seq !== null && onToggle(m.seq)}
+        onMenu={(x, y) => selection === null && setMenu({ message: m, x, y })}
       />,
     );
   }
@@ -310,15 +610,45 @@ function MessageList({ conversation, summary }: { conversation: ConversationId; 
   );
 }
 
-function MessageRow({ message, mine, showSender, scope, status, onMenu }: { message: ChatMessage; mine: boolean; showSender: boolean; scope: MessageScope; status: ReactNode; onMenu(x: number, y: number): void }) {
+interface MessageRowProps {
+  message: ChatMessage;
+  mine: boolean;
+  showSender: boolean;
+  scope: MessageScope;
+  status: ReactNode;
+  /** Picking several messages: a click toggles the row instead of reaching what is in it. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggle?(): void;
+  onMenu(x: number, y: number): void;
+}
+
+function MessageRow({ message, mine, showSender, scope, status, selecting = false, selected = false, onToggle, onMenu }: MessageRowProps) {
   const { types, host } = useImKit();
   const sender = useProfile(showSender && !mine ? message.from : undefined);
   const press = useLongPress(onMenu);
   const type = types.typeOf(message);
   const content = type.render(message, { ...scope, isMine: mine });
-  if (type.name === "system") return <>{content}</>;
+  const quote = replyRefOf(message);
+  // System notes and recall tombstones span the row: no avatar, bubble or status.
+  if (type.name === "system" || isRecalled(message)) return <div className="imkit-system-row" data-seq={message.seq ?? undefined}>{content}</div>;
+  const selectable = selecting && message.seq !== null;
   return (
-    <div className={"imkit-row" + (mine ? " imkit-row-mine" : "")} data-seq={message.seq ?? undefined} data-type={type.name}>
+    <div
+      className={"imkit-row" + (mine ? " imkit-row-mine" : "") + (selectable ? " imkit-row-selectable" : "") + (selected ? " imkit-row-selected" : "")}
+      data-seq={message.seq ?? undefined}
+      data-type={type.name}
+      onClickCapture={
+        selecting
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (selectable) onToggle?.();
+            }
+          : undefined
+      }
+    >
+      {selectable && <input type="checkbox" className="imkit-row-check" checked={selected} readOnly aria-label={scope.strings.actionSelect} />}
       {!mine && showSender ? (
         <span onClick={() => host.onOpenProfile?.(message.from)}>
           <Avatar uid={message.from} name={sender?.name} url={sender?.avatarUrl} size={32} />
@@ -335,12 +665,106 @@ function MessageRow({ message, mine, showSender, scope, status, onMenu }: { mess
           {...press}
         >
           {message.forwardFromMsgId ? <span className="imkit-forwarded">{scope.strings.forwarded}</span> : null}
+          {quote && type.framed !== false ? <ReplyQuote quote={quote} /> : null}
           {content}
         </div>
         {status}
       </div>
     </div>
   );
+}
+
+/**
+ * Who of `members` has read `message`, from the group's read positions; the
+ * sender never counts, and a message still sending has no readers.
+ */
+export function readersOf(message: ChatMessage, cursors: ReadonlyMap<string, number>, members: readonly string[]): string[] {
+  const seq = message.seq;
+  if (seq === null || cursors.size === 0) return [];
+  return members.filter((uid) => uid !== message.from && (cursors.get(uid) ?? 0) >= seq);
+}
+
+/** Up to three small avatars and "Read by N"; a click opens the full list. */
+function ReadReceipts({ readers, groupSize }: { readers: string[]; groupSize: number }) {
+  const { strings } = useImKit();
+  const [open, setOpen] = useState(false);
+  const shown = readers.slice(0, 3);
+  return (
+    <>
+      <button type="button" className="imkit-status imkit-readers" onClick={() => setOpen(true)}>
+        <span className="imkit-readers-faces" aria-hidden="true">
+          {shown.map((uid) => <Reader key={uid} uid={uid} size={16} />)}
+          {readers.length > shown.length && <span className="imkit-readers-more">+{readers.length - shown.length}</span>}
+        </span>
+        {format(strings.readByCount, readers.length)}
+      </button>
+      {open && <ReadByList readers={readers} totalEligible={Math.max(0, groupSize - 1)} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function Reader({ uid, size }: { uid: string; size: number }) {
+  const { host } = useImKit();
+  const p = useProfile(uid);
+  return <Avatar uid={uid} name={p?.name} url={host.resolveMediaUrl ? host.resolveMediaUrl(p?.avatarUrl) : p?.avatarUrl} size={size} />;
+}
+
+function ReaderRow({ uid }: { uid: string }) {
+  const p = useProfile(uid);
+  return (
+    <div className="imkit-info-row" role="listitem">
+      <Reader uid={uid} size={36} />
+      <span className="imkit-info-name">{p?.name ?? shortUid(uid)}</span>
+    </div>
+  );
+}
+
+/** The full list. Rows open nothing: group members cannot open each other's profiles. */
+function ReadByList({ readers, totalEligible, onClose }: { readers: string[]; totalEligible: number; onClose(): void }) {
+  const { strings } = useImKit();
+  const unread = Math.max(0, totalEligible - readers.length);
+  const title = format(strings.readByCount, readers.length);
+  return (
+    <Dialog label={title} onClose={onClose}>
+      <h3 className="imkit-dialog-title">{title}</h3>
+      <div className="imkit-pick-list" role="list">
+        {readers.map((uid) => <ReaderRow key={uid} uid={uid} />)}
+      </div>
+      {totalEligible > 0 && (
+        <p className="imkit-info-hint" style={{ padding: "8px 0 0" }}>
+          {unread > 0 ? format(strings.readByFooterPartial, totalEligible, unread) : format(strings.readByFooterAll, totalEligible)}
+        </p>
+      )}
+      <div className="imkit-dialog-actions">
+        <button type="button" className="imkit-text-button" onClick={onClose}>{strings.ok}</button>
+      </div>
+    </Dialog>
+  );
+}
+
+function ReplyQuote({ quote }: { quote: ReplyRef }) {
+  const { engine, strings } = useImKit();
+  const who = useProfile(quote.from && quote.from !== engine.me ? quote.from : undefined);
+  const name = quote.from === engine.me ? strings.you : (who?.name ?? "");
+  return (
+    <span className="imkit-quote">
+      <span className="imkit-quote-name">{name}</span>
+      <span className="imkit-quote-text">{quote.text}</span>
+    </span>
+  );
+}
+
+/** Downloads a media message (the browser may open cross-origin files instead). */
+function saveMedia(url: string | undefined, m: ChatMessage): void {
+  if (!url) return;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = m.fileName || "imkit-" + (m.seq ?? "file");
+  a.rel = "noreferrer";
+  a.target = "_blank";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /** A touch held for half a second opens the menu, like a right click. */
@@ -366,7 +790,11 @@ function useLongPress(onMenu: (x: number, y: number) => void) {
 function MessageMenu({ message, x, y, onAction, onClose }: { message: ChatMessage; x: number; y: number; onAction(a: MessageAction, m: ChatMessage): void; onClose(): void }) {
   const { types, strings, engine } = useImKit();
   const mine = message.from === engine.me;
-  const actions = (types.typeOf(message).actions?.(message) ?? []).filter((a) => mine || a === "copy");
+  const ownOnly: MessageAction[] = ["recall", "retry", "discard"];
+  const actions = (types.typeOf(message).actions?.(message) ?? [])
+    .filter((a) => mine || !ownOnly.includes(a))
+    .filter((a, i, all) => all.indexOf(a) === i)
+    .sort((a, b) => MESSAGE_ACTION_ORDER.indexOf(a) - MESSAGE_ACTION_ORDER.indexOf(b));
   useEffect(() => {
     const close = () => onClose();
     window.addEventListener("click", close);
@@ -377,9 +805,18 @@ function MessageMenu({ message, x, y, onAction, onClose }: { message: ChatMessag
     };
   }, [onClose]);
   if (actions.length === 0) return null;
-  const label: Record<MessageAction, string> = { copy: strings.actionCopy, recall: strings.actionRecall, retry: strings.actionRetry, discard: strings.actionDiscard };
+  const label: Record<MessageAction, string> = {
+    copy: strings.actionCopy,
+    save: strings.actionSave,
+    reply: strings.actionReply,
+    forward: strings.actionForward,
+    select: strings.actionSelect,
+    recall: strings.actionRecall,
+    retry: strings.actionRetry,
+    discard: strings.actionDiscard,
+  };
   return (
-    <div className="imkit-menu" style={{ left: Math.min(x, window.innerWidth - 160), top: Math.min(y, window.innerHeight - 160) }} role="menu">
+    <div className="imkit-menu" style={{ left: Math.min(x, window.innerWidth - 160), top: Math.max(0, Math.min(y, window.innerHeight - 40 * actions.length - 16)) }} role="menu">
       {actions.map((a) => (
         <button key={a} type="button" role="menuitem" onClick={() => onAction(a, message)}>
           {label[a]}
@@ -394,11 +831,15 @@ function MessageMenu({ message, x, y, onAction, onClose }: { message: ChatMessag
 const TYPING_EVERY_MS = 4_000;
 const CANCEL_LIFT_PX = 60;
 
-function Composer({ conversation }: { conversation: ConversationId }) {
+function Composer({ conversation, replyTo, onCancelReply }: { conversation: ConversationId; replyTo: ReplyRef | null; onCancelReply(): void }) {
   const { engine, strings, host } = useImKit();
+  const replyWho = useProfile(replyTo && replyTo.from !== engine.me ? replyTo.from : undefined);
+  const replyName = replyTo?.from === engine.me ? strings.you : (replyWho?.name ?? "");
   const summary = useConversation(conversation);
   const [text, setText] = useState(summary?.draft ?? "");
   const [mode, setMode] = useState<"text" | "voice">("text");
+  const [emoji, setEmoji] = useState(false);
+  const input = useRef<HTMLTextAreaElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const lastTyping = useRef(0);
   const file = useRef<HTMLInputElement | null>(null);
@@ -418,7 +859,9 @@ function Composer({ conversation }: { conversation: ConversationId }) {
     const body = text.trim();
     if (!body) return;
     setText("");
-    void engine.send(conversation, { content: body });
+    const extra = replyTo ? replyExtra(replyTo) : undefined;
+    onCancelReply();
+    void engine.send(conversation, extra ? { content: body, extra } : { content: body });
   };
 
   const onInput = (v: string) => {
@@ -444,6 +887,18 @@ function Composer({ conversation }: { conversation: ConversationId }) {
   };
 
   return (
+    <div className="imkit-composer-wrap">
+      {replyTo && (
+        <div className="imkit-reply-bar">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="imkit-reply-name">{format(strings.replyingTo, replyName)}</div>
+            <div className="imkit-reply-text">{replyTo.text}</div>
+          </div>
+          <button type="button" className="imkit-icon-button" onClick={onCancelReply} aria-label={strings.cancel}>
+            ✕
+          </button>
+        </div>
+      )}
     <div className="imkit-composer">
       {host.media && (
         <button type="button" className="imkit-icon-button" onClick={() => setMode(mode === "text" ? "voice" : "text")} aria-label={mode === "text" ? strings.voiceInput : strings.keyboard}>
@@ -454,6 +909,7 @@ function Composer({ conversation }: { conversation: ConversationId }) {
         <HoldToTalk onClip={onVoice} onTooShort={() => setToast(strings.recordTooShort)} onDenied={() => setToast(strings.micPermission)} />
       ) : (
         <textarea
+          ref={input}
           className="imkit-input"
           rows={1}
           value={text}
@@ -467,6 +923,11 @@ function Composer({ conversation }: { conversation: ConversationId }) {
             }
           }}
         />
+      )}
+      {mode === "text" && (
+        <button type="button" className="imkit-icon-button" onClick={() => setEmoji(!emoji)} aria-label={strings.emoji} aria-pressed={emoji}>
+          😊
+        </button>
       )}
       {host.media && (
         <>
@@ -483,8 +944,47 @@ function Composer({ conversation }: { conversation: ConversationId }) {
       )}
       {toast && <div className="imkit-toast" role="alert">{toast}</div>}
     </div>
+      {emoji && mode === "text" && (
+        <div className="imkit-emoji-panel" role="listbox" aria-label={strings.emoji}>
+          {EMOJI.map((e) => (
+            <button
+              key={e}
+              type="button"
+              role="option"
+              aria-selected={false}
+              onClick={() => {
+                // In at the caret, then the caret after it.
+                const el = input.current;
+                const start = el?.selectionStart ?? text.length;
+                const end = el?.selectionEnd ?? text.length;
+                onInput(text.slice(0, start) + e + text.slice(end));
+                requestAnimationFrame(() => {
+                  el?.focus();
+                  el?.setSelectionRange(start + e.length, start + e.length);
+                });
+              }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
+
+/** The emoji panel's choice, the same as the Android kit's. */
+export const EMOJI: readonly string[] = [
+  "😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "😉", "😌", "😍", "🥰", "😘", "😗",
+  "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏",
+  "😒", "🙄", "😬", "🤥", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶",
+  "😵", "🤯", "🤠", "🥳", "🥸", "😎", "🤓", "🧐", "😕", "😟", "🙁", "😮", "😯", "😲", "😳", "🥺",
+  "😦", "😧", "😨", "😰", "😥", "😢", "😭", "😱", "😖", "😣", "😞", "😓", "😩", "😫", "🥱", "😤",
+  "😡", "😠", "🤬", "😈", "👿", "💀", "☠️", "💩", "🤡", "👹", "👺", "👻", "👽", "👾", "🤖", "🎃",
+  "👍", "👎", "👏", "🙌", "🤝", "💪", "🤞", "✌️", "🤟", "👌", "🤌", "🤏", "👆", "👇", "👉", "👈",
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖",
+  "🎉", "🎊", "🎂", "🔥", "⭐", "🌟", "✨", "💯", "✅", "❌", "❓", "❗", "💤", "💢", "💦", "💨",
+];
 
 /**
  * Press and hold to record, release to send, slide up to cancel: one

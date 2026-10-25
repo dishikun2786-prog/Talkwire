@@ -22,8 +22,8 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | --- | --- |
 | 协议 | 第 16 节：`call_invite`、`call_accept`、`call_reject`、`call_cancel`、`call_hangup`、`call_upgrade*`；推送 `call_ring`、`call_answered`、`call_ended` 等 |
 | 宿主 | `CallHandlers`：`create`（能不能打）、`answer`（频道与双方各自的令牌）、`settle`（结束原因，在这里计费）、`upgrade`（语音转视频）。宿主要提前结束通话（余额不足、到了时长上限）时用 `ImClient.callBroadcast` 给双方各推一个 `call_ended`，IM 收到后释放这通通话。`recordingCalls` 把通话记成后台能查的记录 |
-| Web | `@imkit/call`：`CallManager` 驱动 RTC 适配器接口 `CallMediaEngine`；`/react` 有来电与通话界面、单聊页头的通话按钮 |
-| Android | `imkit-call`：`CallManager` 驱动 `CallMediaEngine`；`CallSystem` 负责来电通知与前台服务；`CallScreen`、`CallButtons`。原项目踩过的坑都带上了：前台服务被系统重建时自己停掉、不自动重启，服务类型按已授予的权限选，每条结束路径都撤掉来电通知 |
+| Web | `@imkit/call`：`CallManager` 驱动 RTC 适配器接口 `CallMediaEngine`；`/react` 有来电与通话界面、单聊页头的通话按钮；`ToneRinger` 用 Web Audio 合成来电铃声与回铃音 |
+| Android | `imkit-call`：`CallManager` 驱动 `CallMediaEngine`；`CallSystem` 负责来电通知、铃声与回铃音（`SystemCallRinger`，用系统铃声）、前台服务；`CallScreen`、`CallButtons`（经 `ImUiHost.topBarExtras` 放进单聊页头）。原项目踩过的坑都带上了：前台服务被系统重建时自己停掉、不自动重启，服务类型按已授予的权限选，每条结束路径都撤掉来电通知 |
 | iOS | 待做（Phase 6） |
 | RTC 适配 | 阿里云 ARTC 3.0：Web 是 `@imkit/call-dingrtc`，Android 是 `imkit-call-dingrtc`（只按 Maven 坐标依赖 dingrtc，带上原项目的 `SafeRtcSurfaceView`：未绑定的渲染视图被测量不再崩溃）；宿主一侧在 `examples/artc`。iOS 待做 |
 
@@ -36,8 +36,8 @@ ImKit 的核心是单聊、群聊、媒体消息、已读、撤回、在线状�
 | 位置 | 内容 |
 | --- | --- |
 | 协议 | 第 14 节：`group_qr_token`、`group_qr_resolve`、`group_join`、`group_join_requests_list`、`group_join_review`、`get_group_join_settings`、`update_group_join_settings` |
-| Web | `@imkit/group-join`：`GroupJoinClient` 一个动作一个方法；`/react` 有群二维码卡片、入群页、入群申请列表、审核开关 |
-| Android | `imkit-group-join`：`GroupJoinClient` 与 Compose 界面（群二维码卡片、入群页、申请列表、审核开关） |
+| Web | `@imkit/group-join`：`GroupJoinClient` 一个动作一个方法；`/react` 有群二维码卡片、入群页、入群申请列表、审核开关；群信息页上的部分经 `ConversationInfo` 的 `groupExtras` 接入 |
+| Android | `imkit-group-join`：`GroupJoinClient` 与 Compose 界面（群二维码卡片、入群页、申请列表、审核开关）；群信息页上的部分经 `ImUiHost.groupInfoExtras` 接入 |
 
 要点：二维码里放什么由应用决定（通常是自己的入群页链接，令牌在链接里），套件不带二维码编码器。legacy 档的服务端不给入群者订阅群（D7），客户端入群后要自己订阅并刷新群列表；审核失败用 strict 档的 `errCode` 区分“群已满”和“已被处理”，不解析 `reason`。
 

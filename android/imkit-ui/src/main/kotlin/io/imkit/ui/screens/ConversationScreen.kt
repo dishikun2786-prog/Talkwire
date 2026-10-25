@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -338,6 +339,7 @@ internal fun ConversationScreen(state: ImChatState, id: ConversationId, onBack: 
         onLongPress = { if (selection == null) actionsFor = m },
         openImage = { viewing = it },
         resolveUrl = host::resolveMediaUrl,
+        nameOf = name,
     )
 
     val listState = rememberLazyListState()
@@ -382,6 +384,7 @@ internal fun ConversationScreen(state: ImChatState, id: ConversationId, onBack: 
                 onBack = onBack,
                 onInfo = onOpenInfo,
                 actions = host.topBarActions(id),
+                extras = host.topBarExtras,
                 conversation = id,
             )
         }
@@ -603,6 +606,7 @@ private fun ChatTopBar(
     onBack: () -> Unit,
     onInfo: () -> Unit,
     actions: List<io.imkit.ui.host.TopBarAction>,
+    extras: (@Composable RowScope.(ConversationId) -> Unit)?,
     conversation: ConversationId,
 ) {
     val colors = ImTheme.colors
@@ -614,6 +618,7 @@ private fun ChatTopBar(
                 if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1)
             }
             actions.forEach { a -> IconButton(onClick = { a.onClick(conversation) }) { Icon(a.icon, a.label, tint = colors.textPrimary) } }
+            extras?.invoke(this, conversation)
             IconButton(onClick = onInfo) { Icon(Icons.Outlined.MoreHoriz, stringResource(R.string.imkit_chat_info), tint = colors.textPrimary) }
         }
     }

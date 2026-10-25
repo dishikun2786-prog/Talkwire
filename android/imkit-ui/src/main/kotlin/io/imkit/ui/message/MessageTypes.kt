@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.res.stringResource
 import io.imkit.core.json.JsonObject
 import io.imkit.core.model.ChatMessage
 import io.imkit.core.model.MessageKind
@@ -23,6 +24,8 @@ public class MessageScope(
     public val openImage: (String) -> Unit,
     /** Turns a stored media URL into one that can be loaded (see [io.imkit.ui.host.ImUiHost.resolveMediaUrl]). */
     public val resolveUrl: (String?) -> String?,
+    /** Someone's display name, e.g. for "… unsent a message". */
+    public val nameOf: (uid: String) -> String = { it },
 )
 
 /** What a long press may offer for a message. */
@@ -96,7 +99,7 @@ public val ChatMessage.durationSeconds: Int
     get() = if (duration > 0) duration else extraInt("duration")
 
 internal object BuiltInTypes {
-    val all: List<MessageType> = listOf(TextType, ImageType, VideoType, VoiceType, FileType, SystemType)
+    val all: List<MessageType> = listOf(RecalledType, TextType, ImageType, VideoType, VoiceType, FileType, SystemType)
 }
 
 internal object TextType : MessageType {
@@ -164,6 +167,24 @@ internal object FileType : MessageType {
         context.getString(R.string.imkit_preview_file, message.fileName ?: "")
 
     override fun actions(message: ChatMessage): Set<MessageAction> = super.actions(message) + MessageAction.SAVE + MessageAction.SHARE
+}
+
+/** A recalled message's tombstone: a centered note saying who unsent it. */
+internal object RecalledType : MessageType {
+    override fun matches(message: ChatMessage): Boolean = message.isRecalled
+    override val framed: Boolean get() = false
+
+    @Composable
+    override fun Content(message: ChatMessage, scope: MessageScope) {
+        SystemContent(
+            if (scope.isMine) stringResource(R.string.imkit_recalled_by_you)
+            else stringResource(R.string.imkit_recalled_by, scope.nameOf(message.from)),
+        )
+    }
+
+    override fun preview(message: ChatMessage, context: Context): String = context.getString(R.string.imkit_recalled_preview)
+
+    override fun actions(message: ChatMessage): Set<MessageAction> = emptySet()
 }
 
 internal object SystemType : MessageType {
