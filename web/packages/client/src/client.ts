@@ -46,6 +46,23 @@ export interface HistoryPage {
   readSeq?: number;
 }
 
+/** One conversation of a `sync_summary` reply (section 8.1). */
+export interface SyncTopic {
+  /** The canonical topic: `grp_…` or `p2p_…`. */
+  topic: string;
+  /** The largest seq given out, recalled ones included; 0 without messages. */
+  lastSeq: number;
+  isGroup: boolean;
+  clearVersion: number;
+  clearBeforeSeq: number;
+  /** Single chats: the other member. */
+  peer?: string;
+  /** My own read position, as `HistoryPage.readSeq`. */
+  readSeq?: number;
+  /** Groups with read receipts on: when another member last moved a read cursor (Unix ms). */
+  readsAt?: number;
+}
+
 export interface PresenceSnapshot {
   uid: string;
   online: boolean;
@@ -212,6 +229,35 @@ export class ImClient extends ImConnection {
       .map(obj)
       .filter((o): o is Frame => !!o && !!str(o, "topic"))
       .map((o) => ({ topic: str(o, "topic"), name: str(o, "name"), owner: str(o, "owner"), memberCount: num(o, "members"), encrypted: bool(o, "encrypted") }));
+  }
+
+  /**
+   * What changed in every conversation (section 8.1); also subscribes this
+   * connection to all of them. Only for a server whose login reply lists
+   * `sync-summary`. Throws RequestRefused on an error reply.
+   */
+  async syncSummary(): Promise<SyncTopic[]> {
+    const reply = await this.request({ action: "sync_summary" });
+    if (reply.code !== 200) throw new RequestRefused(reply);
+    return arr(reply.frame, "topics")
+      .map(obj)
+      .filter((o): o is Frame => !!o && !!str(o, "topic"))
+      .map((o) => {
+        const t: SyncTopic = {
+          topic: str(o, "topic"),
+          lastSeq: num(o, "lastSeq"),
+          isGroup: bool(o, "isGroup"),
+          clearVersion: num(o, "clearVersion"),
+          clearBeforeSeq: num(o, "clearBeforeSeq"),
+        };
+        const peer = str(o, "peer");
+        if (peer) t.peer = peer;
+        const readSeq = optNum(o, "readSeq");
+        if (readSeq !== undefined) t.readSeq = readSeq;
+        const readsAt = optNum(o, "readsAt");
+        if (readsAt !== undefined) t.readsAt = readsAt;
+        return t;
+      });
   }
 
   async getMembers(topic: string): Promise<GroupMember[]> {

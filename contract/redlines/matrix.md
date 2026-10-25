@@ -9,9 +9,9 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 红线 32 条：服务端与宿主 22 条（R），客户端 10 条（C）。
 - 已有黄金用例的红线 17 条，共引用 23 个场景的 118 处步骤。
 - R 类红线在参照服务上的现状：符合 13、部分符合 1、违反 3、未观测 5。
-- 计划用例 77 个。按平台：服务端 25、宿主 8、Android 20、Web 12、iOS 12。
-- 按测试层：单测 26、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
-- 已写用例（已写/计划）：服务端 25/25、宿主 8/8、Android 18/20、Web 12/12。
+- 计划用例 81 个。按平台：服务端 25、宿主 8、Android 22、Web 14、iOS 12。
+- 按测试层：单测 30、并发压力 7、SQL 扫描 1、契约测试 9、strict 档一致性 3、回放 14、回放 + 故障注入 10、UI 测试 5、真机 2。
+- 已写用例（已写/计划）：服务端 25/25、宿主 8/8、Android 20/22、Web 14/14。
 
 图例：
 
@@ -47,7 +47,7 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 | [R22](#r22) | 在线状态查询只返回与查询者共享会话的用户（参考服务可查任意用户） | 服务端 | 违反 | `core/presence` 9、14 | `TestR22_PresenceOnlyForSharedTopics`：服务端 1.8 已写 |
 | [C1](#c1) | 重连抖动、建连前清身份、连接串行化、登录确认前不算已连接、世代号 | Android、Web、iOS | 不适用 | — | `C1_ReconnectAfterInjectedDisconnect`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C1_IgnoresDuplicatedFrames`：Android 3.10 已写、Web 5.8 已写 |
 | [C2](#c2) | 回执超时但连接仍在时保持“发送中”、不自动重发；媒体按 URL 对账 | Android、Web、iOS | 不适用 | — | `C2_LostPublishReplyStaysSending`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C2_MediaReconciledByUrl`：Android 3.7 已写、Web 5.8 已写、iOS 6.6 |
-| [C3](#c3) | 离线补拉取本地连续段末尾并检测空洞 | Android、Web、iOS | 不适用 | — | `C3_ResumeFromContiguousEnd`：Android 3.10 已写、Web 5.8 已写、iOS 6.6 |
+| [C3](#c3) | 离线补拉取本地连续段末尾并检测空洞 | Android、Web、iOS | 不适用 | — | `C3_ResumeFromContiguousEnd`：Android 3.10 已写、Web 5.8 已写、iOS 6.6<br>`C3_RecalledUnseenSeqIsNoHole`：Android 3.7 已写、Web 5.2 已写<br>`C3_RecalledUnseenSeqIsNoHoleWithSummary`：Android 3.7 已写、Web 5.2 已写 |
 | [C4](#c4) | 缓存归属：换账号清空全部缓存表 | Android、Web、iOS | 不适用 | — | `C4_SwitchingAccountClearsAllCaches`：Android 3.5 已写、Web 5.4 已写、iOS 6.3 |
 | [C5](#c5) | 在线三态加过期时间，只有一个真相源 | Android、Web、iOS | 不适用 | — | `C5_PresenceTriStateWithExpiry`：Android 3.7 已写、Web 5.2 已写、iOS 6.1 |
 | [C6](#c6) | 通知抑制条件、渠道静音由 App 播声、来电通知时序与取消 | Android | 不适用 | — | `C6_NotificationDecision`：Android 3.8 已写<br>`C6_DeviceSoundAndCallTiming`：Android 4.5 |
@@ -378,6 +378,10 @@ ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄�
 - 计划用例：
   - `C3_ResumeFromContiguousEnd`（Android，3.10 Android 回放用例，回放，用 `core/resubscribe`，已写）：重连后从本地连续段末尾按 afterSeq 补拉；被撤回的 seq 不算空洞（参见 core/recall-p2p）
   - `C3_ResumeFromContiguousEnd`（Web，5.8 Web 回放用例，回放，用 `core/resubscribe`，已写）：同上
+  - `C3_RecalledUnseenSeqIsNoHole`（Android，3.7 Android 拆仓储，单测，已写）：离线时被撤回、本机从没收到的 seq 记为已撤回（协议第 8.2 节），下次补拉从它之后开始，不每次从它重拉
+  - `C3_RecalledUnseenSeqIsNoHoleWithSummary`（Android，3.7 Android 拆仓储，单测，已写）：同上，服务端有 sync_summary 时：会话没有变化，第二次同步不再发 get
+  - `C3_RecalledUnseenSeqIsNoHole`（Web，5.2 Web 客户端，单测，已写）：同上（不带摘要）
+  - `C3_RecalledUnseenSeqIsNoHoleWithSummary`（Web，5.2 Web 客户端，单测，已写）：同上（带摘要）
   - `C3_ResumeFromContiguousEnd`（iOS，6.6 iOS 回放用例，回放，用 `core/resubscribe`）：同上
 
 <a id="c4"></a>

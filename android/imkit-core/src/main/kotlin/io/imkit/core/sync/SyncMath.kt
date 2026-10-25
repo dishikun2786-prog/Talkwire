@@ -32,17 +32,51 @@ public object SyncMath {
         return end
     }
 
+    /** A larger gap than this between the bounds of a page is not filled in seq by seq. */
+    public const val MAX_ACCOUNTED_GAP: Long = 10_000
+
     /**
-     * Local seqs a page proves gone: the server returns every remaining
-     * message with seq in `(afterSeq, last returned]`, so a local seq in that
-     * range that the page lacks was recalled while we were away (spec 9.5).
-     * Only meaningful for an `afterSeq` page that returned something.
+     * The seqs a page proves gone (spec 8.2). The server returns every
+     * remaining message with a seq in `(low, high]`: `low` is [afterSeq], or
+     * just below the first seq of the newest page (older history is only not
+     * loaded); `high` is the page's last seq. When nothing comes after the
+     * page (it was not [full], or it is the newest page) `high` reaches
+     * [lastSeq] too, and every local seq beyond it is gone as well. A seq in
+     * there the page lacks was recalled: either one held here (it becomes a
+     * tombstone) or one never received, which has to be accounted for all the
+     * same, or the end of the local contiguous run would stay in front of it
+     * and every later sync would start again from it.
+     *
+     * @param local the seqs held before the request was sent; a message pushed while it was in flight may be newer than the page
+     * @param afterSeq the request's `afterSeq`; 0 for the newest page
+     * @param page the seqs the page returned
+     * @param full whether the page was full: more may come after it
+     * @param lastSeq the conversation's `lastSeq` from `sync_summary` (spec 8.1), when known
+     * @param floor the clear watermark: nothing at or below it is a gap
      */
-    public fun recalledWhileAway(local: Collection<Long>, afterSeq: Long, page: List<Long>): List<Long> {
-        if (afterSeq <= 0 || page.isEmpty()) return emptyList()
-        val last = page.max()
+    public fun seqsGone(
+        local: Collection<Long>,
+        afterSeq: Long,
+        page: List<Long>,
+        full: Boolean,
+        lastSeq: Long? = null,
+        floor: Long = 0,
+    ): List<Long> {
         val returned = page.toHashSet()
-        return local.filter { it > afterSeq && it <= last && it !in returned }.sorted()
+        val newest = afterSeq <= 0
+        val atEnd = newest || !full
+        val low = maxOf(if (newest) (page.minOrNull()?.minus(1) ?: 0) else afterSeq, floor)
+        var high = page.maxOrNull() ?: low
+        if (atEnd && lastSeq != null) high = maxOf(high, lastSeq)
+        val gone = java.util.TreeSet<Long>()
+        if (high - low <= MAX_ACCOUNTED_GAP) {
+            for (s in low + 1..high) if (s !in returned) gone += s
+        } else {
+            // Too wide to list one by one: account for what is held only.
+            for (s in local) if (s > low && s <= high && s !in returned) gone += s
+        }
+        if (!newest && !full) for (s in local) if (s > high && s !in returned) gone += s
+        return gone.filter { it > floor }
     }
 }
 

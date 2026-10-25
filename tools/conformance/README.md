@@ -58,9 +58,9 @@ ImKit 服务端的三种检查：
 
 `schema` 依次比较四种情形，任何一项不同即失败：空库上新服务端建的表结构与原版建的（去掉 ImKit 新增的表和列后逐项相同：列、索引、约束、序列）；重启后表结构不变、不再重复执行迁移；在原版建好的库上启动新服务端后，与原版相同（同样去掉新增），且与空库上建的完全相同。ImKit 新增的表：`imkit_schema_migrations`（迁移记录）、`im_devices`、`im_pending_acks`（多端在线）；新增的列：`im_fcm_tokens.provider`（推送服务商）、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`（多端在线）。新增项列在 `cmd/conformance/main.go` 的 `schemaAddedTables`、`schemaAddedColumns` 里，加表加列时要同步。`-oracle`、`-oracle-db` 指定原版服务和它用的一次性库（默认 `imkit_oracle`，必须与 `-db` 不同）。
 
-多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。同理，只有 ImKit 服务端会发的帧（目前是宿主卡片更新 `custom_update`）登记在 `harness/additions.go` 的 `AddedFrames` 里，写明由哪个服务端测试覆盖；`coverage` 把它们列为 `TEST` 而不是缺失。
+多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。同理，只有 ImKit 服务端才有的帧（宿主卡片更新 `custom_update`，strict 档的会话变更摘要 `sync_summary` 的请求与应答）登记在 `harness/additions.go` 的 `AddedFrames` 里，写明由哪个服务端测试覆盖；`coverage` 把它们列为 `TEST` 而不是缺失。
 
-`coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 50 个 action、服务端 70 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
+`coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 51 个 action、服务端 71 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
 
 竞态检测：`bash ../race.sh`（在本目录下跑整个模块的 `go test -race`，Windows 上需要的 C 编译器与绕过办法见根目录 README 的"开发工具"）。
 

@@ -11,9 +11,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * Just enough of the IM server, in memory, to test the chat engine: login
  * (token = appUserId), pub with clientMsgId de-duplication, get, del,
- * del_topic, note, sub, pres, get_groups, get_members, and the pushes they
- * cause. Not a conformance reference; the real server is tested by the
- * golden transcripts.
+ * del_topic, note, sub, pres, get_groups, get_members, sync_summary (when
+ * [capabilities] offer it), and the pushes they cause. Not a conformance
+ * reference; the real server is tested by the golden transcripts.
  */
 class MiniServer {
     data class Msg(
@@ -35,6 +35,12 @@ class MiniServer {
     val groups = ConcurrentHashMap<String, Group>()
     private val users = ConcurrentHashMap<FakeServer.Conn, String>()
     private var clock = 1_000L
+
+    /** The login reply's `capabilities`; add "sync-summary" to offer `sync_summary` (spec 8.1). */
+    var capabilities: List<String> = emptyList()
+
+    /** Every uid seen, to name the peer of a `p2p_…` topic in `sync_summary`. */
+    private val knownUids = ConcurrentHashMap.newKeySet<String>()
 
     /** Return true to swallow the reply to this request. */
     var dropReply: (JsonObject) -> Boolean = { false }
@@ -61,10 +67,12 @@ class MiniServer {
      */
     var storeReads: Boolean = false
     private val reads = ConcurrentHashMap<Pair<String, String>, Long>()
+    private val readTimes = ConcurrentHashMap<Pair<String, String>, Long>()
 
     /** Sets [uid]'s stored read position in [topic] (canonical), as if one of their devices had read it. */
     fun setRead(topic: String, uid: String, seq: Long) {
         reads[topic to uid] = seq
+        readTimes[topic to uid] = ++clock
     }
 
     fun readOf(topic: String, uid: String): Long? = reads[topic to uid]
@@ -82,6 +90,7 @@ class MiniServer {
 
     /** Stores a message as if [fromUid] sent it while nobody watched. */
     fun inject(topic: String, fromUid: String, content: String, fileUrl: String? = null, contentType: String = "text"): Long {
+        knownUids += fromUid
         val list = topics.getOrPut(topic) { CopyOnWriteArrayList() }
         val seq = (list.maxOfOrNull { it.seq } ?: clears[topic]?.second ?: 0) + 1
         list += Msg(seq, fromUid, content, contentType, fileUrl, ++clock, null)
@@ -106,7 +115,13 @@ class MiniServer {
         if (action == "login") {
             val uid = uidOf(f.string("token") ?: "")
             users[c] = uid
-            c.push(jsonObject { put("id", f.string("id")); put("action", "login"); put("code", 200); put("uid", uid); put("protocol", 1) })
+            knownUids += uid
+            c.push(
+                jsonObject {
+                    put("id", f.string("id")); put("action", "login"); put("code", 200); put("uid", uid); put("protocol", 1)
+                    if (capabilities.isNotEmpty()) putStrings("capabilities", capabilities)
+                },
+            )
             return
         }
         val me = users[c] ?: return
@@ -116,6 +131,7 @@ class MiniServer {
         val topic = f.string("topic") ?: ""
         when (action) {
             "pub" -> {
+                if (ImIds.isUserUid(topic)) knownUids += topic
                 val canon = canonical(me, topic)
                 val list = topics.getOrPut(canon) { CopyOnWriteArrayList() }
                 val cid = f.string("clientMsgId")
@@ -229,7 +245,9 @@ class MiniServer {
                 if (storeReads && f.string("what") == "read" && seq != null && seq > 0) {
                     val canon = canonical(me, topic)
                     val last = messages(canon).maxOfOrNull { it.seq } ?: 0
+                    val before = reads[canon to me]
                     reads.merge(canon to me, minOf(seq, last)) { a, b -> maxOf(a, b) }
+                    if (reads[canon to me] != before) readTimes[canon to me] = ++clock
                 }
                 for (uid in membersOf(me, topic) - me) for (o in online(uid)) {
                     o.push(jsonObject { put("action", "info"); put("topic", topic); put("from", me); put("what", f.string("what")); put("seq", seq) })
@@ -274,7 +292,39 @@ class MiniServer {
                     },
                 )
             }
+            "sync_summary" -> if (SYNC_SUMMARY !in capabilities) {
+                reply(c, f, jsonObject { put("action", action); put("code", 400); put("reason", "unknown action: $action") })
+            } else {
+                val mine = sortedMapOf<String, JsonObject>()
+                for ((t, g) in groups) if (me in g.members) mine[t] = summaryOf(me, t, peer = null)
+                for (t in topics.keys + clears.keys) {
+                    if (!ImIds.isP2pTopic(t)) continue
+                    val peer = knownUids.firstOrNull { it != me && ImIds.p2pTopic(me, it) == t } ?: continue
+                    mine[t] = summaryOf(me, t, peer)
+                }
+                reply(
+                    c,
+                    f,
+                    jsonObject {
+                        put("action", "sync_summary"); put("code", 200)
+                        if (mine.isNotEmpty()) put("topics", JsonArray(mine.values.toList()))
+                    },
+                )
+            }
             else -> reply(c, f, jsonObject { put("action", action); put("code", 400); put("reason", "unknown action: $action") })
+        }
+    }
+
+    /** One `sync_summary` entry (spec 8.1); [peer] is null for a group. */
+    private fun summaryOf(me: String, topic: String, peer: String?): JsonObject = jsonObject {
+        put("topic", topic)
+        put("lastSeq", messages(topic).maxOfOrNull { it.seq } ?: clears[topic]?.second ?: 0)
+        put("isGroup", peer == null)
+        clears[topic]?.let { (v, b) -> put("clearVersion", v); put("clearBeforeSeq", b) }
+        put("peer", peer)
+        if (storeReads) {
+            put("readSeq", reads[topic to me])
+            if (peer == null) put("readsAt", readTimes.filterKeys { it.first == topic && it.second != me }.values.maxOrNull())
         }
     }
 
@@ -288,5 +338,9 @@ class MiniServer {
 
     fun dropAll(uid: String) {
         for (o in online(uid)) o.drop()
+    }
+
+    companion object {
+        const val SYNC_SUMMARY: String = "sync-summary"
     }
 }

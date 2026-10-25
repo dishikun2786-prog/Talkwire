@@ -31,9 +31,10 @@
 - **legacy**：对所有黄金对话逐帧一致，包括缺陷行为。ImKit 迁移原版项目时用这一档。
 - **strict**：修正第 18 节列出的缺陷，其余与 legacy 一致。新项目默认用这一档。
 
-ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做两类改动：
+ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做三类改动：
 
 - **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）；`get` 应答带本人的已读位置 `readSeq`（第 9.3 节）。
+- **新增动作**，在 `capabilities` 里宣告，旧客户端不会发出：`sync_summary`（第 8.1 节）。legacy 档对它们像参考服务一样回 400 `unknown action`。
 - **修正第 18 节的缺陷**。ImKit 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。
 
 多端同时在线（第 6.2 节）不分档位：客户端在 `login` 里带 `device` 才启用，不带时两档都与参考服务一致。
@@ -291,7 +292,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
  "capabilities": ["errcode", "reply-id", "multi-device", "module:e2ee", "push:fcm"]}
 ```
 
-`capabilities` 的取值：`errcode`（错误帧带 `errCode`）、`reply-id`（登录与在线快照应答带 `id`）、`multi-device`（支持第 6.2 节的多端在线）、`module:<名>`（已安装的模块：`call`、`groupjoin`、`groupai`、`e2ee`）、`push:<服务商>`（已配置的推送服务商：`fcm`、`apns`、`webpush`）。客户端**必须**忽略不认识的能力。
+`capabilities` 的取值：`errcode`（错误帧带 `errCode`）、`reply-id`（登录与在线快照应答带 `id`）、`multi-device`（支持第 6.2 节的多端在线）、`sync-summary`（支持第 8.1 节的 `sync_summary`）、`module:<名>`（已安装的模块：`call`、`groupjoin`、`groupai`、`e2ee`）、`push:<服务商>`（已配置的推送服务商：`fcm`、`apns`、`webpush`）。客户端**必须**忽略不认识的能力。
 
 ### 6.2 同一账号的多个连接
 
@@ -337,6 +338,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 | --- | --- |
 | 发 `sub` | 该 topic |
 | 发 `get`、`pub` | 该 topic |
+| 发 `sync_summary`（strict 档，第 8.1 节） | 自己所在的全部群与单聊 |
 | 发 `create_grp` | 新群 |
 | 自己在线时被拉进群（建群、邀请、入群审核通过） | 该群 |
 | 对方给自己发单聊消息（自己在线） | 该单聊 |
@@ -353,12 +355,62 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 1. 登录。
 2. 发 `get_groups`，得到所在的全部群。对本地有但列表里没有的群：本地标记为已退出（可能是离线时被踢或群被解散，而补投事件尚未到达）。
 3. 对每个群发 `sub`（或直接发第 4 步的 `get`，它会顺带订阅）。
-4. 对每个会话（群与本地已知的单聊）发 `get`，`afterSeq` = 本地该会话的最大 seq，循环直到返回的消息数小于 `limit`。
+4. 对每个会话（群与本地已知的单聊）发 `get`，`afterSeq` = 本地该会话的最大 seq，循环直到返回的消息数小于 `limit`。服务端宣告了 `sync-summary` 时，先发 `sync_summary`，只对有变化的会话发 `get`（第 8.1 节）。补拉时按第 8.2 节处理 seq 的空缺。
 5. 用 `get` 应答里的 `clearVersion`、`clearBeforeSeq` 校正本地：若服务端的 `clearVersion` 大于本地记录，删除本地 seq ≤ `clearBeforeSeq` 的消息（第 11.3 节）。应答带 `readSeq` 时（strict 档），把本地该会话的已读位置推进到它；本地已经更大时不动，已读位置只前进不后退。没有这一步，新设备或换账号后拉回的历史会全部算作未读。
 6. 处理补投帧（第 6.3 节），按要求回执。
 7. 需要在线状态时发 `pres`（第 12 节）。
 
 单聊不需要预先 `sub` 才能收到对方的新消息（对方 `pub` 时服务端会订阅在线的接收方），但第 4 步的补拉仍然必须做。
+
+### 8.1 `sync_summary` 会话变更摘要【测】
+
+只在 strict 档、登录应答的 `capabilities` 含 `sync-summary` 时可用（ImKit 服务端）。它让重连的客户端用一次往返知道哪些会话有变化，不必对每个会话各发一次 `get`。
+
+请求：`{"id":"s1","action":"sync_summary"}`，无参数。
+
+成功应答：
+
+```json
+{"id":"s1","action":"sync_summary","code":200,"topics":[
+  {"topic":"grp_…","lastSeq":42,"isGroup":true,"clearVersion":1,"clearBeforeSeq":12,"readSeq":40,"readsAt":1793000000000},
+  {"topic":"p2p_…","lastSeq":7,"isGroup":false,"peer":"uid_…","readSeq":7}]}
+```
+
+`topics` 列出调用者所在的全部群与单聊，按 `topic` 排序，一个都没有时省略。每项：
+
+| 字段 | 说明 |
+| --- | --- |
+| `topic` | 规范 topic：群是 `grp_…`，单聊是 `p2p_…` |
+| `lastSeq` | 该会话分配过的最大 seq，含已撤回的；没有消息时为 0 |
+| `isGroup` | 是否为群 |
+| `clearVersion`、`clearBeforeSeq` | 清空状态（第 11.3 节），从未清空时省略 |
+| `peer` | 单聊的对方 uid；群没有 |
+| `readSeq` | 调用者本人的已读位置，与 `get` 应答的 `readSeq` 同义（第 9.3 节）：单聊总有记录可查，群只在宿主开启已读回执时有；没有时省略 |
+| `readsAt` | 只对群、且宿主开启了已读回执时出现：其他成员最近一次推进已读位置的时刻（Unix 毫秒）。调用者自己的推进只改变 `readSeq` |
+
+服务端在读取摘要**之前**把本连接订阅到所有这些会话（第 7 节），所以客户端不再 `get` 的会话也能收到实时帧。在读取之后提交的消息以推送送达，之前提交的计入 `lastSeq`；两者都覆盖到的消息会被拉到两次，客户端按 seq 去重。
+
+客户端对本地每个会话（未退出的群与本地已知的单聊）**应当**这样判断要不要 `get`：
+
+- 摘要里没有它：群出现在 `get_groups` 里却不在摘要里时照常 `get`；单聊说明服务端还没有这个会话，不需要 `get`。
+- `lastSeq` 大于本地 seq 连续段的末尾（补拉的起点，红线 C3；已撤回的 seq 与清空水位以下都算在段内）：有新消息或空缺，`get`。
+- `clearVersion` 大于本地记录：`get`，由应答校正清空状态。
+- `readsAt` 与本进程上次见到的不同：`get`，由应答带回全部已读游标。客户端可以只在内存里记它，进程重启后把出现 `readsAt` 的群各拉一次。
+- 其余情况不 `get`；`readSeq` 大于本地已读位置时直接推进本地的已读位置。
+
+客户端**不应**仅凭摘要创建本地没有的单聊：用户在本地删除过的会话会因此每次重连都回来。
+
+错误：401 未登录；500。legacy 档回 400 `unknown action: sync_summary`。
+
+### 8.2 补拉时的 seq 空缺
+
+已撤回的消息不返回，但它的 seq 不复用（第 9.3 节）。客户端从没收到过、又在离线时被撤回的消息，在本地留下一个空缺；客户端如果把空缺当成“还没拉到”，每次重连都会从这里重拉，空缺之后超过一次补拉上限的部分永远补不到。所以补拉时客户端**必须**这样记账：
+
+- 一页 `get` 返回后，`(下界, 本页最大 seq]` 里服务端没有返回的 seq 一律记为已撤回：本地有这条消息就按撤回处理（第 9.5 节），没有就只记下这个 seq。下界在带 `afterSeq` 时是 `afterSeq`，不带时是本页最小 seq 减 1（更早的历史只是没加载，不是空缺）。
+- 返回条数小于 `limit`（已到头）且从第 8.1 节知道 `lastSeq` 时，`(本页最大 seq, lastSeq]` 同样记为已撤回；空页时从下界算起。
+- 低于清空水位的 seq 不需要记。
+
+记下的 seq 与已有的消息一起构成连续段，下次补拉从段尾开始。
 
 ## 9. 消息
 
@@ -462,7 +514,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 | 404 `message not found or not yours` | 消息不存在、已撤回或不是自己发的 |
 | 401 | 不是成员 |
 
-撤回不进入离线队列。不在线的成员下次 `get` 时自然看不到这条消息；客户端在补拉时**应当**删除本地有、而服务端在相同 seq 区间里没有返回的消息。
+撤回不进入离线队列。不在线的成员下次 `get` 时自然看不到这条消息；客户端在补拉时**应当**删除本地有、而服务端在相同 seq 区间里没有返回的消息，并把本地没有的那些 seq 也记为已撤回（第 8.2 节）。
 
 ### 9.6 转发【录】
 
@@ -975,7 +1027,7 @@ conformance check -additions strict -overlay contract/protocol/transcripts-stric
 
 `-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`、`readSeq`）；有意偏离 legacy 的六个场景改用 `transcripts-strict/` 里另录的版本：`core/login-tokens`（D4）、`core/presence`（D3）、`core/leave-grp`（D1、D2）、`core/group-offline-events`（D5）、`module/qr-join`（D7）、`module/qr-join-review`（D8）。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。
 
-多端同时在线没有黄金对话：参考服务没有这项能力。它由 `server/multidevice_test.go` 等用例覆盖（进程内真实服务端加真实 WebSocket）。
+多端同时在线没有黄金对话：参考服务没有这项能力。它由 `server/multidevice_test.go` 等用例覆盖（进程内真实服务端加真实 WebSocket）。`sync_summary`（第 8.1 节）同样没有黄金对话，由 `server/sync_summary_test.go` 覆盖。
 
 ## 附录 A. 动作一览
 
@@ -985,6 +1037,7 @@ conformance check -additions strict -overlay contract/protocol/transcripts-stric
 | `sub`、`leave` | 请求 | action | 有（`leave` 失败时无） | 9.4 |
 | `pub` | 请求 | action | 有 | 9.1 |
 | `get` | 请求 | action | 有 | 9.3 |
+| `sync_summary` | 请求 | action | 有（strict 档） | 8.1 |
 | `del` | 请求 | action | 有 | 9.5 |
 | `del_topic` | 请求 | action | 有 | 11.2 |
 | `note` | 请求 | action | 无 | 12.3 |

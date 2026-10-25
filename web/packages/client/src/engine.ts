@@ -24,7 +24,7 @@
  */
 
 import { conversationOf, isGroupTopic, isP2pTopic, uidOf } from "@imkit/protocol";
-import { RequestRefused, type HistoryPage, type ImClient, type PublishFields, type PublishOutcome } from "./client.js";
+import { RequestRefused, type HistoryPage, type ImClient, type PublishFields, type PublishOutcome, type SyncTopic } from "./client.js";
 import type { ImEvent } from "./connection.js";
 import {
   AI_ASSISTANT_UID,
@@ -45,7 +45,7 @@ import {
 } from "./model.js";
 import { PresenceTracker } from "./presence.js";
 import type { ChatStore } from "./store.js";
-import { recalledWhileAway, resumeSeq } from "./sync-math.js";
+import { resumeSeq, seqsGone } from "./sync-math.js";
 import { Emitter, Signal, randomId, sleep, type ReadonlySignal, type Unsubscribe } from "./util.js";
 import type { WireMessage } from "./wire.js";
 
@@ -105,8 +105,11 @@ export type ChatEvent =
   | { kind: "groupChanged"; conversation: ConversationId }
   /** The host changed a friendship (`contact_sync`). */
   | { kind: "contactChanged"; what: string; peerUid: string }
-  /** A sync after login finished. */
-  | { kind: "synced"; conversations: number; failed: number }
+  /**
+   * A sync after login finished. `conversations` are up to date; `pulled` of
+   * them needed a `get` (with `sync_summary`, only those that changed).
+   */
+  | { kind: "synced"; conversations: number; failed: number; pulled: number }
   /** The server logged in a different user than this engine belongs to; the client was stopped. */
   | { kind: "wrongAccount"; expected: string; actual: string };
 
@@ -145,6 +148,11 @@ export class ChatEngine {
   private readonly timedOut = new Set<string>();
   private readonly autoRetries = new Map<string, number>();
   private readonly unsentReads = new Set<ConversationId>();
+  /**
+   * The `readsAt` of each group as last pulled, for this process only (section
+   * 8.1): after a restart a group with read receipts is pulled once more.
+   */
+  private readonly readsSeen = new Map<ConversationId, number>();
   private lock: Promise<unknown> = Promise.resolve();
   private opened = false;
   private syncing = false;
@@ -590,20 +598,34 @@ export class ChatEngine {
 
   // ------------------------------------------------------------------ sync
 
-  /** The whole sync of section 8; runs after every login when `autoSync` is on. */
+  /**
+   * The whole sync of section 8; runs after every login when `autoSync` is on.
+   * With a server that offers `sync_summary`, only the conversations that
+   * changed are pulled (section 8.1).
+   */
   async syncAll(): Promise<void> {
     if (this.syncing) return;
     this.syncing = true;
     let done = 0;
     let failed = 0;
+    let pulled = 0;
     try {
       await this.refreshGroups();
+      const summary = await this.fetchSummary();
       const targets = [...this.convs.values()].filter((c) => !(isGroupTopic(c.id) && c.left)).map((c) => c.id);
       for (const id of targets) {
         if (!this.client.isConnected) break;
+        const changes = summary?.get(id);
         try {
-          await this.syncConversation(id);
+          if (summary && !(await this.changed(id, changes))) {
+            if (changes) await this.applySummary(id, changes);
+            done++;
+            continue;
+          }
+          await this.syncConversation(id, changes?.lastSeq);
+          if (changes?.readsAt !== undefined) this.readsSeen.set(id, changes.readsAt);
           done++;
+          pulled++;
         } catch {
           failed++;
         }
@@ -615,17 +637,60 @@ export class ChatEngine {
     } finally {
       this.syncing = false;
     }
-    this.events.emit({ kind: "synced", conversations: done, failed });
+    this.events.emit({ kind: "synced", conversations: done, failed, pulled });
+  }
+
+  /** The `sync_summary` by conversation; null when the server does not offer it or it failed (then every conversation is pulled). */
+  private async fetchSummary(): Promise<Map<ConversationId, SyncTopic> | null> {
+    if (!this.client.session?.capabilities.includes("sync-summary")) return null;
+    let topics: SyncTopic[];
+    try {
+      topics = await this.client.syncSummary();
+    } catch {
+      return null;
+    }
+    const byConversation = new Map<ConversationId, SyncTopic>();
+    for (const t of topics) {
+      const id = t.isGroup ? t.topic : t.peer;
+      if (id) byConversation.set(id, t);
+    }
+    return byConversation;
+  }
+
+  /** Whether a conversation has to be pulled, by its summary entry (section 8.1). */
+  private async changed(id: ConversationId, t: SyncTopic | undefined): Promise<boolean> {
+    // A group listed by get_groups but not summarized: pull it. A single chat
+    // missing from the summary has no conversation on the server yet.
+    if (!t) return isGroupTopic(id);
+    const clear = await this.store.clearState(id);
+    if (t.clearVersion > (clear?.clearVersion ?? 0)) return true;
+    if (t.readsAt !== undefined && this.readsSeen.get(id) !== t.readsAt) return true;
+    const end = resumeSeq(await this.store.seqs(id), await this.store.recalledSeqs(id), clear?.clearBeforeSeq ?? 0);
+    return t.lastSeq > end;
+  }
+
+  /** What an unchanged conversation's summary entry still tells: my read position on another device. */
+  private async applySummary(id: ConversationId, t: SyncTopic): Promise<void> {
+    if (t.readSeq === undefined) return;
+    await this.exclusive(async () => {
+      const c = this.convs.get(id);
+      if (!c || t.readSeq! <= c.lastReadSeq) return;
+      await this.putConv({ ...c, lastReadSeq: t.readSeq! });
+      await this.refreshSummary(id);
+    });
   }
 
   /**
    * Pulls what the server has after the end of the local contiguous run (C3),
-   * page by page; with nothing held, only the newest page.
+   * page by page; with nothing held, only the newest page. Seqs the server
+   * skips are recorded as recalled (section 8.2), up to `lastSeq` from the
+   * summary when it is known, so the next sync does not start over from them.
    */
-  async syncConversation(conversation: ConversationId): Promise<void> {
+  async syncConversation(conversation: ConversationId, lastSeq?: number): Promise<void> {
     const pageSize = this.config.pageSize;
     const clear = await this.store.clearState(conversation);
-    let after = resumeSeq(await this.store.seqs(conversation), await this.store.recalledSeqs(conversation), clear?.clearBeforeSeq ?? 0);
+    const recalled = new Set(await this.store.recalledSeqs(conversation));
+    let after = resumeSeq(await this.store.seqs(conversation), recalled, clear?.clearBeforeSeq ?? 0);
     const heldBefore = await this.store.seqs(conversation);
     let first = true;
     let pulled = 0;
@@ -638,8 +703,12 @@ export class ChatEngine {
         if (first) await this.applyPageState(conversation, page);
         for (const w of page.messages) await this.storeWire(conversation, w, false);
         const watermark = (await this.store.clearState(conversation))?.clearBeforeSeq ?? 0;
-        const gone = recalledWhileAway(heldBefore, from, page.messages.map((m) => m.seq), full).filter((s) => s > watermark);
-        for (const s of gone) await this.removeRecalled(conversation, s, false);
+        const gone = seqsGone({ local: heldBefore, afterSeq: from, page: page.messages.map((m) => m.seq), full, lastSeq, floor: watermark });
+        for (const s of gone) {
+          if (recalled.has(s)) continue;
+          await this.removeRecalled(conversation, s, false);
+          recalled.add(s);
+        }
         await this.refreshSummary(conversation);
       });
       first = false;

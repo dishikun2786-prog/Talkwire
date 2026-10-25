@@ -156,6 +156,8 @@ func (h *Hub) ProcessMessage(client *Client, msg *ClientMessage) {
 		h.handleGetGrps(client, msg)
 	case ActionGetMbrs:
 		h.handleGetMbrs(client, msg)
+	case ActionSyncSummary:
+		h.handleSyncSummary(client, msg)
 	case ActionRegToken:
 		h.handleRegToken(client, msg)
 	case ActionUnregToken:

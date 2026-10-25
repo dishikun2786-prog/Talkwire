@@ -26,19 +26,52 @@ export function resumeSeq(stored: Iterable<number>, recalled: Iterable<number>, 
   return end;
 }
 
+/** A larger gap than this between the bounds of a page is not filled in seq by seq. */
+export const MAX_ACCOUNTED_GAP = 10_000;
+
+export interface PageBounds {
+  /** The seqs held before the request was sent; a message pushed while it was in flight may be newer than the page. */
+  local: Iterable<number>;
+  /** The request's `afterSeq`; 0 for the newest page. */
+  afterSeq: number;
+  /** The seqs the page returned. */
+  page: readonly number[];
+  /** Whether the page was full: more may come after it. */
+  full: boolean;
+  /** The conversation's `lastSeq` from `sync_summary` (section 8.1), when known. */
+  lastSeq?: number;
+  /** The clear watermark: nothing at or below it is a gap. */
+  floor?: number;
+}
+
 /**
- * Local seqs a page proves gone: the server returns every remaining message
- * with seq in `(afterSeq, upper]`, where `upper` is the last seq returned, or
- * unbounded when the page was not full (nothing comes after it). A local seq
- * in that range the page lacks was recalled while we were away (section 9.5).
- *
- * `local` must be what was held **before** the request was sent: a message
- * pushed while the request was in flight may be newer than the page.
+ * The seqs a page proves gone (section 8.2). The server returns every
+ * remaining message with a seq in `(low, high]`: `low` is `afterSeq`, or just
+ * below the first seq of the newest page (older history is only not loaded);
+ * `high` is the page's last seq. When nothing comes after the page (it was not
+ * full, or it is the newest page) `high` reaches `lastSeq` too, and every
+ * local seq beyond it is gone as well. A seq in there the page lacks was
+ * recalled: either one held here (it becomes a tombstone) or one never
+ * received, which has to be accounted for all the same, or the end of the
+ * local contiguous run would stay in front of it and every later sync would
+ * start again from it.
  */
-export function recalledWhileAway(local: Iterable<number>, afterSeq: number, page: readonly number[], pageWasFull: boolean): number[] {
-  if (afterSeq <= 0) return [];
-  if (page.length === 0 && pageWasFull) return [];
-  const upper = pageWasFull ? Math.max(...page) : Infinity;
-  const returned = new Set(page);
-  return [...local].filter((s) => s > afterSeq && s <= upper && !returned.has(s)).sort((a, b) => a - b);
+export function seqsGone(b: PageBounds): number[] {
+  const returned = new Set(b.page);
+  const floor = b.floor ?? 0;
+  const newest = b.afterSeq <= 0;
+  const atEnd = newest || !b.full;
+  let low = newest ? (b.page.length > 0 ? Math.min(...b.page) - 1 : 0) : b.afterSeq;
+  low = Math.max(low, floor);
+  let high = b.page.length > 0 ? Math.max(...b.page) : low;
+  if (atEnd && b.lastSeq !== undefined) high = Math.max(high, b.lastSeq);
+  const gone = new Set<number>();
+  if (high - low <= MAX_ACCOUNTED_GAP) {
+    for (let s = low + 1; s <= high; s++) if (!returned.has(s)) gone.add(s);
+  } else {
+    // Too wide to list one by one: account for what is held only.
+    for (const s of b.local) if (s > low && s <= high && !returned.has(s)) gone.add(s);
+  }
+  if (!newest && !b.full) for (const s of b.local) if (s > high && !returned.has(s)) gone.add(s);
+  return [...gone].filter((s) => s > floor).sort((a, c) => a - c);
 }

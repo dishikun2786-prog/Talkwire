@@ -24,6 +24,9 @@ public object Actions {
     public const val DISBAND_GRP: String = "disband_grp"
     public const val GET_GROUPS: String = "get_groups"
     public const val GET_MEMBERS: String = "get_members"
+
+    /** Strict profile only, offered as the `sync-summary` capability (spec 8.1). */
+    public const val SYNC_SUMMARY: String = "sync_summary"
     public const val FORWARD_BUNDLE: String = "forward_bundle"
     public const val FORWARD_BROADCAST: String = "forward_broadcast"
     public const val ACK_TOPIC_CLEARED: String = "ack_topic_cleared"

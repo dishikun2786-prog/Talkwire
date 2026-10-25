@@ -222,6 +222,10 @@ class M1RealServerTest {
         val bobBack = bob.synced()
         bob.client.start()
         until("Bob back") { bob.synced() > bobBack }
+        // Nothing changed while Bob was away: under strict the summary says so
+        // and nothing is pulled (spec 8.1); legacy pulls each conversation.
+        val back = bob.events.filterIsInstance<ChatEvent.Synced>().last()
+        assertEquals(ChatEvent.Synced(2, 0, if (profile == "strict") 0 else 2), back)
 
         // Recall: the content is gone on both sides; a tombstone says who unsent it.
         val target = aliceWin.value.first { it.content == "while away 0" }

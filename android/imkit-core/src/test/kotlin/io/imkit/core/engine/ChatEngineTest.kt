@@ -13,8 +13,10 @@ import io.imkit.core.model.MessageStatus
 import io.imkit.core.store.InMemoryChatStore
 import io.imkit.core.store.StoredConversation
 import io.imkit.core.testing.MiniServer
+import io.imkit.core.sync.SyncMath
 import io.imkit.core.testing.eventually
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -413,6 +415,105 @@ class ChatEngineTest {
         // The others' cursors stay read receipts; the own one is not among them.
         val cursors = e.readCursors(id)
         eventually { cursors.value == mapOf(bob to 4L) }
+    }
+
+    // ---------------------------------------------------------------- sync_summary (spec 8.1, 8.2)
+
+    /**
+     * C3: a message recalled while away that this device never received leaves
+     * no hole: the seq is recorded, and the next sync starts after it instead
+     * of pulling from it again every time. With or without sync_summary.
+     */
+    @Test
+    fun C3_RecalledUnseenSeqIsNoHole() = recalledUnseenSeq(summary = false)
+
+    @Test
+    fun C3_RecalledUnseenSeqIsNoHoleWithSummary() = recalledUnseenSeq(summary = true)
+
+    private fun recalledUnseenSeq(summary: Boolean): Unit = runBlocking {
+        if (summary) server.capabilities = listOf(MiniServer.SYNC_SUMMARY)
+        val p2p = ImIds.p2pTopic(alice, bob)
+        for (i in 1..2) server.inject(p2p, bob, "m$i")
+        val store = InMemoryChatStore()
+        val a = engine(store = store)
+        a.startAndSync { ensureConversation(withBob) }
+        eventually { runBlocking { store.seqs(withBob) } == listOf(1L, 2L) }
+        // While away: 3 is sent and recalled, then 4 and 5.
+        for (i in 3..5) server.inject(p2p, bob, "m$i")
+        server.recallSilently(p2p, 3)
+        a.syncAll()
+        assertEquals(listOf(1L, 2L, 4L, 5L), store.seqs(withBob))
+        assertEquals(listOf(3L), store.recalledSeqs(withBob))
+        assertEquals(5L, SyncMath.resumeSeq(store.seqs(withBob), store.recalledSeqs(withBob), 0))
+
+        server.requests.clear()
+        a.syncAll()
+        val gets = server.requests.filter { it.string("action") == "get" }
+        if (summary) {
+            assertEquals("unchanged: no get at all", 0, gets.size)
+        } else {
+            assertEquals("from after the recalled seq", listOf(5L), gets.map { it.long("afterSeq") })
+        }
+    }
+
+    @Test
+    fun syncPullsOnlyTheConversationsThatChanged() = runBlocking {
+        server.capabilities = listOf(MiniServer.SYNC_SUMMARY)
+        server.storeReads = true
+        val quiet = "grp_quiet0000001"
+        val busy = "grp_busy00000001"
+        for (g in listOf(quiet, busy)) server.groups[g] = MiniServer.Group(g, mutableMapOf(bob to "owner", alice to "member"))
+        val p2p = ImIds.p2pTopic(alice, bob)
+        for (i in 1..2) {
+            server.inject(quiet, bob, "q$i")
+            server.inject(p2p, bob, "p$i")
+        }
+        server.inject(busy, bob, "b1")
+        val a = engine()
+        val synced = CopyOnWriteArrayList<ChatEvent.Synced>()
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { a.events.collect { if (it is ChatEvent.Synced) synced += it } }
+        a.startAndSync { ensureConversation(withBob) }
+        eventually { synced.size == 1 }
+        assertEquals("the first sync pulls everything", ChatEvent.Synced(3, 0, 3), synced.single())
+
+        // Away: a new message in one group, and the direct chat read on another device.
+        server.inject(busy, bob, "b2")
+        server.setRead(p2p, alice, 2)
+        server.requests.clear()
+        a.syncAll()
+        assertEquals(
+            "only the group with a new message",
+            listOf(busy to 1L),
+            server.requests.filter { it.string("action") == "get" }.map { it.string("topic") to it.long("afterSeq") },
+        )
+        eventually { a.unreadWithBob() == 0 }
+        assertEquals(2L, a.conversations.value.single { it.id == withBob }.lastReadSeq)
+        assertEquals(listOf(1L, 2L), a.msgs(ConversationId(busy)).mapNotNull { it.seq })
+        eventually { synced.size == 2 }
+        assertEquals(ChatEvent.Synced(3, 0, 1), synced.last())
+    }
+
+    @Test
+    fun aGroupIsPulledAgainWhenAnotherMembersReadMoved() = runBlocking {
+        server.capabilities = listOf(MiniServer.SYNC_SUMMARY)
+        server.storeReads = true
+        val g = "grp_reads0000001"
+        server.groups[g] = MiniServer.Group("team", mutableMapOf(bob to "owner", alice to "member"))
+        for (i in 1..2) server.inject(g, bob, "g$i")
+        server.setRead(g, bob, 1)
+        val a = engine()
+        a.startAndSync()
+        val cursors = a.readCursors(ConversationId(g))
+        eventually { cursors.value == mapOf(bob to 1L) }
+        fun gets() = server.requests.count { it.string("action") == "get" && it.string("topic") == g }
+        val first = gets()
+
+        a.syncAll()
+        assertEquals("unchanged", first, gets())
+        server.setRead(g, bob, 2)
+        a.syncAll()
+        assertEquals("moved: pulled for the cursors", first + 1, gets())
+        eventually { cursors.value == mapOf(bob to 2L) }
     }
 
     @Test

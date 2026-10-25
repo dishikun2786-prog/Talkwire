@@ -126,6 +126,7 @@ const api = new ImAdminApi({ headers: () => ({ authorization: `Bearer ${adminTok
 
 - **多标签**：有 SharedWorker 时由它持有唯一的 WebSocket；它起不来（脚本加载失败，或浏览器拦截了它的网络请求），标签页改用 BroadcastChannel 选出一个标签持有连接（有 Web Locks 用它，否则心跳），已有的连接按断线处理并重连。一个标签发出的消息与已读，其他标签像第二台设备那样收到。`tabs.role` 是当前方式：`worker`、`leader`、`follower`、`solo`。
 - **存储**：表与 Android 的 Room 库对应。`encrypt: true` 时每个会话一把不可导出的 AES-GCM 密钥加密正文、扩展字段与草稿，删会话即删密钥。换账号时 `engine.open()` 清空另一个账号留下的数据（C4）。
+- **同步**：登录后对每个会话从本地连续段末尾补拉（C3）。服务端宣告了 `sync-summary`（strict 档的 ImKit 服务端）时，先发一次 `sync_summary`，只对有新消息、被清空或群里他人已读位置变了的会话发 `get`，其余只按摘要推进本人的已读位置；`synced` 事件的 `pulled` 是真正拉了的会话数。补拉时服务端跳过的 seq 一律记为已撤回（协议第 8.2 节），包括本机从没收到过的，否则每次重连都会从那里重拉。群里他人的已读时刻只记在内存里，所以页面刷新后开着已读回执的群会各多拉一次。
 - **发送**：回执超时但连接还在，消息保持“发送中”，不自动重发（C2）；连接断了才在下次同步后重发。媒体按文件地址对账，文本按内容对账。
 - **气泡**：按 `contentType` 选，从不看正文里的文字（C7）。自定义类型用 `new MessageTypeRegistry.Builder().register(type).build()` 传给 `ImKitProvider`，名字与 Android 的注册表一致。
 - **消息操作**：右键或长按气泡打开菜单；每种类型的 `actions` 决定给什么，别人的消息不给撤回、重发、删除。回复把被引用的消息写进 `extra.replyTo`（`seq`、`from`、截到 120 字的 `text`），与 Android 同一格式，两端互相认得。转发一条走 `forward_broadcast`（可选多个会话），多选后转发走 `forward_bundle`（一个会话，按原顺序）；单聊的目标用 p2p 话题，不用对方 uid（F22）。撤回的消息在本地变成一条墓碑（发送人与时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，从不发出），显示“你撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。

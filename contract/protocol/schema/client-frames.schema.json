@@ -32,6 +32,7 @@
         "disband_grp",
         "get_groups",
         "get_members",
+        "sync_summary",
         "reg_token",
         "unreg_token",
         "ack_topic_cleared",
@@ -740,6 +741,32 @@
         "required": [
           "action",
           "topic"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "sync_summary"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "const": "sync_summary"
+          }
+        },
+        "required": [
+          "action"
         ]
       }
     },

@@ -403,6 +403,10 @@
       "planned": [
         {"task": "3.10", "layer": "replay", "platform": "android", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "重连后从本地连续段末尾按 afterSeq 补拉；被撤回的 seq 不算空洞（参见 core/recall-p2p）"},
         {"task": "5.8", "layer": "replay", "platform": "web", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "同上"},
+        {"task": "3.7", "layer": "unit", "platform": "android", "name": "C3_RecalledUnseenSeqIsNoHole", "checks": "离线时被撤回、本机从没收到的 seq 记为已撤回（协议第 8.2 节），下次补拉从它之后开始，不每次从它重拉"},
+        {"task": "3.7", "layer": "unit", "platform": "android", "name": "C3_RecalledUnseenSeqIsNoHoleWithSummary", "checks": "同上，服务端有 sync_summary 时：会话没有变化，第二次同步不再发 get"},
+        {"task": "5.2", "layer": "unit", "platform": "web", "name": "C3_RecalledUnseenSeqIsNoHole", "checks": "同上（不带摘要）"},
+        {"task": "5.2", "layer": "unit", "platform": "web", "name": "C3_RecalledUnseenSeqIsNoHoleWithSummary", "checks": "同上（带摘要）"},
         {"task": "6.6", "layer": "replay", "platform": "ios", "name": "C3_ResumeFromContiguousEnd", "scenario": "core/resubscribe", "checks": "同上"}
       ]
     },

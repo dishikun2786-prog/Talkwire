@@ -180,6 +180,10 @@ async function flow(server: RealServer, profile: "strict" | "legacy"): Promise<v
     const bobBack = bob.synced();
     bob.client.start();
     await until("Bob back", () => bob.synced() > bobBack);
+    // Nothing changed while Bob was away: under strict the summary says so and
+    // nothing is pulled (section 8.1); legacy pulls each conversation.
+    const back = bob.events.filter((e) => e.kind === "synced").at(-1);
+    expect(back).toMatchObject(profile === "strict" ? { conversations: 2, failed: 0, pulled: 0 } : { conversations: 2, failed: 0, pulled: 2 });
 
     // Recall: the content is gone on both sides; a tombstone says who unsent it.
     const target = aliceWin.value.find((m) => m.content === "while away 0")!;

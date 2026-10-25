@@ -496,6 +496,13 @@ type TopicInfo struct {
 	IsGroup        bool   `json:"isGroup"`
 	ClearVersion   int    `json:"clearVersion,omitempty"`
 	ClearBeforeSeq int    `json:"clearBeforeSeq,omitempty"`
+	// Peer, ReadSeq and ReadsAt are filled only on a sync_summary reply (see
+	// handleSyncSummary): the other member of a direct chat, the caller's own
+	// read position, and for a group with read receipts on, when another
+	// member last moved a read cursor (Unix milliseconds).
+	Peer    string `json:"peer,omitempty"`
+	ReadSeq int    `json:"readSeq,omitempty"`
+	ReadsAt int64  `json:"readsAt,omitempty"`
 }
 
 // AdminTopicInfo is exposed only on the IM service's internal, shared-secret
@@ -638,7 +645,11 @@ const (
 	ActionUpdateGrp = "update_grp"
 	ActionGetGrps   = "get_groups"
 	ActionGetMbrs   = "get_members"
-	ActionRegToken  = "reg_token"
+	// ActionSyncSummary (strict profile, capability sync-summary): what changed
+	// in every conversation of the caller, so a reconnecting client pulls only
+	// those (protocol specification 8.1).
+	ActionSyncSummary = "sync_summary"
+	ActionRegToken    = "reg_token"
 	// ActionUnregToken is the client-initiated counterpart to reg_token, sent
 	// on logout so the device's FCM token stops being associated with an
 	// account nobody is using it for anymore (see im_fcm_tokens's migration

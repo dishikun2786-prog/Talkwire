@@ -61,6 +61,8 @@ export class FakeServer implements ImTransport {
   readonly conns: FakeConn[] = [];
   /** Answers every frame but `login`; return true when handled. */
   onFrame: (conn: FakeConn, frame: Frame) => boolean = () => false;
+  /** What the login reply advertises. */
+  capabilities: string[] = ["errcode", "reply-id"];
 
   open(_url: string, listener: ImSocketListener): ImSocket {
     const c = new FakeConn(this, listener);
@@ -83,7 +85,7 @@ export class FakeServer implements ImTransport {
       const token = String(f.token ?? "");
       if (!token.startsWith("tok:")) return conn.push({ action: "login", code: 401, id: f.id, reason: "invalid token" });
       conn.uid = uidOf(token.slice(4));
-      return conn.push({ action: "login", code: 200, uid: conn.uid, protocol: 1, capabilities: ["errcode", "reply-id"], id: f.id });
+      return conn.push({ action: "login", code: 200, uid: conn.uid, protocol: 1, capabilities: this.capabilities, id: f.id });
     }
     if (this.onFrame(conn, f)) return;
     if (f.action === "note" || f.action === "ack_topic_cleared" || f.action === "ack_group_event") return;

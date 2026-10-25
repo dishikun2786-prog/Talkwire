@@ -50,7 +50,7 @@ func TestStrictLoginReply(t *testing.T) {
 		got := h.loginReply("r1", "uid_a")
 		want := &ServerMessage{
 			Id: "r1", Action: ActionLogin, Code: CodeOK, UID: "uid_a", Protocol: ProtocolVersion,
-			Capabilities: []string{CapErrCode, CapReplyID, CapMultiDevice, "module:e2ee", "module:call", "push:fcm", "push:webpush"},
+			Capabilities: []string{CapErrCode, CapReplyID, CapMultiDevice, CapSyncSummary, "module:e2ee", "module:call", "push:fcm", "push:webpush"},
 			VapidKey:     "BKey",
 		}
 		if !reflect.DeepEqual(got, want) {

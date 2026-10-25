@@ -4,8 +4,10 @@ import io.imkit.core.ImIds
 import io.imkit.core.client.ConnectionState
 import io.imkit.core.client.ImClient
 import io.imkit.core.client.ImEvent
+import io.imkit.core.client.CAP_SYNC_SUMMARY
 import io.imkit.core.client.ImException
 import io.imkit.core.client.PublishOutcome
+import io.imkit.core.client.SyncTopic
 import io.imkit.core.client.clearConversation
 import io.imkit.core.client.groups
 import io.imkit.core.client.history
@@ -16,6 +18,7 @@ import io.imkit.core.client.recall
 import io.imkit.core.client.sendRead
 import io.imkit.core.client.sendTyping
 import io.imkit.core.client.subscribe
+import io.imkit.core.client.syncSummary
 import io.imkit.core.client.ackGroupEvent
 import io.imkit.core.client.ackTopicCleared
 import io.imkit.core.model.ChatMessage
@@ -124,6 +127,12 @@ public class ChatEngine(
     private val retries = ConcurrentHashMap<String, Int>()
     private val retryScheduled = ConcurrentHashMap.newKeySet<String>()
     private val unsentReads = ConcurrentHashMap.newKeySet<ConversationId>()
+
+    /**
+     * The `readsAt` of each group as last pulled, for this process only (spec
+     * 8.1): after a restart a group with read receipts is pulled once more.
+     */
+    private val readsSeen = ConcurrentHashMap<ConversationId, Long>()
     private val syncLock = Mutex()
     private var eventsJob: Job? = null
     private var sweeperJob: Job? = null
@@ -551,17 +560,31 @@ public class ChatEngine(
 
     // ---------------------------------------------------------------- sync (spec 8, C3)
 
-    /** The full sync of protocol spec 8. Runs after every login when [EngineConfig.autoSync]. */
+    /**
+     * The full sync of protocol spec 8. Runs after every login when
+     * [EngineConfig.autoSync]. With a server that offers `sync_summary`, only
+     * the conversations that changed are pulled (spec 8.1).
+     */
     public suspend fun syncAll() {
         syncLock.withLock {
             refreshGroups()
+            val summary = fetchSummary()
             var done = 0
             var failed = 0
+            var pulled = 0
             for (c in store.conversations()) {
                 if (c.left) continue
+                val changes = summary?.get(c.id)
                 try {
-                    syncConversation(c.id)
+                    if (summary != null && !changed(c.id, changes)) {
+                        if (changes != null) applySummary(c.id, changes)
+                        done++
+                        continue
+                    }
+                    syncConversation(c.id, changes?.lastSeq)
+                    changes?.readsAt?.let { readsSeen[c.id] = it }
                     done++
+                    pulled++
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -580,31 +603,65 @@ public class ChatEngine(
                 if (conv.lastReadSeq > 0 && client.sendRead(c.wireTopic, conv.lastReadSeq)) unsentReads.remove(c)
             }
             resendPending()
-            _events.tryEmit(ChatEvent.Synced(done, failed))
+            _events.tryEmit(ChatEvent.Synced(done, failed, pulled))
         }
+    }
+
+    /** The `sync_summary` by conversation; null when the server does not offer it or it failed (then every conversation is pulled). */
+    private suspend fun fetchSummary(): Map<ConversationId, SyncTopic>? {
+        if (client.session?.has(CAP_SYNC_SUMMARY) != true) return null
+        val topics = try {
+            client.syncSummary()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return topics.mapNotNull { t -> (if (t.isGroup) t.topic else t.peer)?.let { ConversationId(it) to t } }.toMap()
+    }
+
+    /** Whether a conversation has to be pulled, by its summary entry (spec 8.1). */
+    private suspend fun changed(id: ConversationId, t: SyncTopic?): Boolean {
+        // A group listed by get_groups but not summarized: pull it. A direct
+        // chat missing from the summary has no conversation on the server yet.
+        if (t == null) return id.isGroup
+        val clear = store.clearState(id)
+        if (t.clearVersion > (clear?.clearVersion ?: 0)) return true
+        if (t.readsAt != null && readsSeen[id] != t.readsAt) return true
+        val end = SyncMath.resumeSeq(store.seqs(id), store.recalledSeqs(id), clear?.clearBeforeSeq ?: 0)
+        return t.lastSeq > end
+    }
+
+    /** What an unchanged conversation's summary entry still tells: my read position on another device. */
+    private suspend fun applySummary(id: ConversationId, t: SyncTopic) {
+        val read = t.readSeq ?: return
+        withConversation(id) { advanceOwnReadLocked(id, read) }
     }
 
     /**
      * Pulls what this device missed in one conversation, starting at the end
      * of the local contiguous run (C3). The first page also carries the clear
-     * watermark, applied before any message is stored.
+     * watermark, applied before any message is stored. Seqs the server skips
+     * are recorded as recalled (spec 8.2), up to [lastSeq] from the summary
+     * when it is known, so the next sync does not start over from them.
      */
-    public suspend fun syncConversation(conversation: ConversationId) {
+    public suspend fun syncConversation(conversation: ConversationId, lastSeq: Long? = null) {
         val st = store.clearState(conversation)
-        var resume = SyncMath.resumeSeq(store.seqs(conversation), store.recalledSeqs(conversation), st?.clearBeforeSeq ?: 0)
+        val heldBefore = store.seqs(conversation)
+        val recalled = store.recalledSeqs(conversation).toHashSet()
+        var resume = SyncMath.resumeSeq(heldBefore, recalled, st?.clearBeforeSeq ?: 0)
         var fetched = 0
         var first = true
         while (fetched < config.offlinePullMax) {
             val afterSeq = resume.takeIf { it > 0 }
             val page = client.history(conversation.wireTopic, limit = config.pageSize, afterSeq = afterSeq)
+            val full = page.messages.size >= config.pageSize
             withConversation(conversation) {
                 if (first) applyClearLocked(conversation, page.clearVersion, page.clearBeforeSeq)
                 page.readCursors?.forEach { (uid, seq) -> if (uid != me) store.setReadCursor(conversation, uid, seq) }
-                if (afterSeq != null) {
-                    for (s in SyncMath.recalledWhileAway(store.seqs(conversation), afterSeq, page.messages.map { it.seq })) {
-                        tombstoneLocked(conversation, s)
-                    }
-                }
+                val watermark = store.clearState(conversation)?.clearBeforeSeq ?: 0
+                val gone = SyncMath.seqsGone(heldBefore, afterSeq ?: 0, page.messages.map { it.seq }, full, lastSeq, watermark)
+                for (s in gone) if (recalled.add(s)) tombstoneLocked(conversation, s)
                 for (m in page.messages) applyIncomingLocked(conversation, m, live = false)
                 // The user's own read position as the server keeps it: readSeq
                 // (strict), or a group's own read cursor. A new device would
@@ -614,7 +671,7 @@ public class ChatEngine(
             }
             first = false
             fetched += page.messages.size
-            if (afterSeq == null || page.messages.size < config.pageSize) break
+            if (afterSeq == null || !full) break
             val max = page.messages.maxOf { it.seq }
             if (max <= resume) break
             resume = max

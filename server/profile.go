@@ -41,11 +41,13 @@ const (
 	// on every device, and only a new login of the same device replaces a
 	// connection (task 1.12).
 	CapMultiDevice = "multi-device"
+	// CapSyncSummary: the sync_summary action (protocol specification 8.1).
+	CapSyncSummary = "sync-summary"
 )
 
 // capabilities lists what this server offers, for the login reply.
 func (h *Hub) capabilities() []string {
-	caps := []string{CapErrCode, CapReplyID, CapMultiDevice}
+	caps := []string{CapErrCode, CapReplyID, CapMultiDevice, CapSyncSummary}
 	for _, name := range h.mods.names() {
 		caps = append(caps, "module:"+name)
 	}

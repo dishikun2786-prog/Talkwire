@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"time"
 )
 
 // GetPeerUIDs returns every uid that shares at least one topic with uid —
@@ -57,6 +58,95 @@ func (s *Store) GetUserTopics(uid string) ([]TopicInfo, error) {
 		topics = append(topics, t)
 	}
 	return topics, nil
+}
+
+// GetUserTopicNames lists every topic uid is a member of: its groups and its
+// direct chats.
+func (s *Store) GetUserTopicNames(uid string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT topic FROM im_topic_members WHERE uid = $1`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var topics []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		topics = append(topics, t)
+	}
+	return topics, rows.Err()
+}
+
+// GetSyncSummary returns, for every topic uid is a member of, what a
+// sync_summary reply carries (see handleSyncSummary), ordered by topic. A
+// group has uid's own read position and ReadsAt only when withReads (read
+// receipts on), as a get reply has its readSeq and readCursors; a direct chat
+// always has the own read position, which is kept regardless.
+func (s *Store) GetSyncSummary(uid string, withReads bool) ([]TopicInfo, error) {
+	rows, err := s.db.Query(`
+		SELECT t.topic, t.is_group, t.last_seq, t.clear_version, t.clear_before_seq,
+		       COALESCE(p.uid, ''), COALESCE(own.last_read_seq, 0)
+		FROM im_topic_members m
+		JOIN im_topics t ON t.topic = m.topic
+		LEFT JOIN im_topic_members p ON t.topic LIKE 'p2p\_%' AND p.topic = t.topic AND p.uid <> m.uid
+		LEFT JOIN im_read_cursors own ON own.topic = t.topic AND own.uid = m.uid
+		WHERE m.uid = $1
+		ORDER BY t.topic
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TopicInfo
+	for rows.Next() {
+		var t TopicInfo
+		if err := rows.Scan(&t.Topic, &t.IsGroup, &t.LastSeq, &t.ClearVersion, &t.ClearBeforeSeq, &t.Peer, &t.ReadSeq); err != nil {
+			return nil, err
+		}
+		if t.IsGroup && !withReads {
+			t.ReadSeq = 0
+		}
+		out = append(out, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if !withReads {
+		return out, nil
+	}
+
+	// When another member last moved a read cursor, per group: the client
+	// pulls the group again (whose get reply has every cursor) only when this
+	// changed. The caller's own moves are left out; they arrive as ReadSeq.
+	reads, err := s.db.Query(`
+		SELECT c.topic, MAX(c.updated_at)
+		FROM im_read_cursors c
+		JOIN im_topic_members m ON m.topic = c.topic AND m.uid = $1
+		WHERE c.topic LIKE 'grp\_%' AND c.uid <> $1 AND c.last_read_seq > 0
+		GROUP BY c.topic
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer reads.Close()
+	at := make(map[string]int64)
+	for reads.Next() {
+		var topic string
+		var when time.Time
+		if err := reads.Scan(&topic, &when); err != nil {
+			return nil, err
+		}
+		at[topic] = when.UnixMilli()
+	}
+	if err := reads.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].ReadsAt = at[out[i].Topic]
+	}
+	return out, nil
 }
 
 // CreateGroup creates a new group topic

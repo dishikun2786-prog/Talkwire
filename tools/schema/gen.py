@@ -73,6 +73,8 @@ CLIENT = {
     "disband_grp": ({"topic": NS}, ["topic"]),
     "get_groups": ({}, []),
     "get_members": ({"topic": NS}, ["topic"]),
+    # strict profile, capability sync-summary (section 8.1).
+    "sync_summary": ({}, []),
     "reg_token": ({"token": NS, "provider": PROVIDER}, ["token"]),
     "unreg_token": ({"token": NS, "provider": PROVIDER}, ["token"]),
     "ack_topic_cleared": ({}, ["id"]),
@@ -158,6 +160,9 @@ SERVER_DEFS = {
     "memberInfo": obj({"uid": UID, "name": S, "role": {"enum": ["owner", "admin", "member"]}, "joinedAt": MS},
                       ["uid"], extra=False),
     "readCursor": obj({"uid": UID, "seq": I}, ["uid", "seq"], extra=False),
+    "syncTopic": obj({"topic": NS, "lastSeq": {"type": "integer", "minimum": 0}, "isGroup": B,
+                      "clearVersion": I, "clearBeforeSeq": I, "peer": UID, "readSeq": POS, "readsAt": MS},
+                     ["topic", "lastSeq", "isGroup"], extra=False),
     "presenceState": obj({"uid": UID, "online": B, "presRev": I, "lastSeenAt": MS}, ["uid"], extra=False),
     "joinRequest": obj({"id": POS, "requesterUid": UID, "requesterName": S, "message": S, "createdAt": MS},
                        ["id", "requesterUid", "createdAt"], extra=False),
@@ -215,6 +220,8 @@ SERVER_ACTION = {
     "get_groups": [({"id": S, "code": C200, "groups": {"type": "array", "items": ref("groupInfo")}}, ["code"])],
     "get_members": [({"id": S, "code": C200, "topic": NS, "members": {"type": "array", "items": ref("memberInfo")}},
                      ["code", "topic"])],
+    # strict profile, capability sync-summary (section 8.1).
+    "sync_summary": [({"id": S, "code": C200, "topics": {"type": "array", "items": ref("syncTopic")}}, ["code"])],
     "grp_sync": [({"topic": NS, "name": S, "from": UID, "eventId": POS}, ["topic"])],
     "grp_disband": [({"topic": NS, "from": UID, "eventId": POS}, ["topic"])],
     "contact_sync": [({"topic": S, "what": {"enum": ["accepted", "removed"]}, "from": UID}, ["what", "from"])],

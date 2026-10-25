@@ -28,6 +28,8 @@ Phase 2 之后（加入 `custom-broadcast` 与核心组场景 `core/host-red-pac
 
 M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人的已读位置（复用 `im_read_cursors`，按会话最后一条钳住），`get` 应答带 `readSeq`；legacy 档不存也不发（协议规范第 9.3、12.3 节，`readseq_test.go` 两档对照）。重跑：legacy 33/33，strict 33/33（`-additions strict` 加了 `readSeq`），lint 无报告，单测全部通过、无跳过。没有加表加列。
 
+会话变更摘要之后（2026-10-26）：strict 档新增动作 `sync_summary`（协议规范第 8.1 节，`sync_summary.go`），一次往返列出调用者的全部会话与各自的变化，读取前把连接订阅到全部会话；legacy 档回 400 `unknown action`，与原版相同。重跑：legacy 33/33，strict 33/33，standalone 30/33（同样是那三个依赖宿主的场景），表结构比较 5 项通过，竞态检测三轮无报告，lint（含 staticcheck）无报告，单测 185 个全部通过、无跳过。没有加表加列。
+
 ## 代码结构
 
 | 文件 | 内容 |
@@ -37,6 +39,7 @@ M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人�
 | `devices.go`、`store_devices.go` | 多端在线：按设备查连接、发给一个用户的所有设备、离开的设备该补投什么 |
 | `subscriptions.go`、`presence.go` | 订阅索引与按会话广播；在线状态 |
 | `publish.go`、`forward.go`、`clear.go`、`access.go` | 消息收发与历史；转发；撤回与清空；成员与好友校验、单聊地址解析 |
+| `sync_summary.go` | strict 档的会话变更摘要（协议规范第 8.1 节） |
 | `group.go`、`offline.go` | 群管理；离线补投（清空、群事件）与回执 |
 | `push.go`、`push/` | 离线推送：选目标与文案；FCM、APNs、Web Push 三个服务商 |
 | `profile.go`、`protocol.go` | 协议档位与 strict 档的新增；帧的结构。strict 档对缺陷的修正写在各自的处理函数旁（如 `mayLeaveGroup`、`reviewGroupJoinStrict`） |
@@ -113,7 +116,7 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 默认档位是 strict；要与原版逐帧一致须设 `IMKIT_PROTOCOL_PROFILE=legacy`。
 - 新增内部接口 `POST /api/v1/internal/im/custom-broadcast`（Phase 2）：宿主把自定义消息卡片的新状态推给一个会话的在线连接或一个用户的全部设备，帧为 `custom_update`（协议规范附录 B）。它是原版 `red-packet-broadcast` 的通用形式，后者保留。两档都有；契约见 `contract/host-api/im-internal.openapi.yaml`，测试 `custombroadcast_test.go`。
 
-strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。
+strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段和新增动作 `sync_summary`。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。
 
 ## 已知问题
 

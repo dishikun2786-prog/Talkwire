@@ -41,6 +41,7 @@
             "set_member_role",
             "get_groups",
             "get_members",
+            "sync_summary",
             "grp_sync",
             "grp_disband",
             "contact_sync",
@@ -1846,6 +1847,76 @@
                   "action",
                   "code",
                   "topic"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "code": {
+                    "type": "integer",
+                    "minimum": 400
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "errCode": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "strict profile: stable machine-readable error code"
+                  }
+                },
+                "required": [
+                  "action",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "sync_summary"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "const": "sync_summary"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "const": 200
+                  },
+                  "topics": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/syncTopic"
+                    }
+                  }
+                },
+                "required": [
+                  "action",
+                  "code"
                 ],
                 "additionalProperties": false
               },
@@ -4913,6 +4984,47 @@
       "required": [
         "uid",
         "seq"
+      ],
+      "additionalProperties": false
+    },
+    "syncTopic": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lastSeq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "isGroup": {
+          "type": "boolean"
+        },
+        "clearVersion": {
+          "type": "integer"
+        },
+        "clearBeforeSeq": {
+          "type": "integer"
+        },
+        "peer": {
+          "type": "string",
+          "pattern": "^(uid_[A-Za-z0-9_-]{11}|usr.+)$"
+        },
+        "readSeq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "readsAt": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix milliseconds"
+        }
+      },
+      "required": [
+        "topic",
+        "lastSeq",
+        "isGroup"
       ],
       "additionalProperties": false
     },

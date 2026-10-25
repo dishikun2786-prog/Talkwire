@@ -90,6 +90,7 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 | C2 发送 | `C2_LostPublishReplyStaysSending` | core `ReplayScenarioTest` | 回放 `core/group-messaging`，丢掉发送应答：保持“发送中”、不自动重发，重试沿用同一个 `clientMsgId` |
 | | `C2_MediaReconciledByUrl` | core `ChatEngineTest` | 媒体消息的应答丢失后，按 `fileUrl` 与历史里的那条对账 |
 | C3 补拉 | `C3_ResumeFromContiguousEnd` | core `ReplayScenarioTest` | 回放 `core/resubscribe`：从本地连续段末尾补拉 |
+| | `C3_RecalledUnseenSeqIsNoHole`、`C3_RecalledUnseenSeqIsNoHoleWithSummary` | core `ChatEngineTest` | 离线时被撤回、本机从没收到的 seq 记为已撤回，下次从它之后补拉；有摘要时会话没变就不再 `get` |
 | C4 缓存归属 | `C4_SwitchingAccountClearsAllCaches` | storage-room `RoomEngineTest` | 真实 Room 库：换账号清空全部表（含密钥），同账号保留 |
 | C5 在线三态 | `C5_PresenceTriStateWithExpiry` | core `SyncAndPresenceTest` | 在线、离线、未知，过期回到未知 |
 | C6 通知 | `C6_NotificationDecision` | android `NotificationControllerTest` | 决策表、静音渠道由 App 播声、来电通知在每条结束路径上取消 |
@@ -138,6 +139,7 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - **视频压缩只在 JVM 上测了发送逻辑**：`MediaSender` 对大于 50 MB（或超过上限）的视频先交给 `VideoCompressor` 重新编码，失败或没变小就发原片（放得下时），仍超限才拒绝；这些分支有单测。`Media3VideoCompressor` 真正的编码要真机，只测了“读不了的文件返回 false 且不留文件”。旋转视频编码后方向是否正确、首帧缩略图按旋转角调整宽高，都没拿真机拍的视频验证过。
 - **群助手“正在输入”**（`ai_typing`，协议第 15 节）：本人所在的群收到它时，`typingIn` 里出现 `ChatMessage.AI_ASSISTANT_UID` 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。只在单测与界面测试里验证过。
 - **新设备上单聊的历史全算未读**：已修，但要 strict 档服务端：它存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 同步时据此推进本地已读位置（只前进）。legacy 档服务端与原版一致不存，接它时照旧。没有在真机上复核，见 DEVICE_CHECKS.md。
+- **按摘要同步只在测试里验证过**：服务端宣告了 `sync-summary`（strict 档的 ImKit 服务端）时，`syncAll` 先发一次 `sync_summary`，只对有新消息、被清空或群里他人已读位置变了的会话 `get`，其余只按摘要推进本人的已读位置；`ChatEvent.Synced.pulled` 是真正拉了的会话数。补拉时服务端跳过的 seq 一律记为已撤回（协议第 8.2 节），包括本机从没收到过的。群里他人的已读时刻（`readsAt`）只记在内存里，App 重启后开着已读回执的群会各多拉一次。单测与 `M1RealServerTest` 两档都过了（strict 档重连后 `pulled` 为 0，legacy 档照旧逐个拉），没上真机。
 - **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，2026-10-26 与网页示例在真机上互通也过了。
 - 保存图片与视频到相册需要 Android 10（API 29）以上，更低的系统不显示“保存”。
 - 旧库导入只用按源项目 v18 schema 构造的库测过，没有拿真实用户的旧库验证。

@@ -1,6 +1,6 @@
 import { p2pTopic, uidOf } from "@imkit/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, RECALLED_CONTENT_TYPE, recalledWhileAway, resumeSeq, type EngineConfig } from "../src/index.js";
+import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, RECALLED_CONTENT_TYPE, resumeSeq, seqsGone, type ChatEvent, type EngineConfig, type PageBounds } from "../src/index.js";
 import { FakeServer, type Frame } from "./fake-server.js";
 import { until } from "./replay.js";
 
@@ -42,11 +42,22 @@ describe("sync math", () => {
     expect(resumeSeq([], [], 7)).toBe(7);
   });
 
-  it("finds messages recalled while away", () => {
-    expect(recalledWhileAway([1, 2, 3, 4], 1, [2, 4], false)).toEqual([3]);
-    expect(recalledWhileAway([1, 2, 3, 4], 1, [2], true), "beyond a full page nothing is known").toEqual([]);
-    expect(recalledWhileAway([1, 2, 3, 4], 1, [2], false), "a short page is the end of history").toEqual([3, 4]);
-    expect(recalledWhileAway([1, 2], 0, [], false), "the newest page proves nothing").toEqual([]);
+  it("accounts for every seq a page proves gone (section 8.2)", () => {
+    const gone = (local: number[], afterSeq: number, page: number[], full: boolean, more: Partial<PageBounds> = {}) => seqsGone({ local, afterSeq, page, full, ...more });
+    expect(gone([1, 2, 3, 4], 1, [2, 4], false)).toEqual([3]);
+    expect(gone([1, 2, 3, 4], 1, [2], true), "beyond a full page nothing is known").toEqual([]);
+    expect(gone([1, 2, 3, 4], 1, [2], false), "a short page is the end of history").toEqual([3, 4]);
+    expect(gone([1, 2], 0, [], false), "the newest page proves nothing without lastSeq").toEqual([]);
+    // Seqs never received count too: otherwise they are holes for good (C3).
+    expect(gone([1, 2], 2, [5, 6], false), "recalled while away, never received").toEqual([3, 4]);
+    expect(gone([1, 2], 2, [5, 6], true), "within a full page as well").toEqual([3, 4]);
+    expect(gone([], 0, [7, 9], true), "the newest page counts from its first seq: older history is only not loaded").toEqual([8]);
+    expect(gone([], 0, [7, 9], true, { lastSeq: 11 }), "the newest page reaches lastSeq").toEqual([8, 10, 11]);
+    expect(gone([1, 2], 2, [3], false, { lastSeq: 5 }), "a short page reaches lastSeq").toEqual([4, 5]);
+    expect(gone([1, 2], 2, [3, 4], true, { lastSeq: 9 }), "a full page does not").toEqual([]);
+    expect(gone([1, 2], 2, [], false, { lastSeq: 4 }), "an empty page: everything after afterSeq").toEqual([3, 4]);
+    expect(gone([], 0, [], false, { lastSeq: 6, floor: 4 }), "nothing at or below the clear watermark").toEqual([5, 6]);
+    expect(gone([3, 20_005], 2, [20_010], false), "too wide a gap: what is held only").toEqual([3, 20_005]);
   });
 });
 
@@ -125,6 +136,147 @@ describe("engine", () => {
     expect(window.value).toHaveLength(1);
     expect(window.value[0]).toMatchObject({ seq: 1, status: "sent", localId: pending.localId, fileUrl: "https://media.example/a.png" });
     expect(server.sent("pub"), "not sent again").toHaveLength(1);
+  });
+
+  /**
+   * C3: a message recalled while away that this device never received leaves
+   * no hole: the seq is recorded, and the next sync starts after it instead of
+   * pulling from it again every time. With or without sync_summary.
+   */
+  const recalledUnseenSeq = async (summary: boolean): Promise<void> => {
+    const server = new FakeServer();
+    if (summary) server.capabilities = [...server.capabilities, "sync-summary"];
+    const me = uidOf("alice");
+    const carol = uidOf("carol");
+    const p2p = p2pTopic(me, carol);
+    const msg = (seq: number) => ({ topic: p2p, seq, from: carol, ts: seq, content: "m" + seq, contentType: "text" });
+    // Seq 3 was recalled while this device was away.
+    const history = [1, 2, 4, 5].map(msg);
+    server.onFrame = (conn, f) => {
+      if (f.action === "get") {
+        const after = Number(f.afterSeq ?? 0);
+        conn.push({ action: "get", code: 200, id: f.id, topic: f.topic, messages: history.filter((m) => m.seq > after) });
+        return true;
+      }
+      if (f.action === "sync_summary") {
+        conn.push({ action: "sync_summary", code: 200, id: f.id, topics: [{ topic: p2p, lastSeq: 5, isGroup: false, peer: carol }] });
+        return true;
+      }
+      return false;
+    };
+    const { client, engine, store } = device(server, "alice");
+    await engine.open();
+    client.start();
+    await client.awaitConnected(5_000);
+    for (const seq of [1, 2]) server.live[0]!.push({ action: "data", topic: carol, from: carol, seq, ts: seq, content: "m" + seq, contentType: "text" });
+    await until("held", async () => (await store.seqs(carol)).length === 2);
+
+    await engine.syncAll();
+    expect(await store.seqs(carol)).toEqual([1, 2, 4, 5]);
+    expect(await store.recalledSeqs(carol)).toEqual([3]);
+    expect(resumeSeq(await store.seqs(carol), await store.recalledSeqs(carol), 0)).toBe(5);
+
+    const before = server.sent("get").length;
+    await engine.syncAll();
+    const again = server.sent("get").slice(before);
+    if (summary) expect(again, "unchanged: no get at all").toEqual([]);
+    else expect(again.map((f) => f.afterSeq), "from after the recalled seq").toEqual([5]);
+  };
+  it("C3_RecalledUnseenSeqIsNoHole", () => recalledUnseenSeq(false));
+  it("C3_RecalledUnseenSeqIsNoHoleWithSummary", () => recalledUnseenSeq(true));
+
+  it("pulls only the conversations that changed (section 8.1)", async () => {
+    const server = new FakeServer();
+    server.capabilities = [...server.capabilities, "sync-summary"];
+    const me = uidOf("alice");
+    const bob = uidOf("bob");
+    const quiet = "grp_quiet0000001";
+    const busy = "grp_busy00000001";
+    const msg = (topic: string, seq: number) => ({ topic, seq, from: bob, ts: seq, content: topic + seq, contentType: "text" });
+    const history: Record<string, ReturnType<typeof msg>[]> = {
+      [quiet]: [msg(quiet, 1), msg(quiet, 2)],
+      [busy]: [msg(busy, 1), msg(busy, 2), msg(busy, 3)],
+      [bob]: [msg(p2pTopic(me, bob), 1), msg(p2pTopic(me, bob), 2)],
+    };
+    server.onFrame = (conn, f) => {
+      switch (f.action) {
+        case "get_groups":
+          conn.push({ action: "get_groups", code: 200, id: f.id, groups: [quiet, busy].map((topic) => ({ topic, name: topic, owner: bob, members: 2 })) });
+          return true;
+        case "sync_summary":
+          conn.push({
+            action: "sync_summary",
+            code: 200,
+            id: f.id,
+            topics: [
+              { topic: busy, lastSeq: 3, isGroup: true },
+              { topic: quiet, lastSeq: 2, isGroup: true },
+              // Read on my other device; nothing new.
+              { topic: p2pTopic(me, bob), lastSeq: 2, isGroup: false, peer: bob, readSeq: 2 },
+            ],
+          });
+          return true;
+        case "get": {
+          const after = Number(f.afterSeq ?? 0);
+          conn.push({ action: "get", code: 200, id: f.id, topic: f.topic, messages: (history[String(f.topic)] ?? []).filter((m) => m.seq > after) });
+          return true;
+        }
+      }
+      return false;
+    };
+    const { client, engine } = device(server, "alice");
+    const events: ChatEvent[] = [];
+    engine.events.on((e) => events.push(e));
+    await engine.open();
+    client.start();
+    await client.awaitConnected(5_000);
+    const conn = server.live[0]!;
+    for (const [topic, seqs] of [[quiet, [1, 2]], [busy, [1]], [bob, [1, 2]]] as const) {
+      for (const seq of seqs) conn.push({ action: "data", topic, from: bob, seq, ts: seq, content: topic + seq, contentType: "text" });
+    }
+    await until("held", () => engine.conversation(bob)?.unread === 2 && engine.conversation(busy) !== undefined && engine.conversation(quiet)?.unread === 2);
+
+    await engine.syncAll();
+    expect(server.sent("get").map((f) => [f.topic, f.afterSeq]), "only the group with a new message").toEqual([[busy, 1]]);
+    expect(engine.conversation(bob)).toMatchObject({ lastReadSeq: 2, unread: 0 });
+    expect(engine.conversation(busy)?.unread).toBe(3);
+    expect(events.filter((e) => e.kind === "synced")).toEqual([{ kind: "synced", conversations: 3, failed: 0, pulled: 1 }]);
+  });
+
+  it("pulls a group again when another member's read moved (readsAt)", async () => {
+    const server = new FakeServer();
+    server.capabilities = [...server.capabilities, "sync-summary"];
+    const group = "grp_reads0000001";
+    const bob = uidOf("bob");
+    let readsAt = 100;
+    server.onFrame = (conn, f) => {
+      switch (f.action) {
+        case "get_groups":
+          conn.push({ action: "get_groups", code: 200, id: f.id, groups: [{ topic: group, name: "g", owner: bob, members: 2 }] });
+          return true;
+        case "sync_summary":
+          conn.push({ action: "sync_summary", code: 200, id: f.id, topics: [{ topic: group, lastSeq: 0, isGroup: true, readsAt }] });
+          return true;
+        case "get":
+          conn.push({ action: "get", code: 200, id: f.id, topic: f.topic, readCursors: [{ uid: bob, seq: readsAt }] });
+          return true;
+      }
+      return false;
+    };
+    const { client, engine, store } = device(server, "alice");
+    await engine.open();
+    client.start();
+    await client.awaitConnected(5_000);
+    const gets = () => server.sent("get").length;
+
+    await engine.syncAll();
+    expect(gets(), "not seen in this process yet").toBe(1);
+    await engine.syncAll();
+    expect(gets(), "unchanged").toBe(1);
+    readsAt = 200;
+    await engine.syncAll();
+    expect(gets(), "moved").toBe(2);
+    expect((await store.readCursors(group)).get(bob)).toBe(200);
   });
 
   it("files single-chat frames under the peer whatever the spelling (section 5.5)", async () => {

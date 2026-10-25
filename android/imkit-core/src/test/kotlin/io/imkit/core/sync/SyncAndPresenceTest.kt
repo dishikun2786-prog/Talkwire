@@ -35,11 +35,25 @@ class SyncMathTest {
     }
 
     @Test
-    fun aPageProvesWhatWasRecalledWhileAway() {
-        // Asked after 3, got 4, 6, 7: 5 is gone; 8 is beyond the page, unknown.
-        assertEquals(listOf(5L), SyncMath.recalledWhileAway(listOf(1, 2, 3, 4, 5, 8), 3, listOf(4, 6, 7)))
-        assertEquals(emptyList<Long>(), SyncMath.recalledWhileAway(listOf(4, 5), 3, emptyList()))
-        assertEquals(emptyList<Long>(), SyncMath.recalledWhileAway(listOf(4, 5), 0, listOf(4)))
+    fun aPageAccountsForEverySeqItProvesGone() {
+        // Spec 8.2; the same table as the web client's.
+        fun gone(local: List<Long>, afterSeq: Long, page: List<Long>, full: Boolean, lastSeq: Long? = null, floor: Long = 0) =
+            SyncMath.seqsGone(local, afterSeq, page, full, lastSeq, floor)
+        assertEquals(listOf(3L), gone(listOf(1, 2, 3, 4), 1, listOf(2, 4), false))
+        assertEquals("beyond a full page nothing is known", emptyList<Long>(), gone(listOf(1, 2, 3, 4), 1, listOf(2), true))
+        assertEquals("a short page is the end of history", listOf(3L, 4L), gone(listOf(1, 2, 3, 4), 1, listOf(2), false))
+        assertEquals("asked after 3, got 4, 6, 7 of a full page: 8 is unknown", listOf(5L), gone(listOf(1, 2, 3, 4, 5, 8), 3, listOf(4, 6, 7), true))
+        assertEquals("the newest page proves nothing without lastSeq", emptyList<Long>(), gone(listOf(1, 2), 0, emptyList(), false))
+        // Seqs never received count too: otherwise they are holes for good (C3).
+        assertEquals("recalled while away, never received", listOf(3L, 4L), gone(listOf(1, 2), 2, listOf(5, 6), false))
+        assertEquals("within a full page as well", listOf(3L, 4L), gone(listOf(1, 2), 2, listOf(5, 6), true))
+        assertEquals("the newest page counts from its first seq: older history is only not loaded", listOf(8L), gone(emptyList(), 0, listOf(7, 9), true))
+        assertEquals("the newest page reaches lastSeq", listOf(8L, 10L, 11L), gone(emptyList(), 0, listOf(7, 9), true, lastSeq = 11))
+        assertEquals("a short page reaches lastSeq", listOf(4L, 5L), gone(listOf(1, 2), 2, listOf(3), false, lastSeq = 5))
+        assertEquals("a full page does not", emptyList<Long>(), gone(listOf(1, 2), 2, listOf(3, 4), true, lastSeq = 9))
+        assertEquals("an empty page: everything after afterSeq", listOf(3L, 4L), gone(listOf(1, 2), 2, emptyList(), false, lastSeq = 4))
+        assertEquals("nothing at or below the clear watermark", listOf(5L, 6L), gone(emptyList(), 0, emptyList(), false, lastSeq = 6, floor = 4))
+        assertEquals("too wide a gap: what is held only", listOf(3L, 20_005L), gone(listOf(3, 20_005), 2, listOf(20_010), false))
     }
 }
 

@@ -34,6 +34,8 @@ var KnownAdditions = map[string]Additions{
 // cannot have a golden case; the named test covers each instead.
 var AddedFrames = map[string]string{
 	"server custom_update": "server/custombroadcast_test.go",
+	"client sync_summary":  "server/sync_summary_test.go",
+	"server sync_summary":  "server/sync_summary_test.go",
 }
 
 // Strip removes the additions from the transcript's frames and counts what it

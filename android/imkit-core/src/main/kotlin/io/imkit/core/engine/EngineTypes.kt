@@ -76,8 +76,12 @@ public sealed interface ChatEvent {
     /** The host changed a friendship (`contact_sync`). */
     public data class ContactChanged(val what: String, val peerUid: String) : ChatEvent
 
-    /** A sync after login finished. */
-    public data class Synced(val conversations: Int, val failed: Int) : ChatEvent
+    /**
+     * A sync after login finished. [conversations] are up to date; [pulled]
+     * of them needed a `get` (with `sync_summary`, only those that changed,
+     * spec 8.1).
+     */
+    public data class Synced(val conversations: Int, val failed: Int, val pulled: Int = conversations) : ChatEvent
 
     /** The server logged in a different user than this engine belongs to; the client was stopped. */
     public data class WrongAccount(val expected: String, val actual: String) : ChatEvent

@@ -123,6 +123,50 @@ public suspend fun ImClient.history(
     )
 }
 
+/** One conversation in a `sync_summary` reply (spec 8.1). */
+public data class SyncTopic(
+    /** The canonical topic: `grp_…` or `p2p_…`. */
+    val topic: String,
+    /** The largest seq ever given out, recalled ones included; 0 without messages. */
+    val lastSeq: Long,
+    val isGroup: Boolean,
+    /** 0 when the conversation was never cleared. */
+    val clearVersion: Long,
+    val clearBeforeSeq: Long,
+    /** A direct chat's peer; null for a group. */
+    val peer: String?,
+    /** My own read position, as in `get`'s `readSeq` (spec 9.3); null when the server keeps none. */
+    val readSeq: Long?,
+    /** A group's latest read move by another member (Unix ms), only with read receipts on. */
+    val readsAt: Long?,
+)
+
+/** The capability that offers [syncSummary]. */
+public const val CAP_SYNC_SUMMARY: String = "sync-summary"
+
+/**
+ * `sync_summary` (spec 8.1): every conversation I am in, with what changed
+ * there. The server subscribes this connection to all of them first. Only
+ * when the session [has][ImSession.has] [CAP_SYNC_SUMMARY].
+ */
+public suspend fun ImClient.syncSummary(): List<SyncTopic> {
+    val reply = request(jsonObject { put("action", Actions.SYNC_SUMMARY) })
+    if (!reply.ok) throw ImException.Refused(reply)
+    return reply.frame.array("topics")?.objects()?.mapNotNull { t ->
+        val topic = t.nonEmptyString("topic") ?: return@mapNotNull null
+        SyncTopic(
+            topic = topic,
+            lastSeq = t.long("lastSeq") ?: 0,
+            isGroup = t.bool("isGroup") ?: false,
+            clearVersion = t.long("clearVersion") ?: 0,
+            clearBeforeSeq = t.long("clearBeforeSeq") ?: 0,
+            peer = t.nonEmptyString("peer"),
+            readSeq = t.long("readSeq")?.takeIf { it > 0 },
+            readsAt = t.long("readsAt")?.takeIf { it > 0 },
+        )
+    } ?: emptyList()
+}
+
 public suspend fun ImClient.subscribe(topic: String): Reply =
     request(jsonObject { put("action", Actions.SUB); put("topic", topic) })
 
