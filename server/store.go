@@ -42,19 +42,15 @@ func NewStore(dsn string) (*Store, error) {
 }
 
 // InitTables brings the schema up to date by applying the versioned migrations
-// of the core and of the installed modules (packages migrations and migrate).
-// The first migration of each set is the reference server's schema and is
-// idempotent, so a database that server created is adopted as it is.
-func (s *Store) InitTables() error {
-	var sets []migrate.Set
-	for _, load := range []func() (migrate.Set, error){migrations.Core, migrations.GroupJoin, migrations.E2ee} {
-		set, err := load()
-		if err != nil {
-			return err
-		}
-		sets = append(sets, set)
+// of the core and then of the installed modules (packages migrations and
+// migrate). The first migration of each set is the reference server's schema
+// and is idempotent, so a database that server created is adopted as it is.
+func (s *Store) InitTables(moduleSets ...migrate.Set) error {
+	core, err := migrations.Core()
+	if err != nil {
+		return err
 	}
-	applied, err := migrate.Apply(context.Background(), s.db, sets...)
+	applied, err := migrate.Apply(context.Background(), s.db, append([]migrate.Set{core}, moduleSets...)...)
 	if err != nil {
 		return err
 	}

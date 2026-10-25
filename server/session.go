@@ -23,7 +23,7 @@ func (h *Hub) Run() {
 			// unconditionally on every register, not just reconnects with a
 			// victim below: a brand new login for a uid that was never in a
 			// call is simply a no-op inside cancelPendingCallDisconnect.
-			h.cancelPendingCallDisconnect(client.uid)
+			h.mods.connected(h, client.uid)
 
 			// Disconnect() blocking-sends on h.unregister, and the ONLY
 			// receiver of that channel is this very Run loop. Calling it
@@ -112,7 +112,7 @@ func (h *Hub) Run() {
 				// comment for why the ~5-second-scale window this teardown/
 				// rebuild takes on some OEM skins can't be caught by the
 				// supersede check above alone.
-				h.scheduleForceEndCallForDisconnect(client.uid)
+				h.mods.disconnected(h, client.uid)
 			}
 		}
 	}
@@ -167,7 +167,7 @@ func (h *Hub) handleLogin(client *Client, msg *ClientMessage) {
 	logf("User logged in: %s -> %s", appUserID, imUID)
 	go h.deliverPendingClears(client)
 	go h.deliverPendingGroupEvents(client)
-	go h.deliverPendingE2eEnvelopes(client)
+	h.mods.afterLogin(h, client)
 }
 
 func (h *Hub) GetClientByUID(uid string) *Client {

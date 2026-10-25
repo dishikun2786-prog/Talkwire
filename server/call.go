@@ -293,7 +293,7 @@ func (h *Hub) settleCallAsync(callSessionID, reason string) {
 				logf("settleCallAsync: recovered panic for session=%s reason=%s: %v", callSessionID, reason, r)
 			}
 		}()
-		if err := h.host.SettleCallSession(callSessionID, reason); err != nil {
+		if err := h.callHost.SettleCallSession(callSessionID, reason); err != nil {
 			logf("[call] SettleCallSession(%s) failed for session=%s: %v", reason, callSessionID, err)
 		}
 	}()
@@ -377,7 +377,7 @@ func (h *Hub) handleCallInvite(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	ok, reason, err := h.host.CreateCallSession(call.id, call.callerAppUserID, call.calleeAppUserID, call.callType)
+	ok, reason, err := h.callHost.CreateCallSession(call.id, call.callerAppUserID, call.calleeAppUserID, call.callType)
 	if err != nil {
 		logf("[call] CreateCallSession failed: %v", err)
 		h.calls.remove(call)
@@ -521,7 +521,7 @@ func (h *Hub) handleCallAccept(client *Client, msg *ClientMessage) {
 		effectiveType = CallTypeVoice
 	}
 
-	answer, err := h.host.AnswerCallSession(call.id, effectiveType)
+	answer, err := h.callHost.AnswerCallSession(call.id, effectiveType)
 	if err != nil || !answer.Ok {
 		reason := "internal_error"
 		if err != nil {
@@ -731,7 +731,7 @@ func (h *Hub) handleCallUpgradeAccept(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	result, err := h.host.UpgradeCallSession(call.id, CallTypeVideo)
+	result, err := h.callHost.UpgradeCallSession(call.id, CallTypeVideo)
 	if err != nil {
 		logf("[call] UpgradeCallSession failed for session=%s: %v", call.id, err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionCallUpgradeAccept, CodeInternal, "升级失败，请重试"))
@@ -901,4 +901,40 @@ func (h *Hub) releaseCallSlotForBroadcastEnd(uid string) {
 	}
 	h.calls.remove(call)
 	logf("[call] session=%s call slot released via broadcast (roubao-initiated end)", call.id)
+}
+
+// callModule is voice and video call signalling. The host owns call records,
+// billing and media credentials; the module owns the call state machine.
+type callModule struct{}
+
+func (callModule) name() string { return "call" }
+
+func (callModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
+	return map[string]func(*Client, *ClientMessage){
+		ActionCallInvite:        h.handleCallInvite,
+		ActionCallAccept:        h.handleCallAccept,
+		ActionCallReject:        h.handleCallReject,
+		ActionCallCancel:        h.handleCallCancel,
+		ActionCallHangup:        h.handleCallHangup,
+		ActionCallUpgrade:       h.handleCallUpgrade,
+		ActionCallUpgradeAccept: h.handleCallUpgradeAccept,
+		ActionCallUpgradeReject: h.handleCallUpgradeReject,
+	}
+}
+
+// connected cancels the disconnect grace timer a previous disconnect of this
+// uid left pending; a no-op when there is none.
+func (callModule) connected(h *Hub, uid string) { h.cancelPendingCallDisconnect(uid) }
+
+// disconnected ends the uid's call after the grace period unless it
+// reconnects; see scheduleForceEndCallForDisconnect.
+func (callModule) disconnected(h *Hub, uid string) { h.scheduleForceEndCallForDisconnect(uid) }
+
+// hostBroadcast releases the busy slot of a call the host ended on its own
+// initiative (credit exhausted, maximum duration); see
+// releaseCallSlotForBroadcastEnd.
+func (callModule) hostBroadcast(h *Hub, uid, payloadType string) {
+	if payloadType == "call_ended" {
+		h.releaseCallSlotForBroadcastEnd(uid)
+	}
 }

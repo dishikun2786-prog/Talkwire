@@ -12,7 +12,8 @@
 //
 // relations is "allow-all" (the default: anyone may message anyone) or
 // "whitelist" (only the listed pairs, in either order). There is no media
-// storage to clean up, and the call and group-AI modules are not available.
+// storage to clean up. The host offers neither host.CallSessions nor
+// host.GroupAI, so the call and group-AI modules cannot be installed.
 package standalone
 
 import (
@@ -131,32 +132,4 @@ func doc(raw json.RawMessage) (json.RawMessage, error) {
 		return nil, host.ErrNoConfig
 	}
 	return raw, nil
-}
-
-// ErrUnavailable is returned for the calls and group-AI modules, which need a
-// host to issue media credentials and run the assistant.
-var ErrUnavailable = errors.New("standalone: not available without a host")
-
-// CreateCallSession refuses every call: there is no host to bill it or to
-// issue media credentials.
-func (h *Host) CreateCallSession(string, string, string, string) (bool, string, error) {
-	return false, "unavailable", nil
-}
-
-// AnswerCallSession is never reached, since no call can be created.
-func (h *Host) AnswerCallSession(string, string) (host.AnswerCallSessionResult, error) {
-	return host.AnswerCallSessionResult{}, ErrUnavailable
-}
-
-// SettleCallSession has nothing to record.
-func (h *Host) SettleCallSession(string, string) error { return nil }
-
-// UpgradeCallSession is never reached, since no call can be created.
-func (h *Host) UpgradeCallSession(string, string) (host.UpgradeCallSessionResult, error) {
-	return host.UpgradeCallSessionResult{}, ErrUnavailable
-}
-
-// AskGroupAiQa always declines.
-func (h *Host) AskGroupAiQa(string, string, string, string, []string, []string) (string, bool, string) {
-	return "", false, "unavailable"
 }

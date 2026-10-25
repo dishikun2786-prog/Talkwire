@@ -3,7 +3,9 @@
 package main
 
 import (
+	"database/sql"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -257,7 +259,7 @@ func (h *Hub) dispatchAiQaTask(topic, askerUID, question string) {
 		return
 	}
 
-	answer, ok, reason := h.host.AskGroupAiQa(topic, askerUID, question, ownerAppUserID, settings.AiKbIds, settings.AiDocIds)
+	answer, ok, reason := h.aiHost.AskGroupAiQa(topic, askerUID, question, ownerAppUserID, settings.AiKbIds, settings.AiDocIds)
 	if !ok {
 		h.deliverAiFallback(topic, aiQaFailureMessage(reason))
 		return
@@ -295,3 +297,35 @@ func aiQaFailureMessage(reason string) string {
 		return "小桃子正在整理资料，请稍后再问"
 	}
 }
+
+// groupAiModule answers questions asked in a group by mentioning the
+// assistant. It reacts to new messages through the post-ack hook, the same
+// way any bot would.
+type groupAiModule struct{}
+
+func (groupAiModule) name() string { return "groupai" }
+
+func (groupAiModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
+	return map[string]func(*Client, *ClientMessage){
+		ActionGetGroupAiSettings:    h.handleGetGroupAiSettings,
+		ActionUpdateGroupAiSettings: h.handleUpdateGroupAiSettings,
+	}
+}
+
+func (groupAiModule) afterAck(h *Hub, c *Client, msg *ClientMessage, topic string) {
+	// @小桃子 group AI QA detection. This is the ONLY place that ever calls
+	// dispatchAiQaTask from message content — deliverMessage itself (used by
+	// forwards and by the AI's own replies) never scans content for mentions.
+	// That's a structural isolation, not a runtime senderKind check: an AI
+	// reply, or a forwarded copy of one, physically cannot re-trigger this
+	// because it never passes through handlePub (and so this hook) at all (see plan §8.3/§9.2.3).
+	if strings.HasPrefix(topic, "grp_") && hasValidAiMention(msg.Content) {
+		go h.dispatchAiQaTask(topic, c.uid, msg.Content)
+	}
+}
+
+func (groupAiModule) disbandTx(*sql.Tx, string) error { return nil }
+
+// disbanded drops the settings cached for the group. F-21: the TTL is 60s,
+// and a stale entry would carry the dead group's knowledge-base binding.
+func (groupAiModule) disbanded(h *Hub, topic string) { h.invalidateGroupAiSettingsCache(topic) }

@@ -8,14 +8,12 @@ import (
 	"example.com/imkit/server/host"
 )
 
-// hostAPI is what the hub asks of the host: the core contract plus the host
-// side of the call and group-AI modules (they move out with their modules).
+// hostAPI is what the core asks of the host. Modules hold the host
+// capabilities they need themselves (callHost, aiHost).
 type hostAPI interface {
 	host.Relations
 	host.Profiles
 	host.Media
-	host.CallSessions
-	host.GroupAI
 }
 
 // Hub maintains the set of active clients and routes messages between them
@@ -23,7 +21,10 @@ type Hub struct {
 	store      *Store
 	auth       host.Identity
 	fcm        *ServiceAccountKey            // nil disables push notifications
-	host       hostAPI                       // friendship checks, profiles, media and the modules' host calls
+	host       hostAPI                       // friendship checks, profiles and media
+	mods       *modules                      // installed optional modules
+	callHost   host.CallSessions             // set by the call module
+	aiHost     host.GroupAI                  // set by the group AI module
 	clients    map[string]*Client            // uid -> client (one active session per user)
 	topics     map[string]map[string]*Client // topic -> uid -> client, for O(topic size) broadcast fan-out
 	mu         sync.RWMutex
@@ -150,62 +151,15 @@ func (h *Hub) ProcessMessage(client *Client, msg *ClientMessage) {
 		h.handleForwardBundle(client, msg)
 	case ActionForwardBroadcast:
 		h.handleForwardBroadcast(client, msg)
-	case ActionGetGroupAiSettings:
-		h.handleGetGroupAiSettings(client, msg)
-	case ActionUpdateGroupAiSettings:
-		h.handleUpdateGroupAiSettings(client, msg)
 	case ActionAckTopicCleared:
 		h.handleAckTopicCleared(client, msg)
 	case actionAckGroupEvent:
 		h.handleAckPendingGroupEvent(client, msg)
-	case ActionGroupQrToken:
-		h.handleGroupQrToken(client, msg)
-	case ActionGroupQrResolve:
-		h.handleGroupQrResolve(client, msg)
-	case ActionGroupJoin:
-		h.handleGroupJoin(client, msg)
-	case ActionGroupJoinRequestsList:
-		h.handleGroupJoinRequestsList(client, msg)
-	case ActionGroupJoinReview:
-		h.handleGroupJoinReview(client, msg)
-	case ActionGetGroupJoinSettings:
-		h.handleGetGroupJoinSettings(client, msg)
-	case ActionUpdateGroupJoinSettings:
-		h.handleUpdateGroupJoinSettings(client, msg)
-	case ActionE2ePublishBundle:
-		h.handleE2ePublishBundle(client, msg)
-	case ActionE2eFetchBundle:
-		h.handleE2eFetchBundle(client, msg)
-	case ActionE2eOtpkCount:
-		h.handleE2eOtpkCount(client, msg)
-	case ActionE2eSend:
-		h.handleE2eSend(client, msg)
-	case ActionE2eTerminate:
-		h.handleE2eTerminate(client, msg)
-	case ActionE2eClear:
-		h.handleE2eClear(client, msg)
-	case ActionE2eGroupClear:
-		h.handleE2eGroupClear(client, msg)
-	case ActionE2eSetGroupEncrypted:
-		h.handleE2eSetGroupEncrypted(client, msg)
-	case ActionCallInvite:
-		h.handleCallInvite(client, msg)
-	case ActionCallAccept:
-		h.handleCallAccept(client, msg)
-	case ActionCallReject:
-		h.handleCallReject(client, msg)
-	case ActionCallCancel:
-		h.handleCallCancel(client, msg)
-	case ActionCallHangup:
-		h.handleCallHangup(client, msg)
-	case ActionCallUpgrade:
-		h.handleCallUpgrade(client, msg)
-	case ActionCallUpgradeAccept:
-		h.handleCallUpgradeAccept(client, msg)
-	case ActionCallUpgradeReject:
-		h.handleCallUpgradeReject(client, msg)
 	default:
-		client.SendJSON(ErrorResponse(msg.Id, msg.Action, CodeBadReq, "unknown action: "+msg.Action))
+		// Module actions; a missing module answers "module not enabled".
+		if !h.mods.dispatch(client, msg) {
+			client.SendJSON(ErrorResponse(msg.Id, msg.Action, CodeBadReq, "unknown action: "+msg.Action))
+		}
 	}
 }
 

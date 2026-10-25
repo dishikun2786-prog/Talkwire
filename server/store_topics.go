@@ -443,7 +443,9 @@ func (s *Store) TransferGroupOwnership(topic, fromUID, toUID string) error {
 // Deliberately NOT deleting the im_topics row itself: it also carries
 // last_seq, and dropping it would let GetNextSeq restart this topic's seq
 // series at 1 while clients still hold cached messages at higher seqs.
-func (s *Store) DisbandGroup(topic string) error {
+// moduleCleanups run inside the transaction, right after the group's settings
+// row is deleted (the scan-to-join module removes its tokens and requests).
+func (s *Store) DisbandGroup(topic string, moduleCleanups ...func(*sql.Tx, string) error) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("disband group: %w", err)
@@ -458,16 +460,10 @@ func (s *Store) DisbandGroup(topic string) error {
 	if _, err := tx.Exec(`DELETE FROM im_group_settings WHERE topic = $1`, topic); err != nil {
 		return fmt.Errorf("disband group (settings): %w", err)
 	}
-	// Same F-21 shape as im_group_settings above: im_group_invite_tokens' and
-	// im_group_join_requests' ON DELETE CASCADE / lack thereof both hang off
-	// im_topics(topic), which this function deliberately never deletes -- so
-	// both must be cleaned up explicitly or a disbanded group's QR token
-	// stays scannable and its stale join requests stay listable forever.
-	if _, err := tx.Exec(`DELETE FROM im_group_invite_tokens WHERE topic = $1`, topic); err != nil {
-		return fmt.Errorf("disband group (invite tokens): %w", err)
-	}
-	if _, err := tx.Exec(`DELETE FROM im_group_join_requests WHERE topic = $1`, topic); err != nil {
-		return fmt.Errorf("disband group (join requests): %w", err)
+	for _, cleanup := range moduleCleanups {
+		if err := cleanup(tx, topic); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(`UPDATE im_topics SET owner_uid = '', updated_at = NOW() WHERE topic = $1`, topic); err != nil {
 		return fmt.Errorf("disband group (clear owner): %w", err)

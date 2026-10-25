@@ -3,7 +3,11 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
+	"example.com/imkit/server/migrate"
+	"example.com/imkit/server/migrations"
+	"fmt"
 	"time"
 )
 
@@ -419,3 +423,40 @@ func (h *Hub) pushJoinFCM(uids []string, groupName, body, topic string) {
 		}
 	}
 }
+
+// groupJoinModule is scan-to-join: QR tokens, join requests and their review.
+type groupJoinModule struct{}
+
+func (groupJoinModule) name() string { return "groupjoin" }
+
+func (groupJoinModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
+	return map[string]func(*Client, *ClientMessage){
+		ActionGroupQrToken:            h.handleGroupQrToken,
+		ActionGroupQrResolve:          h.handleGroupQrResolve,
+		ActionGroupJoin:               h.handleGroupJoin,
+		ActionGroupJoinRequestsList:   h.handleGroupJoinRequestsList,
+		ActionGroupJoinReview:         h.handleGroupJoinReview,
+		ActionGetGroupJoinSettings:    h.handleGetGroupJoinSettings,
+		ActionUpdateGroupJoinSettings: h.handleUpdateGroupJoinSettings,
+	}
+}
+
+func (groupJoinModule) migrations() (migrate.Set, error) { return migrations.GroupJoin() }
+
+// disbandTx runs inside the disband transaction. Same F-21 shape as
+// im_group_settings: im_group_invite_tokens' and im_group_join_requests' ON
+// DELETE CASCADE / lack thereof both hang off im_topics(topic), which a
+// disband deliberately never deletes -- so both must be cleaned up explicitly
+// or a disbanded group's QR token stays scannable and its stale join requests
+// stay listable forever.
+func (groupJoinModule) disbandTx(tx *sql.Tx, topic string) error {
+	if _, err := tx.Exec(`DELETE FROM im_group_invite_tokens WHERE topic = $1`, topic); err != nil {
+		return fmt.Errorf("disband group (invite tokens): %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM im_group_join_requests WHERE topic = $1`, topic); err != nil {
+		return fmt.Errorf("disband group (join requests): %w", err)
+	}
+	return nil
+}
+
+func (groupJoinModule) disbanded(*Hub, string) {}

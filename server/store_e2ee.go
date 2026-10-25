@@ -273,3 +273,11 @@ func (s *Store) StartE2eEnvelopeReaper() {
 		}
 	}
 }
+
+// CountEncryptedGroups counts the groups marked encrypted. im_topics.encrypted
+// belongs to the core schema, so this works with the e2ee module absent.
+func (s *Store) CountEncryptedGroups() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM im_topics WHERE is_group AND encrypted`).Scan(&n)
+	return n, err
+}

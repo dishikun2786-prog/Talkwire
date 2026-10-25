@@ -85,12 +85,15 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestModulesUnavailable(t *testing.T) {
-	h, _ := New(Options{})
-	if ok, reason, err := h.CreateCallSession("id", "a", "b", "voice"); ok || reason != "unavailable" || err != nil {
-		t.Errorf("call created: %v %q %v", ok, reason, err)
+func TestNoModuleCapabilities(t *testing.T) {
+	// Calls need a host to bill them and issue media credentials; group AI
+	// needs a host to run the assistant. Without those capabilities the
+	// server does not install the modules at all.
+	var h any = &Host{}
+	if _, ok := h.(host.CallSessions); ok {
+		t.Error("standalone host claims to manage call sessions")
 	}
-	if _, ok, reason := h.AskGroupAiQa("grp", "uid", "q", "a", nil, nil); ok || reason != "unavailable" {
-		t.Errorf("AI answered: %v %q", ok, reason)
+	if _, ok := h.(host.GroupAI); ok {
+		t.Error("standalone host claims to answer group AI questions")
 	}
 }

@@ -4,6 +4,9 @@ package main
 
 import (
 	"errors"
+	"example.com/imkit/server/host"
+	"example.com/imkit/server/migrate"
+	"example.com/imkit/server/migrations"
 	"strconv"
 	"strings"
 	"time"
@@ -466,4 +469,106 @@ func (h *Hub) handleE2eSetGroupEncrypted(client *Client, msg *ClientMessage) {
 		E2eGroupEncrypted: true, Reason: "owner_enabled",
 	}, "")
 	logf("[E2EE] %s enabled encryption for group %s", client.uid, msg.Topic)
+}
+
+// e2eeModule is end-to-end encryption: the server relays opaque envelopes and
+// key bundles it cannot read, and keeps plaintext out of encrypted groups.
+type e2eeModule struct{}
+
+func (e2eeModule) name() string { return "e2ee" }
+
+func (e2eeModule) actions(h *Hub) map[string]func(*Client, *ClientMessage) {
+	return map[string]func(*Client, *ClientMessage){
+		ActionE2ePublishBundle:     h.handleE2ePublishBundle,
+		ActionE2eFetchBundle:       h.handleE2eFetchBundle,
+		ActionE2eOtpkCount:         h.handleE2eOtpkCount,
+		ActionE2eSend:              h.handleE2eSend,
+		ActionE2eTerminate:         h.handleE2eTerminate,
+		ActionE2eClear:             h.handleE2eClear,
+		ActionE2eGroupClear:        h.handleE2eGroupClear,
+		ActionE2eSetGroupEncrypted: h.handleE2eSetGroupEncrypted,
+	}
+}
+
+func (e2eeModule) migrations() (migrate.Set, error) { return migrations.E2ee() }
+
+func (e2eeModule) start(h *Hub, cfg host.Config) {
+	// Encrypted payloads queued for offline recipients expire; see
+	// Store.StartE2eEnvelopeReaper.
+	go h.store.StartE2eEnvelopeReaper()
+	// Same rationale as the runtime-config refresh, separate cycle — see
+	// E2eeRuntimeConfig's doc comment for why it isn't folded into that one.
+	go StartE2eeConfigRefresh(cfg, runtimeConfigRefreshInterval)
+}
+
+func (e2eeModule) afterLogin(h *Hub, c *Client) { h.deliverPendingE2eEnvelopes(c) }
+
+func (e2eeModule) beforeStore(h *Hub, c *Client, msg *ClientMessage, topic string) bool {
+	// Encrypted groups must never accept a plain pub: the whole point of
+	// e2e_set_group_encrypted is that from that moment on, every member's
+	// client believes this topic's content is unreadable server-side, and a
+	// plaintext pub landing in im_messages — client bug, stale/unencrypted
+	// build, or a deliberately malicious client — would be a silent breach
+	// of that belief for everyone else in the group. 1:1 encrypted threads
+	// need no equivalent check here: they live under a wholly separate
+	// e2e_ topic namespace that resolveP2PTopic never produces, so there is
+	// no shared topic id for a plain pub to collide with in the first place.
+	if strings.HasPrefix(topic, "grp_") {
+		if encrypted, err := h.store.IsGroupEncrypted(topic); err == nil && encrypted {
+			c.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeConflict, "group_encrypted"))
+			return false
+		}
+	}
+	return true
+}
+
+func (e2eeModule) afterStore(h *Hub, c *Client, msg *ClientMessage, topic string, seq int) bool {
+	// TOCTOU close: the check in beforeStore and this write are not one atomic
+	// operation, so a concurrent e2e_set_group_encrypted commit in that
+	// narrow window would have let a plaintext message land in im_messages
+	// for a group everyone now believes is encrypted. Re-checking a SECOND
+	// time right after the write, and self-correcting via the existing
+	// recall path if the race actually happened, turns "silently and
+	// permanently wrong" into "corrected within milliseconds and the sender
+	// is told to retry" — not a perfect atomic guarantee (that would need
+	// deliverMessage itself, shared by forwards/AI replies/every plain send,
+	// to take a per-topic advisory lock spanning both the check and the
+	// write), but the actual exposure window shrinks from "indefinite" to
+	// "this one request's own round trip," which for a group message that
+	// literally just got flagged encrypted moments ago is effectively closed.
+	if strings.HasPrefix(topic, "grp_") {
+		if encrypted, err := h.store.IsGroupEncrypted(topic); err == nil && encrypted {
+			if _, _, delErr := h.store.SoftDeleteMessage(topic, seq, c.uid); delErr != nil {
+				logf("handlePub: TOCTOU self-correction failed to recall seq=%d topic=%s: %v", seq, topic, delErr)
+			}
+			c.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeConflict, "group_encrypted"))
+			return false
+		}
+	}
+	return true
+}
+
+// memberRemoved runs for a kick ("member_removed") and for a voluntary leave
+// ("member_left", the leaver excluded): a leave removes a Sender Key holder
+// exactly the same way a kick does.
+func (e2eeModule) memberRemoved(h *Hub, topic, by, reason, exclude string) {
+	// A Sender Key is a shared symmetric chain every current member holds —
+	// removing a member from an encrypted group does nothing on its own to
+	// stop them decrypting messages sent with a chain they already have.
+	// Reusing ActionE2eSetGroupEncrypted as a "your sender key material is
+	// stale, re-derive and re-distribute a fresh one" signal (rather than a
+	// new action) keeps this idempotent from the client's point of view: it
+	// is the same "group's encryption state just advanced" event whether
+	// the reason was the initial owner toggle or a subsequent membership
+	// change, and a client that ignores the distinction (e.g. re-runs
+	// GroupSessionBuilder.create + re-distributes unconditionally on either)
+	// behaves correctly either way. Only remaining members need this — the
+	// kicked user already got ActionGrpDisband above and no longer has (or
+	// should keep) this group's key material at all.
+	if encrypted, encErr := h.store.IsGroupEncrypted(topic); encErr == nil && encrypted {
+		h.BroadcastToTopic(topic, &ServerMessage{
+			Action: ActionE2eSetGroupEncrypted, Topic: topic, From: by,
+			E2eGroupEncrypted: true, Reason: reason,
+		}, exclude)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -25,6 +26,10 @@ type Config struct {
 	// StandaloneConfig is the standalone host's JSON file. Empty means
 	// allow-all relations, no profiles and built-in configuration.
 	StandaloneConfig string
+	// Modules are the optional modules to install. Unless ModulesExplicit,
+	// it is every module and those the host cannot support are skipped.
+	Modules         []string
+	ModulesExplicit bool
 }
 
 // LoadConfig builds the config from defaults plus environment overrides.
@@ -86,6 +91,20 @@ func LoadConfig() *Config {
 		cfg.HostMode = v
 	}
 	cfg.StandaloneConfig = os.Getenv("IMKIT_STANDALONE_CONFIG")
+	// IMKIT_MODULES: a comma-separated list, or "none". Unset installs every
+	// module the host supports.
+	cfg.Modules = moduleNames()
+	if v, ok := os.LookupEnv("IMKIT_MODULES"); ok {
+		cfg.ModulesExplicit = true
+		cfg.Modules = nil
+		if strings.TrimSpace(v) != "none" {
+			for _, name := range strings.Split(v, ",") {
+				if name = strings.TrimSpace(name); name != "" {
+					cfg.Modules = append(cfg.Modules, name)
+				}
+			}
+		}
+	}
 	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
 		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
 	}

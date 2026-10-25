@@ -58,20 +58,10 @@ func (h *Hub) handlePub(client *Client, msg *ClientMessage) {
 	if !isUserUID(topic) && !h.ensureTopicMember(client, msg, ActionPub, actualTopic) {
 		return
 	}
-	// Encrypted groups must never accept a plain pub: the whole point of
-	// e2e_set_group_encrypted is that from that moment on, every member's
-	// client believes this topic's content is unreadable server-side, and a
-	// plaintext pub landing in im_messages — client bug, stale/unencrypted
-	// build, or a deliberately malicious client — would be a silent breach
-	// of that belief for everyone else in the group. 1:1 encrypted threads
-	// need no equivalent check here: they live under a wholly separate
-	// e2e_ topic namespace that resolveP2PTopic never produces, so there is
-	// no shared topic id for a plain pub to collide with in the first place.
-	if strings.HasPrefix(actualTopic, "grp_") {
-		if encrypted, err := h.store.IsGroupEncrypted(actualTopic); err == nil && encrypted {
-			client.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeConflict, "group_encrypted"))
-			return
-		}
+	// A module may refuse the pub before it is stored (E2EE: an encrypted
+	// group never accepts plaintext). It sends the error reply itself.
+	if !h.mods.beforeStore(h, client, msg, actualTopic) {
+		return
 	}
 	if !client.IsSubscribed(actualTopic) {
 		client.Subscribe(actualTopic)
@@ -89,27 +79,11 @@ func (h *Hub) handlePub(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	// TOCTOU close: the check at line ~612 and this write are not one atomic
-	// operation, so a concurrent e2e_set_group_encrypted commit in that
-	// narrow window would have let a plaintext message land in im_messages
-	// for a group everyone now believes is encrypted. Re-checking a SECOND
-	// time right after the write, and self-correcting via the existing
-	// recall path if the race actually happened, turns "silently and
-	// permanently wrong" into "corrected within milliseconds and the sender
-	// is told to retry" — not a perfect atomic guarantee (that would need
-	// deliverMessage itself, shared by forwards/AI replies/every plain send,
-	// to take a per-topic advisory lock spanning both the check and the
-	// write), but the actual exposure window shrinks from "indefinite" to
-	// "this one request's own round trip," which for a group message that
-	// literally just got flagged encrypted moments ago is effectively closed.
-	if !duplicate && strings.HasPrefix(actualTopic, "grp_") {
-		if encrypted, err := h.store.IsGroupEncrypted(actualTopic); err == nil && encrypted {
-			if _, _, delErr := h.store.SoftDeleteMessage(actualTopic, seq, client.uid); delErr != nil {
-				logf("handlePub: TOCTOU self-correction failed to recall seq=%d topic=%s: %v", seq, actualTopic, delErr)
-			}
-			client.SendJSON(ErrorResponse(msg.Id, ActionPub, CodeConflict, "group_encrypted"))
-			return
-		}
+	// A module may withdraw a message it finds should not have been stored
+	// (E2EE: the group became encrypted while this pub was in flight). It
+	// corrects the store and replies itself.
+	if !duplicate && !h.mods.afterStore(h, client, msg, actualTopic, seq) {
+		return
 	}
 
 	client.SendJSON(&ServerMessage{
@@ -127,15 +101,8 @@ func (h *Hub) handlePub(client *Client, msg *ClientMessage) {
 		return
 	}
 
-	// @小桃子 group AI QA detection. This is the ONLY place that ever calls
-	// dispatchAiQaTask from message content — deliverMessage itself (used by
-	// forwards and by the AI's own replies) never scans content for mentions.
-	// That's a structural isolation, not a runtime senderKind check: an AI
-	// reply, or a forwarded copy of one, physically cannot re-trigger this
-	// because it never passes through handlePub at all (see plan §8.3/§9.2.3).
-	if strings.HasPrefix(actualTopic, "grp_") && hasValidAiMention(msg.Content) {
-		go h.dispatchAiQaTask(actualTopic, client.uid, msg.Content)
-	}
+	// Modules see every new message after its ack (group AI answers mentions).
+	h.mods.afterAck(h, client, msg, actualTopic)
 }
 
 // ForwardMeta carries forward provenance to attach to a newly delivered

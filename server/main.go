@@ -36,11 +36,6 @@ func main() {
 	}
 	defer store.Close()
 
-	// Initialize tables
-	if err := store.InitTables(); err != nil {
-		log.Fatalf("Failed to initialize tables: %v", err)
-	}
-
 	// End-user and internal tokens are signed with the secret shared with the host.
 	auth := hmacjwt.New(cfg.JWTSecret)
 
@@ -68,8 +63,27 @@ func main() {
 		log.Fatalf("Host setup failed: %v", err)
 	}
 
-	// Initialize hub
+	// Initialize hub and the optional modules. Modules are installed before
+	// the schema is migrated: only an installed module's tables are created.
 	hub := NewHub(store, auth, fcmKey, hostImpl)
+	mods, err := installModules(hub, hostImpl, cfg.Modules, cfg.ModulesExplicit)
+	if err != nil {
+		log.Fatalf("Module setup failed: %v", err)
+	}
+	log.Printf("Modules: %v", mods.names())
+
+	// Initialize tables
+	moduleSets, err := mods.migrationSets()
+	if err != nil {
+		log.Fatalf("Failed to load module migrations: %v", err)
+	}
+	if err := store.InitTables(moduleSets...); err != nil {
+		log.Fatalf("Failed to initialize tables: %v", err)
+	}
+	if !mods.has("e2ee") {
+		warnEncryptedGroupsWithoutE2ee(store)
+	}
+
 	go hub.Run()
 	// Presence transitions are fanned out by a single serializing worker, not
 	// by one goroutine per event — see hub.runPresenceWorker for why the
@@ -84,17 +98,14 @@ func main() {
 	go store.StartPendingClearsReaper()
 	// Same for the group membership/role event queue.
 	go store.StartPendingGroupEventsReaper()
-	// Same shape again for encrypted payloads queued for offline delivery.
-	go store.StartE2eEnvelopeReaper()
 	// Keeps the group-chat limits (member cap, message length, forward
 	// batch sizes, ...) in sync with the main server's config registry.
 	// Started after the hub is already running: the service is fully
 	// functional on the built-in defaults, so a slow or unreachable main
 	// server must not hold up accepting connections.
 	go StartRuntimeConfigRefresh(hostImpl, runtimeConfigRefreshInterval)
-	// Same rationale, separate cycle — see E2eeRuntimeConfig's doc comment
-	// for why this isn't folded into the group-chat one above.
-	go StartE2eeConfigRefresh(hostImpl, runtimeConfigRefreshInterval)
+	// Module background work (the E2EE envelope reaper and its config refresh).
+	mods.start(hub, hostImpl)
 
 	// Initialize WebSocket handler
 	wsHandler := NewWebSocketHandler(hub)
@@ -170,4 +181,18 @@ func newHost(cfg *Config) (hostWithConfig, error) {
 	}
 	log.Printf("Host: %s", cfg.MainAPIBaseURL)
 	return httpadapter.New(cfg.MainAPIBaseURL, cfg.JWTSecret), nil
+}
+
+// warnEncryptedGroupsWithoutE2ee says so when groups were made encrypted
+// under an earlier configuration: without the module nothing keeps plaintext
+// out of them any more.
+func warnEncryptedGroupsWithoutE2ee(store *Store) {
+	n, err := store.CountEncryptedGroups()
+	if err != nil {
+		logf("checking for encrypted groups failed: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("WARNING: %d group(s) are marked encrypted but the e2ee module is not installed; their members' clients still expect encryption", n)
+	}
 }

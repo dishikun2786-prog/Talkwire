@@ -513,8 +513,8 @@ func (h *WebSocketHandler) InternalCallBroadcast(w http.ResponseWriter, r *http.
 	var typed struct {
 		Type string `json:"type"`
 	}
-	if json.Unmarshal(req.Payload, &typed) == nil && typed.Type == "call_ended" {
-		h.hub.releaseCallSlotForBroadcastEnd(targetUID)
+	if json.Unmarshal(req.Payload, &typed) == nil {
+		h.hub.mods.hostBroadcast(h.hub, targetUID, typed.Type)
 	}
 	writeInternalJSON(w, http.StatusOK, map[string]bool{"ok": true, "delivered": delivered})
 }

@@ -285,25 +285,7 @@ func (h *Hub) handleKick(client *Client, msg *ClientMessage) {
 	// refreshes immediately instead of showing the kicked user until reload.
 	h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, From: client.uid}, "")
 
-	// A Sender Key is a shared symmetric chain every current member holds —
-	// removing a member from an encrypted group does nothing on its own to
-	// stop them decrypting messages sent with a chain they already have.
-	// Reusing ActionE2eSetGroupEncrypted as a "your sender key material is
-	// stale, re-derive and re-distribute a fresh one" signal (rather than a
-	// new action) keeps this idempotent from the client's point of view: it
-	// is the same "group's encryption state just advanced" event whether
-	// the reason was the initial owner toggle or a subsequent membership
-	// change, and a client that ignores the distinction (e.g. re-runs
-	// GroupSessionBuilder.create + re-distributes unconditionally on either)
-	// behaves correctly either way. Only remaining members need this — the
-	// kicked user already got ActionGrpDisband above and no longer has (or
-	// should keep) this group's key material at all.
-	if encrypted, encErr := h.store.IsGroupEncrypted(msg.Topic); encErr == nil && encrypted {
-		h.BroadcastToTopic(msg.Topic, &ServerMessage{
-			Action: ActionE2eSetGroupEncrypted, Topic: msg.Topic, From: client.uid,
-			E2eGroupEncrypted: true, Reason: "member_removed",
-		}, "")
-	}
+	h.mods.memberRemoved(h, msg.Topic, client.uid, "member_removed", "")
 }
 
 func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
@@ -353,7 +335,7 @@ func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 		// membership accounting is ever off by one, remaining members now
 		// get told the group is gone instead of silently losing it.
 		h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpDisband, Topic: msg.Topic, From: client.uid}, client.uid)
-		if err := h.store.DisbandGroup(msg.Topic); err != nil {
+		if err := h.store.DisbandGroup(msg.Topic, h.mods.disbandTx()...); err != nil {
 			client.SendJSON(ErrorResponse(msg.Id, ActionLeaveGrp, CodeInternal, "leave failed"))
 			return
 		}
@@ -373,15 +355,7 @@ func (h *Hub) handleLeaveGrp(client *Client, msg *ClientMessage) {
 	// unlike the owner-leaves-last case above there ARE other people who
 	// need to hear about it — mirrors handleKick's identical nudge.
 	h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpSync, Topic: msg.Topic, From: client.uid}, client.uid)
-	// Same sender-key-rotation signal as handleKick — a voluntary leave
-	// removes a Sender Key holder exactly the same way a kick does. See the
-	// comment there for why this reuses ActionE2eSetGroupEncrypted.
-	if encrypted, encErr := h.store.IsGroupEncrypted(msg.Topic); encErr == nil && encrypted {
-		h.BroadcastToTopic(msg.Topic, &ServerMessage{
-			Action: ActionE2eSetGroupEncrypted, Topic: msg.Topic, From: client.uid,
-			E2eGroupEncrypted: true, Reason: "member_left",
-		}, client.uid)
-	}
+	h.mods.memberRemoved(h, msg.Topic, client.uid, "member_left", client.uid)
 }
 
 func (h *Hub) handleTransferOwner(client *Client, msg *ClientMessage) {
@@ -562,7 +536,7 @@ func (h *Hub) handleDisbandGrp(client *Client, msg *ClientMessage) {
 	// Broadcast before removing membership rows — BroadcastToTopic only
 	// reaches clients whose in-memory subscription is still intact.
 	h.BroadcastToTopic(msg.Topic, &ServerMessage{Action: ActionGrpDisband, Topic: msg.Topic, From: client.uid}, "")
-	if err := h.store.DisbandGroup(msg.Topic); err != nil {
+	if err := h.store.DisbandGroup(msg.Topic, h.mods.disbandTx()...); err != nil {
 		logf("DisbandGroup failed: %v", err)
 		client.SendJSON(ErrorResponse(msg.Id, ActionDisbandGrp, CodeInternal, "disband failed"))
 		return
@@ -570,7 +544,7 @@ func (h *Hub) handleDisbandGrp(client *Client, msg *ClientMessage) {
 	// F-21：群没了，两份以 topic 为 key 的进程内缓存必须一起失效。AI 问答设置
 	// 缓存 TTL 是 60s：不清的话这个 topic 万一被后续逻辑再次触及，读到的还是
 	// 已解散那个群的知识库绑定。群名缓存同理。
-	h.invalidateGroupAiSettingsCache(msg.Topic)
+	h.mods.disbanded(h, msg.Topic)
 	h.invalidateGroupNameCache(msg.Topic)
 	client.Unsubscribe(msg.Topic)
 	client.SendJSON(&ServerMessage{Id: msg.Id, Action: ActionDisbandGrp, Code: CodeOK, Topic: msg.Topic})

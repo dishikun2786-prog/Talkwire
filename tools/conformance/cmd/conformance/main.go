@@ -37,6 +37,8 @@ type options struct {
 	logDir    string
 	// standalone runs the server with no host process (IMKIT_HOST_MODE=standalone).
 	standalone bool
+	// env is extra environment for the server, e.g. IMKIT_MODULES=e2ee.
+	env envList
 }
 
 func main() {
@@ -57,6 +59,7 @@ func main() {
 	fs.StringVar(&o.only, "only", "", "run only scenarios whose name contains this")
 	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
 	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
+	fs.Var(&o.env, "env", "extra server environment KEY=VALUE (repeatable), e.g. -env IMKIT_MODULES=none")
 	fs.BoolVar(&o.standalone, "standalone", false, "check: run the server without a host (friends, profiles and runtime config from the scenario); host calls are not compared")
 	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
 	golden := fs.String("golden", "../../contract/protocol/transcripts", "check: golden directory")
@@ -192,6 +195,7 @@ func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Tran
 		HostURL: fmt.Sprintf("http://127.0.0.1:%d", o.hostPort),
 		LogPath: filepath.Join(o.logDir, fileName(sc.Name)+".log"),
 	}
+	cfg.Env = append(cfg.Env, o.env...)
 	if o.standalone {
 		path, err := writeStandaloneConfig(o.logDir, sc)
 		if err != nil {
@@ -200,7 +204,7 @@ func runOne(o options, host *fakehost.Host, sc *harness.Scenario) (*harness.Tran
 		// Nothing listens on port 1: a host call the server should not make
 		// fails loudly instead of being answered by the fake host.
 		cfg.HostURL = "http://127.0.0.1:1"
-		cfg.Env = []string{"IMKIT_HOST_MODE=standalone", "IMKIT_STANDALONE_CONFIG=" + path}
+		cfg.Env = append(cfg.Env, "IMKIT_HOST_MODE=standalone", "IMKIT_STANDALONE_CONFIG="+path)
 	}
 	srv, err := harness.StartServer(cfg)
 	if err != nil {
@@ -403,4 +407,17 @@ func schemaCheck(o options, host *fakehost.Host, oracleBin, oracleDB string) int
 		return 1
 	}
 	return 0
+}
+
+// envList collects repeated -env flags.
+type envList []string
+
+func (e *envList) String() string { return strings.Join(*e, " ") }
+
+func (e *envList) Set(v string) error {
+	if !strings.Contains(v, "=") {
+		return fmt.Errorf("want KEY=VALUE, got %q", v)
+	}
+	*e = append(*e, v)
+	return nil
 }
