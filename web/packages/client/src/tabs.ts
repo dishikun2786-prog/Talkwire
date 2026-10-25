@@ -7,6 +7,14 @@
  * heartbeat election otherwise). When the leader tab closes, another tab is
  * elected and every client reconnects through it.
  *
+ * Two leaders at once (the heartbeat election, when announcements arrive
+ * late) must not mean two real connections: the server keeps one per user
+ * and device, and tells the older one it was replaced, which stops a client
+ * for good. So a newly elected tab first stands as a candidate and serves no
+ * one until it has heard no other leader for a while; each socket talks to
+ * the one hub it chose; and a hub replaced while another hub is around steps
+ * down instead of passing the replacement on.
+ *
  * The clients stay unchanged: each tab logs in, syncs and correlates its own
  * replies (request ids carry a per-tab prefix). The hub opens the real socket
  * with the first login it receives and answers later logins from the
@@ -27,10 +35,13 @@ import { num, obj, optStr, str, type Frame } from "./wire.js";
 /** Messages between the hub and the tabs' transports. */
 export type RelayMessage =
   | { t: "open"; conn: string; url: string }
-  | { t: "send"; conn: string; text: string }
-  | { t: "close"; conn: string }
+  /** `hub`: the hub the socket chose; other hubs ignore it (absent from older tabs: any hub that knows `conn`). */
+  | { t: "send"; conn: string; text: string; hub?: string }
+  | { t: "close"; conn: string; hub?: string }
   | { t: "hello" }
   | { t: "hub"; hub: string }
+  /** A tab elected by heartbeat, not serving yet (see `electedTransport`). */
+  | { t: "candidate"; hub: string }
   | { t: "opened"; hub: string; conn: string }
   /** `conn` set: for that connection only; otherwise for every logged-in connection except `except`. */
   | { t: "frame"; hub: string; text: string; conn?: string; except?: string }
@@ -80,6 +91,14 @@ export class RelayHub {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
 
+  /**
+   * Called when the server says the real connection was replaced ("logged in
+   * from another device"). Return true when that was this browser's own
+   * second hub: then the tabs are not told, the connection just closes and
+   * they reconnect. Unset, or false: the tabs hear it, as from any server.
+   */
+  onReplaced?: () => boolean;
+
   constructor(
     private readonly post: (m: RelayMessage) => void,
     private readonly transport: ImTransport = new WebSocketTransport(),
@@ -109,9 +128,11 @@ export class RelayHub {
         this.post({ t: "opened", hub: this.id, conn: m.conn });
         return;
       case "close":
+        if (m.hub && m.hub !== this.id) return;
         this.dropConn(m.conn);
         return;
       case "send":
+        if (m.hub && m.hub !== this.id) return;
         this.onSend(m.conn, m.text);
         return;
       default:
@@ -215,6 +236,10 @@ export class RelayHub {
         for (const [conn, id] of waiting) this.post({ t: "frame", hub: this.id, conn, text: JSON.stringify(withId(f, id)) });
         this.closeReal();
       }
+      return;
+    }
+    if (f.action === "login" && num(f, "code") === 401 && this.onReplaced?.()) {
+      this.closeReal();
       return;
     }
     this.post({ t: "frame", hub: this.id, text });
@@ -326,7 +351,7 @@ export class RelayTransport implements ImTransport {
         } catch {
           return false;
         }
-        this.link.post({ t: "send", conn: s.conn, text });
+        this.link.post({ t: "send", conn: s.conn, text, ...(s.hub ? { hub: s.hub } : {}) });
         return true;
       },
       close: () => this.closeSocket(s, true),
@@ -337,7 +362,7 @@ export class RelayTransport implements ImTransport {
     if (s.closed) return;
     s.closed = true;
     this.sockets.delete(s.conn);
-    if (tellHub) this.link.post({ t: "close", conn: s.conn });
+    if (tellHub) this.link.post({ t: "close", conn: s.conn, ...(s.hub ? { hub: s.hub } : {}) });
   }
 
   private gone(s: VirtualSocket): void {
@@ -356,7 +381,12 @@ export class RelayTransport implements ImTransport {
         return;
       case "opened": {
         const s = this.sockets.get(m.conn);
-        if (!s || s.opened) return;
+        if (!s) return;
+        if (s.opened) {
+          // A second hub answered (two leaders for a moment): only the first serves this socket.
+          if (s.hub !== m.hub) this.link.post({ t: "close", conn: s.conn, hub: m.hub });
+          return;
+        }
         s.opened = true;
         s.hub = m.hub;
         s.listener.onOpen();
@@ -415,6 +445,8 @@ export interface TabTransport {
 
 const HEARTBEAT_MS = 1_000;
 const LEADER_TIMEOUT_MS = 3_500;
+/** How long a tab elected by heartbeat waits, hearing no other leader, before it serves; longer than a heartbeat. */
+const SETTLE_MS = 1_500;
 
 type Globals = { SharedWorker?: unknown; BroadcastChannel?: typeof BroadcastChannel; navigator?: { locks?: LockManager } };
 
@@ -499,13 +531,27 @@ function electedTransport(name: string, role: Signal<TabRole>, options: TabTrans
   const clientChannel = new BroadcastChannel(name);
   const transport = new RelayTransport(channelLink(clientChannel));
   let hub: RelayHub | null = null;
+  /** Whether `hub` serves the tabs yet; under the heartbeat election it stands as a candidate first. */
+  let serving = false;
+  /** When another hub (leader or candidate) was last heard. */
+  let rivalAt = 0;
   let hubChannel: BroadcastChannel | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
   let watchdog: ReturnType<typeof setInterval> | null = null;
   let releaseLock: (() => void) | null = null;
   let closed = false;
   role.set("follower");
 
+  const locks = options.locks === undefined ? g.navigator?.locks ?? null : options.locks;
+
+  /**
+   * Starts a hub. With Web Locks it serves at once (the lock is exclusive).
+   * Elected by heartbeat it is a candidate first: it announces itself and
+   * serves no one for SETTLE_MS, giving way to a leader or to a candidate
+   * with a smaller id that it hears in the meantime. Two tabs that claimed
+   * at the same moment so settle on one before either opens a connection.
+   */
   const becomeLeader = () => {
     if (closed || hub) return;
     hubChannel = new BroadcastChannel(name);
@@ -513,27 +559,58 @@ function electedTransport(name: string, role: Signal<TabRole>, options: TabTrans
     hub = h;
     hubChannel.addEventListener("message", (ev) => {
       const m = ev.data as RelayMessage;
-      // Two leaders after a heartbeat election: the larger id steps down.
-      if (m.t === "hub" && m.hub !== h.id && m.hub < h.id && !locks) return stepDown();
-      h.receive(m);
+      if ((m.t === "hub" || m.t === "candidate") && m.hub !== h.id) {
+        rivalAt = Date.now();
+        if (locks) return;
+        if (serving) {
+          // Two leaders (announcements later than SETTLE_MS): the larger id steps down.
+          // A candidate is answered at once, so that it gives way.
+          if (m.t === "hub" && m.hub < h.id) return stepDown();
+          if (m.t === "candidate") h.announce();
+          return;
+        }
+        if (m.t === "hub" || m.hub < h.id) return stepDown();
+        return;
+      }
+      if (serving) h.receive(m);
     });
-    role.set("leader");
-    h.announce();
-    heartbeat = setInterval(() => h.announce(), HEARTBEAT_MS);
+    // Replaced by the server while another hub of ours is around: that hub's
+    // connection replaced this one. Give way to it instead of telling the
+    // tabs, which would stop them for good. Without a rival it was another
+    // device, and the tabs are told.
+    h.onReplaced = () => {
+      if (locks || hub !== h || Date.now() - rivalAt > LEADER_TIMEOUT_MS) return false;
+      stepDown();
+      return true;
+    };
+    const serve = () => {
+      settleTimer = null;
+      if (hub !== h) return;
+      serving = true;
+      role.set("leader");
+      h.announce();
+      heartbeat = setInterval(() => h.announce(), HEARTBEAT_MS);
+    };
+    if (locks) return serve();
+    hubChannel.postMessage({ t: "candidate", hub: h.id } satisfies RelayMessage);
+    settleTimer = setTimeout(serve, SETTLE_MS);
   };
 
   const stepDown = () => {
     if (!hub) return;
-    hub.stop();
+    const h = hub;
     hub = null;
+    serving = false;
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = null;
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = null;
+    h.stop();
     hubChannel?.close();
     hubChannel = null;
     if (!closed) role.set("follower");
   };
 
-  const locks = options.locks === undefined ? g.navigator?.locks ?? null : options.locks;
   if (locks) {
     void locks.request(name + ":leader", () => {
       becomeLeader();
@@ -541,10 +618,12 @@ function electedTransport(name: string, role: Signal<TabRole>, options: TabTrans
     });
   } else {
     // Heartbeat election: a leader announces itself every second; when none
-    // is heard for a while, a tab claims leadership after a random delay.
+    // is heard for a while, a tab claims leadership after a random delay and
+    // stands as a candidate (see becomeLeader). A candidate counts as heard.
     let lastHeard = 0;
     clientChannel.addEventListener("message", (ev) => {
-      if ((ev.data as RelayMessage).t === "hub") lastHeard = Date.now();
+      const t = (ev.data as RelayMessage).t;
+      if (t === "hub" || t === "candidate") lastHeard = Date.now();
     });
     const check = () => {
       if (hub || closed || Date.now() - lastHeard < LEADER_TIMEOUT_MS) return;

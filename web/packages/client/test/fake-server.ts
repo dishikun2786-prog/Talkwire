@@ -11,6 +11,8 @@ export type Frame = Record<string, unknown>;
 
 export class FakeConn {
   closed = false;
+  /** Replaced by a newer login of the same user (see `FakeServer.replaceOlderLogins`). */
+  replaced = false;
   uid: string | undefined;
   readonly received: Frame[] = [];
   readonly socket: ImSocket;
@@ -55,6 +57,19 @@ export class FakeConn {
       if (!this.closed) this.listener.onOpen();
     });
   }
+
+  /** What the server tells a connection a newer login replaced, before closing it (section 6.2). */
+  replace(): void {
+    if (this.closed) return;
+    this.replaced = true;
+    const text = JSON.stringify({ action: "login", code: 401, reason: "logged in from another device" });
+    setTimeout(() => {
+      if (this.closed) return;
+      this.listener.onText(text);
+      this.closed = true;
+      this.listener.onClosed(1000, "replaced");
+    });
+  }
 }
 
 export class FakeServer implements ImTransport {
@@ -63,6 +78,8 @@ export class FakeServer implements ImTransport {
   onFrame: (conn: FakeConn, frame: Frame) => boolean = () => false;
   /** What the login reply advertises. */
   capabilities: string[] = ["errcode", "reply-id"];
+  /** One connection per user, as a legacy server (or one device): a new login replaces the older connection. */
+  replaceOlderLogins = false;
 
   open(_url: string, listener: ImSocketListener): ImSocket {
     const c = new FakeConn(this, listener);
@@ -85,6 +102,7 @@ export class FakeServer implements ImTransport {
       const token = String(f.token ?? "");
       if (!token.startsWith("tok:")) return conn.push({ action: "login", code: 401, id: f.id, reason: "invalid token" });
       conn.uid = uidOf(token.slice(4));
+      if (this.replaceOlderLogins) for (const other of this.live) if (other !== conn && other.uid === conn.uid) other.replace();
       return conn.push({ action: "login", code: 200, uid: conn.uid, protocol: 1, capabilities: this.capabilities, id: f.id });
     }
     if (this.onFrame(conn, f)) return;
