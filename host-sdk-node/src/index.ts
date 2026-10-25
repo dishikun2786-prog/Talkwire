@@ -48,4 +48,5 @@ export {
   type ContactResult,
   type ContactChange,
 } from "./contacts.js";
-export { MemoryProfileStore, MemoryContactStore, MemoryAuditStore, KeyedMutex, staticConfig } from "./memory.js";
+export { MemoryProfileStore, MemoryContactStore, MemoryAuditStore, MemoryCallRecordStore, KeyedMutex, staticConfig } from "./memory.js";
+export { recordingCalls, type RecordingCallsOptions } from "./call-records.js";

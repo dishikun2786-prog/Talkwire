@@ -8,6 +8,7 @@ import {
   HandleTakenError,
   PairExistsError,
   type AuditStore,
+  type CallRecordStore,
   type ContactStore,
   type ProfileStore,
 } from "../src/types.js";
@@ -17,6 +18,7 @@ export interface Stores {
   profiles: ProfileStore;
   contacts: ContactStore;
   audit: AuditStore;
+  calls: CallRecordStore;
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -162,6 +164,75 @@ export function storeSuite(name: string, make: () => Promise<Stores>, options: {
       const bare = await audit.create({ adminId: "admin-1", action: "y", status: "pending" });
       assert.equal(bare.idempotencyKey, null);
       assert.equal(bare.details, null);
+    });
+
+    test("calls: steps only move forward, the first end counts", async () => {
+      const { calls } = await make();
+      const t0 = Date.parse("2026-10-01T10:00:00.000Z");
+      const at = (s: number) => new Date(t0 + s * 1000);
+      const call = { callSessionId: "cs-1", callerUserId: "u-a", calleeUserId: "u-b", requestedType: "video" as const };
+      const ringing = await calls.create(call, at(0));
+      assert.deepEqual(
+        { status: ringing.status, callType: ringing.callType, createdAt: ringing.createdAt, answeredAt: ringing.answeredAt, durationSec: ringing.durationSec },
+        { status: "ringing", callType: "video", createdAt: at(0), answeredAt: null, durationSec: null },
+      );
+      // The IM server retrying calls/create gets the first record back.
+      assert.deepEqual(await calls.create({ ...call, callerUserId: "u-x" }, at(5)), ringing);
+      assert.equal(await calls.upgraded("cs-1", at(1)).then((r) => r?.upgradedAt), null); // not answered yet
+      const answered = (await calls.answered("cs-1", "voice", at(3)))!;
+      assert.deepEqual([answered.status, answered.callType, answered.answeredAt], ["active", "voice", at(3)]);
+      assert.deepEqual((await calls.answered("cs-1", "video", at(4)))!.answeredAt, at(3));
+      const upgraded = (await calls.upgraded("cs-1", at(10)))!;
+      assert.deepEqual([upgraded.callType, upgraded.requestedType, upgraded.upgradedAt], ["video", "video", at(10)]);
+      assert.deepEqual((await calls.upgraded("cs-1", at(11)))!.upgradedAt, at(10));
+      const ended = (await calls.ended("cs-1", "user_hangup", at(65.4)))!;
+      assert.deepEqual([ended.status, ended.endReason, ended.endedAt, ended.durationSec], ["ended", "user_hangup", at(65.4), 62]);
+      assert.deepEqual(await calls.ended("cs-1", "failed", at(70)), ended);
+      assert.deepEqual(await calls.answered("cs-1", "voice", at(71)), ended);
+      assert.equal(await calls.ended("nope", "failed"), null);
+      assert.equal(await calls.answered("nope", "voice"), null);
+      assert.equal(await calls.get("nope"), null);
+
+      await calls.create({ callSessionId: "cs-2", callerUserId: "u-b", calleeUserId: "u-c", requestedType: "voice" }, at(100));
+      const missed = (await calls.ended("cs-2", "no_answer", at(145)))!;
+      assert.deepEqual([missed.answeredAt, missed.durationSec], [null, 0]);
+    });
+
+    test("calls: filters and pages, newest first", async () => {
+      const { calls } = await make();
+      const t0 = Date.parse("2026-10-01T10:00:00.000Z");
+      const at = (s: number) => new Date(t0 + s * 1000);
+      await calls.create({ callSessionId: "cs-1", callerUserId: "u-a", calleeUserId: "u-b", requestedType: "video" }, at(0));
+      await calls.answered("cs-1", "video", at(2));
+      await calls.ended("cs-1", "user_hangup", at(30));
+      await calls.create({ callSessionId: "cs-2", callerUserId: "u-b", calleeUserId: "u-c", requestedType: "voice" }, at(100));
+      await calls.ended("cs-2", "no_answer", at(145));
+      // Two at the same moment: the id breaks the tie, and paging still sees both.
+      await calls.create({ callSessionId: "cs-3", callerUserId: "u-c", calleeUserId: "u-a", requestedType: "voice" }, at(200));
+      await calls.create({ callSessionId: "cs-4", callerUserId: "u-a", calleeUserId: "u-c", requestedType: "voice" }, at(200));
+      const ids = async (q: Partial<Parameters<CallRecordStore["list"]>[0]>) => (await calls.list({ limit: 10, ...q })).records.map((r) => r.callSessionId);
+      assert.deepEqual(await ids({}), ["cs-4", "cs-3", "cs-2", "cs-1"]);
+      assert.deepEqual(await ids({ userId: "u-a" }), ["cs-4", "cs-3", "cs-1"]);
+      assert.deepEqual(await ids({ status: "ended" }), ["cs-2", "cs-1"]);
+      assert.deepEqual(await ids({ status: "ringing", userId: "u-c" }), ["cs-4", "cs-3"]);
+      assert.deepEqual(await ids({ endReason: "no_answer" }), ["cs-2"]);
+      assert.deepEqual(await ids({ callType: "video" }), ["cs-1"]);
+      assert.deepEqual(await ids({ from: at(100), to: at(150) }), ["cs-2"]);
+      assert.deepEqual(await ids({ userId: "nobody" }), []);
+
+      const pages: string[][] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await calls.list({ limit: 1, cursor });
+        pages.push(page.records.map((r) => r.callSessionId));
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor && pages.length < 10);
+      assert.deepEqual(pages, [["cs-4"], ["cs-3"], ["cs-2"], ["cs-1"]]);
+      const first = await calls.list({ userId: "u-a", limit: 2 });
+      assert.deepEqual(first.records.map((r) => r.callSessionId), ["cs-4", "cs-3"]);
+      const second = await calls.list({ userId: "u-a", limit: 2, cursor: first.nextCursor! });
+      assert.deepEqual([second.records.map((r) => r.callSessionId), second.nextCursor], [["cs-1"], null]);
+      await assert.rejects(calls.list({ limit: 1, cursor: "not-a-cursor" }));
     });
   });
 }

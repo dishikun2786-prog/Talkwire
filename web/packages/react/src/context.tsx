@@ -31,6 +31,8 @@ interface ImKitValue {
   engine: ChatEngine;
   host: ImUiHost;
   strings: ImStrings;
+  /** The provider's `locale`, "en" when it has none: module components pick their own tables by it. */
+  locale: string;
   types: MessageTypeRegistry;
   profiles: ProfileCache;
 }
@@ -53,8 +55,8 @@ export function ImKitProvider({ engine, host, locale, strings, types, children }
   const assistant = useLatest(resolved.assistant);
   const profiles = useMemo(() => new ProfileCache(host, (uid) => (uid === AI_ASSISTANT_UID ? assistant.current : shortUid(uid))), [host, assistant]);
   const value = useMemo<ImKitValue>(
-    () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: resolved }),
-    [engine, host, profiles, types, resolved],
+    () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: resolved, locale: locale ?? "en" }),
+    [engine, host, profiles, types, resolved, locale],
   );
   return <ImKitContext.Provider value={value}>{children}</ImKitContext.Provider>;
 }

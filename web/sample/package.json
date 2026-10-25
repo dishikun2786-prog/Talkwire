@@ -11,7 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@imkit/admin": "0.1.0",
+    "@imkit/call": "0.1.0",
     "@imkit/client": "0.1.0",
+    "@imkit/group-join": "0.1.0",
     "@imkit/protocol": "0.1.0",
     "@imkit/react": "0.1.0",
     "@imkit/storage-idb": "0.1.0"

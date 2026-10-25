@@ -8,6 +8,10 @@
 //   /api/v1/chat/*                profiles and contacts (imkitAppRoutes)
 //   /api/v1/chat/upload, /media   media (imkitMediaRoutes)
 //   /api/v1/red-packets           the red packet example
+//   calls                         demo credentials, signaling only (demo-calls.ts),
+//                                 each call recorded for the administrators
+//   /dev/admin-login              a name and a role in, an administrator token out
+//   /api/v1/admin/im/*            chat and call records (imkitAdminRoutes)
 //
 // Stores are in memory: restart the host and every user signs in again.
 
@@ -16,18 +20,24 @@ import jwt from "jsonwebtoken";
 import {
   ImClient,
   LocalDiskBlobStore,
+  MemoryAuditStore,
+  MemoryCallRecordStore,
   MemoryContactStore,
   MemoryProfileStore,
   addContact,
   bearerToken,
   defaultHandle,
   imUid,
+  imkitAdminRoutes,
   imkitAppRoutes,
   imkitHostPlugin,
   imkitMediaRoutes,
   mediaDeleter,
+  recordingCalls,
+  type AdminIdentity,
 } from "@imkit/host-node";
 import { redPacketRoutes } from "../../red-packet/src/red-packets.ts";
+import { demoCalls } from "./demo-calls.ts";
 
 export interface SampleHostOptions {
   /** Shared with the IM server (its JWT_SECRET). */
@@ -42,6 +52,25 @@ export interface SampleHostOptions {
 /** What the IM server accepts at login: an access token of an ordinary user (red line R18). */
 export function signAccessToken(secret: string, userId: string, ttlSeconds = 30 * 24 * 3600): string {
   return jwt.sign({ type: "access", role: "app_user" }, secret, { algorithm: "HS256", subject: userId, expiresIn: ttlSeconds });
+}
+
+// Administrator tokens use their own key: the IM server must never take one
+// for a user's, and an ordinary user's token must never open the records.
+const adminKey = (secret: string) => secret + ":admin";
+
+export function signAdminToken(secret: string, name: string, role: AdminIdentity["role"], ttlSeconds = 12 * 3600): string {
+  return jwt.sign({ type: "admin_access", role }, adminKey(secret), { algorithm: "HS256", subject: "admin-" + name.toLowerCase(), expiresIn: ttlSeconds });
+}
+
+export function verifyAdminToken(secret: string, token: string): AdminIdentity | null {
+  if (!token) return null;
+  try {
+    const c = jwt.verify(token, adminKey(secret), { algorithms: ["HS256"] });
+    if (typeof c !== "object" || c === null || c.type !== "admin_access" || typeof c.sub !== "string") return null;
+    return c.role === "admin" || c.role === "superadmin" ? { adminId: c.sub, role: c.role } : null;
+  } catch {
+    return null;
+  }
 }
 
 export function verifyAccessToken(secret: string, token: string): string | null {
@@ -71,7 +100,13 @@ export async function buildSampleHost(options: SampleHostOptions): Promise<Fasti
   const authenticate = async (request: FastifyRequest) => verifyAccessToken(options.secret, bearerToken(request.headers.authorization));
   const users = new Set<string>();
 
-  await app.register(imkitHostPlugin, { secret: options.secret, contacts, profiles, deleteMedia: mediaDeleter(blobs) });
+  const callRecords = new MemoryCallRecordStore();
+  const calls = recordingCalls(
+    demoCalls(contacts, (msg) => app.log.info(msg)),
+    callRecords,
+    { onError: (err, step, id) => app.log.error({ err, step, callSessionId: id }, "could not record a call step") },
+  );
+  await app.register(imkitHostPlugin, { secret: options.secret, contacts, profiles, deleteMedia: mediaDeleter(blobs), calls });
   await app.register(imkitAppRoutes, {
     authenticate,
     profiles,
@@ -82,6 +117,22 @@ export async function buildSampleHost(options: SampleHostOptions): Promise<Fasti
   });
   await app.register(imkitMediaRoutes, { authenticate, store: blobs, im });
   await app.register(redPacketRoutes, { im, authenticate });
+  await app.register(imkitAdminRoutes, {
+    authenticate: async (request) => verifyAdminToken(options.secret, bearerToken(request.headers.authorization)),
+    im,
+    audit: new MemoryAuditStore(),
+    profiles,
+    calls: callRecords,
+  });
+
+  app.post("/dev/admin-login", async (request, reply) => {
+    const body = request.body as { name?: unknown; role?: unknown } | undefined;
+    if (typeof body?.name !== "string" || !NAME.test(body.name)) {
+      return reply.status(400).send({ error: "name: 2-20 letters, digits or _" });
+    }
+    if (body.role !== "admin" && body.role !== "superadmin") return reply.status(400).send({ error: "role: admin or superadmin" });
+    return { adminId: "admin-" + body.name.toLowerCase(), role: body.role, token: signAdminToken(options.secret, body.name, body.role) };
+  });
 
   app.post("/dev/login", async (request, reply) => {
     const name = (request.body as { name?: unknown } | undefined)?.name;

@@ -124,6 +124,76 @@ export interface ConfigSource {
   e2eeConfig(): Promise<Record<string, unknown> | null>;
 }
 
+export type CallType = "voice" | "video";
+
+/**
+ * ringing until the callee answers, active while they talk, ended once the
+ * IM server settled it (endReason says how: user_hangup, no_answer, rejected,
+ * cancelled, disconnected or failed).
+ */
+export type CallStatus = "ringing" | "active" | "ended";
+
+/**
+ * One call as the host's call handlers saw it (see recordingCalls). Metadata
+ * only: no channel ids or RTC credentials, nothing said in the call.
+ */
+export interface CallRecord {
+  callSessionId: string;
+  callerUserId: string;
+  calleeUserId: string;
+  /** What the caller asked for. */
+  requestedType: CallType;
+  /** What the call was in the end: a video call answered as voice is voice, an upgraded one is video. */
+  callType: CallType;
+  status: CallStatus;
+  createdAt: Date;
+  answeredAt: Date | null;
+  upgradedAt: Date | null;
+  endedAt: Date | null;
+  endReason: string | null;
+  /** Seconds from answering to the end: null until it ended, 0 if never answered. */
+  durationSec: number | null;
+}
+
+export type NewCallRecord = Pick<CallRecord, "callSessionId" | "callerUserId" | "calleeUserId" | "requestedType">;
+
+export interface CallRecordQuery {
+  /** Calls this user made or received. */
+  userId?: string;
+  status?: CallStatus;
+  callType?: CallType;
+  endReason?: string;
+  /** Created at or after. */
+  from?: Date;
+  /** Created at or before. */
+  to?: Date;
+  /** A nextCursor from the previous page. */
+  cursor?: string;
+  limit: number;
+}
+
+export interface CallRecordPage {
+  /** Newest first. */
+  records: CallRecord[];
+  /** Pass as cursor for the next page; null on the last one. */
+  nextCursor: string | null;
+}
+
+/**
+ * Call records for administrators. Every step is idempotent and only moves a
+ * call forward: answering an ended call, or ending it twice, changes nothing
+ * and answers the record as it is (null when there is none).
+ */
+export interface CallRecordStore {
+  /** Records a ringing call; the same callSessionId again answers the existing record. */
+  create(call: NewCallRecord, at?: Date): Promise<CallRecord>;
+  answered(callSessionId: string, callType: CallType, at?: Date): Promise<CallRecord | null>;
+  upgraded(callSessionId: string, at?: Date): Promise<CallRecord | null>;
+  ended(callSessionId: string, reason: string, at?: Date): Promise<CallRecord | null>;
+  get(callSessionId: string): Promise<CallRecord | null>;
+  list(query: CallRecordQuery): Promise<CallRecordPage>;
+}
+
 export class HandleTakenError extends Error {
   constructor(handle: string) {
     super(`handle taken: ${handle}`);

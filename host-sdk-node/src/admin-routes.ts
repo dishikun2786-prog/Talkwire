@@ -1,5 +1,6 @@
 // Chat records for the host's administrators: list a user's conversations,
 // read their messages, and clear a two-person conversation for both users.
+// With a CallRecordStore, also the call records (see recordingCalls).
 //
 // Reading is for any administrator. Clearing deletes messages and media for
 // good, so it takes a superadministrator, a typed confirmation naming the
@@ -10,7 +11,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { ImClientError, type AdminMessage, type AdminTopic, type ImClient } from "./im-client.js";
-import { DuplicateKeyError, type AuditStore, type Profile, type ProfileStore } from "./types.js";
+import { parseCallCursor } from "./call-records.js";
+import { DuplicateKeyError, type AuditStore, type CallRecord, type CallRecordStore, type Profile, type ProfileStore } from "./types.js";
 import { imUid } from "./uid.js";
 
 export interface AdminIdentity {
@@ -24,6 +26,8 @@ export interface AdminRoutesOptions {
   im: ImClient;
   audit: AuditStore;
   profiles: ProfileStore;
+  /** Call records; absent: the calls routes are not there (404). */
+  calls?: CallRecordStore;
   /** Where the routes live; default /api/v1/admin/im. */
   basePath?: string;
 }
@@ -205,5 +209,58 @@ export async function imkitAdminRoutes(app: FastifyInstance, options: AdminRoute
       await audit.finish(entry.id, "failed", { status: err instanceof ImClientError ? err.status : 0 });
       return imFailed(reply, err);
     }
+  });
+
+  const calls = options.calls;
+  if (!calls) return;
+
+  // Records hold host user ids; show administrators who they are.
+  const withParties = async (records: CallRecord[]) => {
+    const ids = [...new Set(records.flatMap((r) => [r.callerUserId, r.calleeUserId]))];
+    const found = new Map((await profiles.getMany(ids)).map((p) => [p.userId, p]));
+    const person = (userId: string): Person => ({ uid: imUid(userId), userId, displayName: found.get(userId)?.displayName ?? null });
+    return records.map((r) => ({ ...r, caller: person(r.callerUserId), callee: person(r.calleeUserId) }));
+  };
+
+  const callsQuery = z.object({
+    userId: z.string().min(1).max(128).optional(),
+    status: z.enum(["ringing", "active", "ended"]).optional(),
+    callType: z.enum(["voice", "video"]).optional(),
+    endReason: z.string().min(1).max(32).optional(),
+    fromMs: z.coerce.number().int().min(0).optional(),
+    toMs: z.coerce.number().int().min(0).optional(),
+    cursor: z
+      .string()
+      .max(200)
+      .refine((c) => parseCallCursor(c) !== null, "not a cursor from this list")
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  });
+
+  app.get(`${base}/calls`, async (request, reply) => {
+    if (!(await admin(request, reply))) return reply;
+    const q = parse(callsQuery, request.query, reply);
+    if (!q) return reply;
+    const page = await calls.list({
+      userId: q.userId,
+      status: q.status,
+      callType: q.callType,
+      endReason: q.endReason,
+      from: q.fromMs === undefined ? undefined : new Date(q.fromMs),
+      to: q.toMs === undefined ? undefined : new Date(q.toMs),
+      cursor: q.cursor,
+      limit: q.limit,
+    });
+    return { calls: await withParties(page.records), nextCursor: page.nextCursor };
+  });
+
+  app.get(`${base}/calls/:callSessionId`, async (request, reply) => {
+    if (!(await admin(request, reply))) return reply;
+    const params = parse(z.object({ callSessionId: z.string().min(1).max(64) }), request.params, reply);
+    if (!params) return reply;
+    const record = await calls.get(params.callSessionId);
+    if (!record) return reply.status(404).send({ error: "no such call" });
+    const [call] = await withParties([record]);
+    return call;
   });
 }

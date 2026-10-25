@@ -1,6 +1,6 @@
 // Prisma implementations of the storage interfaces, over the models in
 // prisma/imkit.prisma. Pass your generated PrismaClient; the stores only use
-// the three imkit* models, $transaction and $executeRaw.
+// the imkit* models, $transaction and $executeRaw.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
@@ -9,12 +9,17 @@ import {
   PairExistsError,
   type AuditEntry,
   type AuditStore,
+  type CallRecord,
+  type CallRecordQuery,
+  type CallRecordStore,
+  type CallType,
   type Contact,
   type ContactListQuery,
   type ContactPatch,
   type ContactStatus,
   type ContactStore,
   type NewAuditEntry,
+  type NewCallRecord,
   type NewContact,
   type NewProfile,
   type Profile,
@@ -22,6 +27,7 @@ import {
   type ProfileStore,
 } from "../types.js";
 import { imUid } from "../uid.js";
+import { durationSec, pageOf, parseCallCursor } from "../call-records.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the generated client's
    delegate methods are generic over the host's own schema; the stores are
@@ -34,6 +40,7 @@ interface Delegate {
   findMany(args: Loose): Promise<Loose[]>;
   create(args: Loose): Promise<Loose>;
   update(args: Loose): Promise<Loose>;
+  updateMany(args: Loose): Promise<{ count: number }>;
   delete(args: Loose): Promise<Loose>;
   deleteMany(args: Loose): Promise<{ count: number }>;
 }
@@ -43,6 +50,8 @@ export interface ImkitPrismaTx {
   imkitProfile: Delegate;
   imkitContact: Delegate;
   imkitAdminAudit: Delegate;
+  /** Only for PrismaCallRecordStore. */
+  imkitCallRecord?: Delegate;
   $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
 }
 
@@ -349,11 +358,122 @@ export class PrismaAuditStore implements AuditStore {
   }
 }
 
-/** The three stores over one client. */
+interface CallRow {
+  callSessionId: string;
+  callerUserId: string;
+  calleeUserId: string;
+  requestedType: string;
+  callType: string;
+  status: string;
+  createdAt: Date;
+  answeredAt: Date | null;
+  upgradedAt: Date | null;
+  endedAt: Date | null;
+  endReason: string | null;
+  durationSec: number | null;
+}
+
+const toCall = (r: CallRow): CallRecord => ({
+  callSessionId: r.callSessionId,
+  callerUserId: r.callerUserId,
+  calleeUserId: r.calleeUserId,
+  requestedType: r.requestedType as CallType,
+  callType: r.callType as CallType,
+  status: r.status as CallRecord["status"],
+  createdAt: r.createdAt,
+  answeredAt: r.answeredAt,
+  upgradedAt: r.upgradedAt,
+  endedAt: r.endedAt,
+  endReason: r.endReason,
+  durationSec: r.durationSec,
+});
+
+/**
+ * Each step is one conditional update, so the IM server retrying a request,
+ * or two processes handling the same call, cannot move a call backwards.
+ */
+export class PrismaCallRecordStore implements CallRecordStore {
+  private readonly rows: Delegate;
+
+  constructor(prisma: ImkitPrismaTx) {
+    if (!prisma.imkitCallRecord) throw new Error("the Prisma client has no ImkitCallRecord model: copy it from prisma/imkit.prisma");
+    this.rows = prisma.imkitCallRecord;
+  }
+
+  async create(call: NewCallRecord, at = new Date()) {
+    try {
+      const row: CallRow = await this.rows.create({
+        data: { ...call, callType: call.requestedType, status: "ringing", createdAt: at },
+      });
+      return toCall(row);
+    } catch (err) {
+      const existing = uniqueViolation(err) ? await this.get(call.callSessionId) : null;
+      if (existing) return existing;
+      throw err;
+    }
+  }
+
+  async answered(callSessionId: string, callType: CallType, at = new Date()) {
+    await this.rows.updateMany({ where: { callSessionId, status: "ringing" }, data: { status: "active", callType, answeredAt: at } });
+    return this.get(callSessionId);
+  }
+
+  async upgraded(callSessionId: string, at = new Date()) {
+    await this.rows.updateMany({ where: { callSessionId, status: "active", callType: "voice" }, data: { callType: "video", upgradedAt: at } });
+    return this.get(callSessionId);
+  }
+
+  async ended(callSessionId: string, reason: string, at = new Date()) {
+    // The duration needs answeredAt, so the update is conditional on the
+    // status it was computed from; a call answered in between is read again.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const row = await this.get(callSessionId);
+      if (!row || row.status === "ended") return row;
+      const { count } = await this.rows.updateMany({
+        where: { callSessionId, status: row.status },
+        data: { status: "ended", endedAt: at, endReason: reason, durationSec: durationSec(row.answeredAt, at) },
+      });
+      if (count === 1) return this.get(callSessionId);
+    }
+    return this.get(callSessionId);
+  }
+
+  async get(callSessionId: string) {
+    const row: CallRow | null = await this.rows.findUnique({ where: { callSessionId } });
+    return row ? toCall(row) : null;
+  }
+
+  async list(q: CallRecordQuery) {
+    const and: Loose[] = [];
+    if (q.userId) and.push({ OR: [{ callerUserId: q.userId }, { calleeUserId: q.userId }] });
+    if (q.status) and.push({ status: q.status });
+    if (q.callType) and.push({ callType: q.callType });
+    if (q.endReason) and.push({ endReason: q.endReason });
+    if (q.from) and.push({ createdAt: { gte: q.from } });
+    if (q.to) and.push({ createdAt: { lte: q.to } });
+    if (q.cursor) {
+      const c = parseCallCursor(q.cursor);
+      if (!c) throw new Error("invalid cursor");
+      and.push({ OR: [{ createdAt: { lt: c.at } }, { createdAt: c.at, callSessionId: { lt: c.callSessionId } }] });
+    }
+    const rows: CallRow[] = await this.rows.findMany({
+      where: { AND: and },
+      orderBy: [{ createdAt: "desc" }, { callSessionId: "desc" }],
+      take: q.limit + 1,
+    });
+    return pageOf(rows.map(toCall), q.limit);
+  }
+}
+
+/**
+ * The stores over one client: the three every host needs, plus call records
+ * when the client has the ImkitCallRecord model.
+ */
 export function prismaStores(prisma: ImkitPrisma, options: PrismaContactStoreOptions = {}) {
   return {
     profiles: new PrismaProfileStore(prisma),
     contacts: new PrismaContactStore(prisma, options),
     audit: new PrismaAuditStore(prisma),
+    calls: prisma.imkitCallRecord ? new PrismaCallRecordStore(prisma) : undefined,
   };
 }

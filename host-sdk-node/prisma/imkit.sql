@@ -49,6 +49,24 @@ CREATE TABLE "imkit_admin_audit" (
     CONSTRAINT "imkit_admin_audit_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "imkit_call_records" (
+    "call_session_id" VARCHAR(64) NOT NULL,
+    "caller_user_id" VARCHAR(128) NOT NULL,
+    "callee_user_id" VARCHAR(128) NOT NULL,
+    "requested_type" VARCHAR(8) NOT NULL,
+    "call_type" VARCHAR(8) NOT NULL,
+    "status" VARCHAR(16) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "answered_at" TIMESTAMPTZ(3),
+    "upgraded_at" TIMESTAMPTZ(3),
+    "ended_at" TIMESTAMPTZ(3),
+    "end_reason" VARCHAR(32),
+    "duration_sec" INTEGER,
+
+    CONSTRAINT "imkit_call_records_pkey" PRIMARY KEY ("call_session_id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "imkit_profiles_uid_key" ON "imkit_profiles"("uid");
 
@@ -69,4 +87,13 @@ CREATE UNIQUE INDEX "imkit_admin_audit_idempotency_key_key" ON "imkit_admin_audi
 
 -- CreateIndex
 CREATE INDEX "imkit_admin_audit_created_idx" ON "imkit_admin_audit"("created_at");
+
+-- CreateIndex
+CREATE INDEX "imkit_call_records_created_idx" ON "imkit_call_records"("created_at", "call_session_id");
+
+-- CreateIndex
+CREATE INDEX "imkit_call_records_caller_idx" ON "imkit_call_records"("caller_user_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "imkit_call_records_callee_idx" ON "imkit_call_records"("callee_user_id", "created_at");
 

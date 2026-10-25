@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify from "fastify";
 import { clearConfirmation, imkitAdminRoutes } from "../src/admin-routes.js";
-import { MemoryAuditStore, MemoryProfileStore } from "../src/memory.js";
+import { MemoryAuditStore, MemoryCallRecordStore, MemoryProfileStore } from "../src/memory.js";
+import type { CallRecordStore } from "../src/types.js";
 import { imUid } from "../src/uid.js";
 import { stubIm, type Responder } from "./helpers.js";
 
 const BASE = "/api/v1/admin/im";
 const P2P = "p2p_aaaa_bbbb";
 
-async function setup(respond?: Responder) {
+async function setup(respond?: Responder, calls?: CallRecordStore) {
   const profiles = new MemoryProfileStore();
   const audit = new MemoryAuditStore();
   await profiles.create({ userId: "alice", handle: "alice1", displayName: "Alice", avatarUrl: null });
@@ -38,6 +39,7 @@ async function setup(respond?: Responder) {
     im,
     audit,
     profiles,
+    calls,
     authenticate: async (req) => {
       const role = req.headers["x-role"];
       return role === "admin" || role === "superadmin" ? { adminId: `id-${role}`, role } : null;
@@ -113,5 +115,48 @@ describe("admin routes", () => {
   test("an IM server that does not answer is a 502", async () => {
     const { as } = await setup(() => ({ status: 500, body: { error: "boom" } }));
     assert.equal((await as("admin").get("/users/alice/topics")).statusCode, 502);
+  });
+
+  test("call records: who called whom, filters, pages, one call", async () => {
+    const calls = new MemoryCallRecordStore();
+    const t0 = Date.parse("2026-10-01T10:00:00.000Z");
+    await calls.create({ callSessionId: "cs-1", callerUserId: "alice", calleeUserId: "bob", requestedType: "video" }, new Date(t0));
+    await calls.answered("cs-1", "voice", new Date(t0 + 2_000));
+    await calls.ended("cs-1", "user_hangup", new Date(t0 + 32_000));
+    await calls.create({ callSessionId: "cs-2", callerUserId: "bob", calleeUserId: "carol", requestedType: "voice" }, new Date(t0 + 60_000));
+    const { as } = await setup(undefined, calls);
+    const ids = async (query: string) => {
+      const res = await as("admin").get(`/calls${query}`);
+      assert.equal(res.statusCode, 200, res.body);
+      return (res.json().calls as { callSessionId: string }[]).map((c) => c.callSessionId);
+    };
+
+    assert.equal((await as(null).get("/calls")).statusCode, 401);
+    const all = (await as("admin").get("/calls")).json();
+    assert.deepEqual([all.calls.map((c: { callSessionId: string }) => c.callSessionId), all.nextCursor], [["cs-2", "cs-1"], null]);
+    assert.deepEqual(all.calls[1].caller, { uid: imUid("alice"), userId: "alice", displayName: "Alice" });
+    assert.deepEqual(all.calls[0].callee, { uid: imUid("carol"), userId: "carol", displayName: null });
+    assert.deepEqual([all.calls[1].requestedType, all.calls[1].callType, all.calls[1].durationSec], ["video", "voice", 30]);
+    const first = (await as("admin").get("/calls?limit=1")).json();
+    assert.deepEqual(await ids(`?limit=1&cursor=${encodeURIComponent(first.nextCursor)}`), ["cs-1"]);
+    assert.deepEqual(await ids("?userId=alice"), ["cs-1"]);
+    assert.deepEqual(await ids("?status=ringing"), ["cs-2"]);
+    assert.deepEqual(await ids("?endReason=user_hangup&callType=voice"), ["cs-1"]);
+    assert.deepEqual(await ids(`?fromMs=${t0 + 1_000}`), ["cs-2"]);
+    assert.deepEqual(await ids(`?toMs=${t0 + 1_000}`), ["cs-1"]);
+    for (const bad of ["?cursor=garbage", "?limit=1000", "?status=missed", "?callType=fax"]) {
+      assert.equal((await as("admin").get(`/calls${bad}`)).statusCode, 400, bad);
+    }
+
+    const one = await as("admin").get("/calls/cs-1");
+    assert.equal(one.statusCode, 200);
+    assert.deepEqual([one.json().endReason, one.json().callee.displayName], ["user_hangup", "Bob"]);
+    assert.equal((await as("admin").get("/calls/nope")).statusCode, 404);
+    assert.equal((await as(null).get("/calls/cs-1")).statusCode, 401);
+  });
+
+  test("without a call record store there are no call routes", async () => {
+    const { as } = await setup();
+    assert.equal((await as("admin").get("/calls")).statusCode, 404);
   });
 });

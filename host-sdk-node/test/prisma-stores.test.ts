@@ -20,8 +20,9 @@ after(async () => {
 storeSuite(
   "prisma",
   async () => {
-    await prisma!.$executeRawUnsafe("TRUNCATE imkit_profiles, imkit_contacts, imkit_admin_audit");
-    return prismaStores(prisma!);
+    await prisma!.$executeRawUnsafe("TRUNCATE imkit_profiles, imkit_contacts, imkit_admin_audit, imkit_call_records");
+    const stores = prismaStores(prisma!);
+    return { ...stores, calls: stores.calls! };
   },
   { skip },
 );

@@ -5,70 +5,10 @@
  * each other's history.
  */
 
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { closeDevices, conversationItem, device, expectSignedIn, expectStored, openContact, openConversation, run, send, user } from "./helpers.js";
 
-const run = Math.random().toString(36).slice(2, 8);
-const user = (who: string) => `e2e_${who}_${run}`;
-
-const contexts: BrowserContext[] = [];
-test.afterAll(async () => {
-  for (const c of contexts.splice(0)) await c.close();
-});
-
-async function signIn(page: Page, name: string): Promise<void> {
-  await page.goto("/");
-  await page.locator('input[name="name"]').fill(name);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expectSignedIn(page, name);
-}
-
-async function expectSignedIn(page: Page, name: string): Promise<void> {
-  await expect(page.getByTestId("me")).toHaveText(name);
-  // The banner shows while connecting or offline; it goes once logged in.
-  await expect(page.locator(".imkit-banner")).toHaveCount(0);
-}
-
-/** A browser profile of its own: a separate device as far as the server is concerned. */
-async function device(browser: Browser, name: string): Promise<Page> {
-  const context = await browser.newContext();
-  contexts.push(context);
-  const page = await context.newPage();
-  await signIn(page, name);
-  return page;
-}
-
-async function openContact(page: Page, name: string): Promise<void> {
-  const contact = page.locator(`[data-contact="${name}"]`);
-  await expect(contact).toBeVisible();
-  await contact.click();
-  await expect(page.locator(".imkit-chat-title")).toHaveText(name);
-}
-
-async function openConversation(page: Page, title: string): Promise<void> {
-  const item = conversationItem(page, title);
-  await expect(item).toBeVisible();
-  await item.click();
-  await expect(page.locator(".imkit-chat-title")).toHaveText(title);
-}
-
-async function send(page: Page, text: string): Promise<void> {
-  const box = page.getByRole("textbox", { name: "Message" });
-  await box.fill(text);
-  await box.press("Enter");
-}
-
-/** The conversation list's entry (contacts use the same style but carry data-contact instead). */
-const conversationItem = (page: Page, title: string) => page.locator("[data-conversation]", { hasText: title });
-
-const row = (page: Page, text: string) => page.locator(".imkit-row", { hasText: text });
-
-/** The message is on screen and the server has given it a sequence number. */
-async function expectStored(page: Page, text: string, mine: boolean): Promise<void> {
-  const r = row(page, text);
-  await expect(r).toHaveAttribute("data-seq", /^\d+$/);
-  if (mine) await expect(r).toHaveClass(/imkit-row-mine/);
-  else await expect(r).not.toHaveClass(/imkit-row-mine/);
-}
+test.afterAll(closeDevices);
 
 test("two people message each other in real time", async ({ browser }) => {
   const alice = user("alice");

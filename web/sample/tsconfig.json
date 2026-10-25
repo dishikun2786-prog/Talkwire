@@ -10,5 +10,5 @@
     "types": ["vite/client"]
   },
   "include": ["src", "vite.config.ts"],
-  "references": [{ "path": "../packages/protocol" }, { "path": "../packages/client" }, { "path": "../packages/storage-idb" }, { "path": "../packages/react" }]
+  "references": [{ "path": "../packages/protocol" }, { "path": "../packages/client" }, { "path": "../packages/storage-idb" }, { "path": "../packages/react" }, { "path": "../packages/group-join" }, { "path": "../packages/call" }, { "path": "../packages/admin" }]
 }

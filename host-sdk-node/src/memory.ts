@@ -8,12 +8,17 @@ import {
   PairExistsError,
   type AuditEntry,
   type AuditStore,
+  type CallRecord,
+  type CallRecordQuery,
+  type CallRecordStore,
+  type CallType,
   type ConfigSource,
   type Contact,
   type ContactListQuery,
   type ContactPatch,
   type ContactStore,
   type NewAuditEntry,
+  type NewCallRecord,
   type NewContact,
   type NewProfile,
   type Profile,
@@ -21,6 +26,7 @@ import {
   type ProfileStore,
 } from "./types.js";
 import { imUid } from "./uid.js";
+import { afterCursor, durationSec, newestFirst, pageOf } from "./call-records.js";
 
 export function pairKey(a: string, b: string): string {
   return a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
@@ -217,6 +223,74 @@ export class MemoryAuditStore implements AuditStore {
       if (row.idempotencyKey === key) return copy(row);
     }
     return null;
+  }
+}
+
+export class MemoryCallRecordStore implements CallRecordStore {
+  private rows = new Map<string, CallRecord>();
+
+  async create(call: NewCallRecord, at = new Date()) {
+    const existing = this.rows.get(call.callSessionId);
+    if (existing) return { ...existing };
+    const row: CallRecord = {
+      ...call,
+      callType: call.requestedType,
+      status: "ringing",
+      createdAt: at,
+      answeredAt: null,
+      upgradedAt: null,
+      endedAt: null,
+      endReason: null,
+      durationSec: null,
+    };
+    this.rows.set(row.callSessionId, row);
+    return { ...row };
+  }
+
+  async answered(callSessionId: string, callType: CallType, at = new Date()) {
+    return this.move(callSessionId, (r) => (r.status === "ringing" ? { status: "active", callType, answeredAt: at } : null));
+  }
+
+  async upgraded(callSessionId: string, at = new Date()) {
+    return this.move(callSessionId, (r) => (r.status === "active" && r.callType === "voice" ? { callType: "video", upgradedAt: at } : null));
+  }
+
+  async ended(callSessionId: string, reason: string, at = new Date()) {
+    return this.move(callSessionId, (r) =>
+      r.status === "ended" ? null : { status: "ended", endedAt: at, endReason: reason, durationSec: durationSec(r.answeredAt, at) },
+    );
+  }
+
+  async get(callSessionId: string) {
+    const row = this.rows.get(callSessionId);
+    return row ? { ...row } : null;
+  }
+
+  async list(q: CallRecordQuery) {
+    const after = afterCursor(q.cursor);
+    const rows = [...this.rows.values()]
+      .filter(
+        (r) =>
+          (!q.userId || r.callerUserId === q.userId || r.calleeUserId === q.userId) &&
+          (!q.status || r.status === q.status) &&
+          (!q.callType || r.callType === q.callType) &&
+          (!q.endReason || r.endReason === q.endReason) &&
+          (!q.from || r.createdAt >= q.from) &&
+          (!q.to || r.createdAt <= q.to) &&
+          after(r),
+      )
+      .sort(newestFirst);
+    return pageOf(rows.slice(0, q.limit + 1).map((r) => ({ ...r })), q.limit);
+  }
+
+  private move(callSessionId: string, step: (r: CallRecord) => Partial<CallRecord> | null): CallRecord | null {
+    const row = this.rows.get(callSessionId);
+    if (!row) return null;
+    const patch = step(row);
+    if (!patch) return { ...row };
+    const next = { ...row, ...patch };
+    this.rows.set(callSessionId, next);
+    return { ...next };
   }
 }
 

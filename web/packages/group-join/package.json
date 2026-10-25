@@ -1,0 +1,32 @@
+{
+  "name": "@imkit/group-join",
+  "version": "0.1.0",
+  "description": "Scan-to-join for ImKit on the web: group QR tokens, joining, and reviewing join requests (protocol section 14), with optional React components",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "dependencies": {
+    "@imkit/client": "0.1.0"
+  },
+  "peerDependencies": {
+    "@imkit/react": "0.1.0",
+    "react": ">=18.2 <20"
+  },
+  "peerDependenciesMeta": {
+    "@imkit/react": { "optional": true },
+    "react": { "optional": true }
+  }
+}

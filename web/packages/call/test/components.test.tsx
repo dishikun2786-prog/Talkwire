@@ -1,0 +1,130 @@
+// @vitest-environment jsdom
+import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
+import { NoMediaEngine } from "@imkit/call";
+import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
+import { uidOf } from "@imkit/protocol";
+import { ImKitProvider, type ImUiHost } from "@imkit/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { StrictMode, type ReactNode } from "react";
+import { afterEach, describe, expect, it } from "vitest";
+import { FakeServer, type Frame } from "../../client/test/fake-server.js";
+import { until } from "../../client/test/until.js";
+
+const bob = uidOf("bob");
+const host: ImUiHost = { profiles: async (uids) => uids.map((uid) => ({ uid, name: uid === bob ? "Bob" : "Someone" })) };
+const stops: (() => void)[] = [];
+afterEach(() => {
+  cleanup();
+  for (const s of stops.splice(0)) s();
+});
+
+function answering(handlers: Record<string, (f: Frame) => Frame[]>): FakeServer {
+  const server = new FakeServer();
+  server.onFrame = (conn, f) => {
+    const h = handlers[String(f.action)];
+    if (!h) return false;
+    for (const frame of h(f)) conn.push(frame.type ? frame : { action: f.action, id: f.id, ...frame });
+    return true;
+  };
+  return server;
+}
+
+async function setup(server: FakeServer, user = "alice") {
+  const client = new ImClient({ endpoints: ["ws://fake"], tokenProvider: () => "tok:" + user, transport: server, watchNetwork: false });
+  const engine = new ChatEngine(client, new MemoryChatStore(), { appUserId: user, autoSync: false });
+  stops.push(() => {
+    client.stop();
+    engine.close();
+  });
+  await engine.open();
+  client.start();
+  await client.awaitConnected(5_000);
+  const media = new NoMediaEngine();
+  const wrap = (node: ReactNode) => (
+    <StrictMode>
+      <ImKitProvider engine={engine} host={host} locale="zh">
+        <CallProvider media={media} channel={null}>
+          {node}
+        </CallProvider>
+      </ImKitProvider>
+    </StrictMode>
+  );
+  return { wrap, media };
+}
+
+const creds = { channelId: "ch", rtcToken: "rtc", denoiseEnabled: true };
+
+describe("call components", () => {
+  it("calls from the header, shows the callee's name, and hangs up", async () => {
+    const server = answering({
+      call_invite: (f) => [{ code: 200, topic: f.topic, callSessionId: "cs-1" }, { type: "call_answered", callSessionId: "cs-1", ...creds }],
+      call_hangup: (f) => [{ code: 200, callSessionId: f.callSessionId }],
+    });
+    const { wrap, media } = await setup(server);
+    const ui = render(
+      wrap(
+        <>
+          <CallButtons peer={bob} />
+          <CallOverlay />
+        </>,
+      ),
+    );
+    fireEvent.click(ui.getByRole("button", { name: "语音通话" }));
+    await until("in the call", () => /^\d+:\d\d$/.test(ui.container.querySelector("[data-call-status]")?.textContent ?? ""));
+    expect(ui.getByRole("dialog", { name: "Bob" })).toBeTruthy();
+    expect(media.log).toEqual(["join voice ch"]);
+    fireEvent.click(ui.getByRole("button", { name: "静音" }));
+    expect(ui.getByRole("button", { name: "取消静音" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(ui.getByRole("button", { name: "挂断" }));
+    await until("ended", () => !!ui.queryByText("通话已结束"));
+    expect(server.sent("call_hangup")).toHaveLength(1);
+  });
+
+  it("rings in the tab: answer a video call as voice, then a switch to video", async () => {
+    const server = answering({
+      call_accept: (f) => [{ code: 200, callSessionId: f.callSessionId, ...creds }],
+      call_upgrade_accept: (f) => [{ code: 200, callSessionId: f.callSessionId }, { type: "call_upgraded", callSessionId: f.callSessionId, videoQuality: "hd" }],
+    });
+    const { wrap, media } = await setup(server, "bob");
+    const ui = render(wrap(<CallOverlay />));
+    server.live[0]!.push({ type: "call_ring", callSessionId: "cs-2", callType: "video", callerName: "Alice", ringTimeoutSeconds: 45 });
+    await until("ringing", () => !!ui.queryByText("邀请你视频通话"));
+    expect(ui.getByText("Alice")).toBeTruthy();
+    fireEvent.click(ui.getByRole("button", { name: "以语音接听" }));
+    await until("answered", () => media.log.length === 1);
+    expect(server.sent("call_accept")[0]).toMatchObject({ callSessionId: "cs-2", acceptAsVoice: true });
+    expect(ui.getByRole("button", { name: "切换到视频" })).toBeTruthy();
+
+    server.live[0]!.push({ type: "call_upgrade_request", callSessionId: "cs-2", toType: "video" });
+    await until("asked", () => !!ui.queryByText("对方请求切换到视频通话"));
+    fireEvent.click(ui.getByRole("button", { name: "开启视频" }));
+    await until("video", () => !!ui.container.querySelector(".imkit-call-videos"));
+    expect(media.log).toContain("video true");
+
+    server.live[0]!.push({ type: "call_ended", callSessionId: "cs-2", reason: "max_duration_reached" });
+    await until("ended", () => !!ui.queryByText("已达通话时长上限"));
+  });
+
+  it("says why an invite was refused and names an unknown end reason plainly", async () => {
+    const server = answering({ call_invite: () => [{ code: 409, reason: "offline" }] });
+    const { wrap } = await setup(server);
+    const refused: string[] = [];
+    const ui = render(
+      wrap(
+        <>
+          <CallButtons peer={bob} onRefused={(t) => refused.push(t)} />
+          <CallOverlay />
+        </>,
+      ),
+    );
+    fireEvent.click(ui.getByRole("button", { name: "视频通话" }));
+    await until("refused", () => refused.length === 1);
+    expect(refused).toEqual(["对方不在线"]);
+    expect(ui.container.querySelector(".imkit-call")).toBeNull();
+
+    server.live[0]!.push({ type: "call_ring", callSessionId: "cs-3", callType: "voice", ringTimeoutSeconds: 45 });
+    await until("ringing", () => !!ui.queryByText("邀请你语音通话"));
+    server.live[0]!.push({ type: "call_ended", callSessionId: "cs-3", reason: "something_new" });
+    await until("ended", () => !!ui.queryByText("通话已结束"));
+  });
+});

@@ -28,3 +28,10 @@ html, body, #root { height: 100%; margin: 0; }
   .sample-main:not(:has(.imkit-chat)) .sample-chat { display: none; }
 }
 .sample-link { font-size: 12px; color: var(--imkit-text-muted); border: 1px solid var(--imkit-border); border-radius: 10px; padding: 1px 8px; }
+.sample-panel { background: var(--imkit-bg); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; width: min(420px, 92vw); max-height: 90vh; overflow: auto; }
+.sample-join { display: flex; flex-direction: column; gap: 10px; padding: 16px; max-width: 460px; }
+.sample-admin-nav { display: flex; gap: 14px; align-items: center; padding: 8px 14px; background: var(--imkit-surface); border-bottom: 1px solid var(--imkit-border); flex-wrap: wrap; }
+.sample-admin-nav a[aria-current="page"] { font-weight: 600; }
+.sample-admin-nav button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; cursor: pointer; }
+.sample-admin-main { flex: 1; overflow: auto; padding: 14px; background: var(--imkit-bg); }
+.sample-login select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; }
