@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="redpacket_title">Red packet</string>
+    <string name="redpacket_label">Red packet · host example</string>
+    <string name="redpacket_preview">[Red packet]</string>
+    <string name="redpacket_tap_to_open">Tap to open</string>
+    <string name="redpacket_you_got">You got %1$d</string>
+    <string name="redpacket_all_claimed">All claimed (%1$d/%2$d)</string>
+    <string name="redpacket_failed">Couldn\'t open the red packet</string>
+    <string name="redpacket_action">Red packet</string>
+    <string name="redpacket_send_title">Send a red packet</string>
+    <string name="redpacket_send">Send</string>
+    <string name="redpacket_cancel">Cancel</string>
+    <string name="redpacket_total">Total</string>
+    <string name="redpacket_count">Number of packets</string>
+</resources>

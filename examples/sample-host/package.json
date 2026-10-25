@@ -1,0 +1,26 @@
+{
+  "name": "@imkit/sample-host",
+  "private": true,
+  "description": "A development host for the ImKit sample apps: dev sign-in, contacts, media and the red packet example, using @imkit/host-node",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@imkit/host-node": "file:../../host-sdk-node",
+    "fastify": "4.29.1",
+    "jsonwebtoken": "9.0.3"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "22.19.19",
+    "tsx": "4.22.3",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

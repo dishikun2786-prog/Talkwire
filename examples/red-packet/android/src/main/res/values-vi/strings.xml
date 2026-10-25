@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="redpacket_title">Lì xì</string>
+    <string name="redpacket_label">Lì xì · ví dụ của ứng dụng</string>
+    <string name="redpacket_preview">[Lì xì]</string>
+    <string name="redpacket_tap_to_open">Nhấn để mở</string>
+    <string name="redpacket_you_got">Bạn nhận được %1$d</string>
+    <string name="redpacket_all_claimed">Đã nhận hết (%1$d/%2$d)</string>
+    <string name="redpacket_failed">Không mở được lì xì</string>
+    <string name="redpacket_action">Lì xì</string>
+    <string name="redpacket_send_title">Gửi lì xì</string>
+    <string name="redpacket_send">Gửi</string>
+    <string name="redpacket_cancel">Hủy</string>
+    <string name="redpacket_total">Tổng số</string>
+    <string name="redpacket_count">Số phần</string>
+</resources>

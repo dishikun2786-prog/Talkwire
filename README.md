@@ -19,9 +19,9 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | `docs/` | 计划、架构决策记录、协议规范、清单 | 建设中 |
 | `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
-| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM | Phase 3 完成（M1），UI 属 Phase 4 |
+| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台） |
 | `web/`、`ios/` | Web、iOS SDK | Phase 5–6 |
-| `examples/` | 业务示例：红包卡（宿主自定义消息类型） | 红包示例已有 |
+| `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主） | 已有 |
 | `admin-kit/` | 后台组件 | Phase 8 |
 
 ## 开发工具

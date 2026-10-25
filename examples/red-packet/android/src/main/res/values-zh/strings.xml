@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="redpacket_title">红包</string>
+    <string name="redpacket_label">红包 · 宿主示例</string>
+    <string name="redpacket_preview">[红包]</string>
+    <string name="redpacket_tap_to_open">点击领取</string>
+    <string name="redpacket_you_got">你领到 %1$d</string>
+    <string name="redpacket_all_claimed">已领完（%1$d/%2$d）</string>
+    <string name="redpacket_failed">红包打开失败</string>
+    <string name="redpacket_action">红包</string>
+    <string name="redpacket_send_title">发红包</string>
+    <string name="redpacket_send">发送</string>
+    <string name="redpacket_cancel">取消</string>
+    <string name="redpacket_total">总额</string>
+    <string name="redpacket_count">红包个数</string>
+</resources>
