@@ -5,15 +5,41 @@ import { GroupJoinProvider, GroupJoinStyles, GroupQrCard, JoinApprovalSetting, J
 import { ChatScreen, ConnectionBanner, ContactList, ConversationInfo, ConversationList, TalkwireProvider, TalkwireStyles, PickPeople, useSignal } from "@talkwire/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminConsole, isAdminHash } from "./Admin.js";
-import { buildStack, devLogin, saveSession, savedSession, type Stack } from "./stack.js";
+import { buildStack, createSpace, devLogin, sandboxInfo, saveSession, savedSession, type SandboxInfo, type Stack } from "./stack.js";
 
 type Locale = "en" | "zh" | "vi";
 
 const ui = {
-  en: { title: "Talkwire sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", close: "Close", admin: "Admin" },
-  zh: { title: "Talkwire 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", close: "关闭", admin: "管理后台" },
-  vi: { title: "Mẫu Talkwire", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", close: "Đóng", admin: "Quản trị" },
+  en: { title: "Talkwire sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", close: "Close", admin: "Admin",
+    space: "Space code", newSpace: "New space", sandbox: "Public test service: anyone may use it, so do not enter anything private.", cleared: "Everything is cleared every day at", end: ".", docs: "Guide", invite: "Invite link", copied: "Copied", spaceHint: "Others who sign in to the same space become your contacts; spaces do not see each other.", noSpaceContacts: "Send the invite link to someone, or open it in another browser and sign in with another name." },
+  zh: { title: "Talkwire 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", close: "关闭", admin: "管理后台",
+    space: "空间码", newSpace: "新建空间", sandbox: "公共测试服务：任何人都能用，请勿输入任何隐私信息。", cleared: "所有数据每天清空，时间", end: "。", docs: "使用说明", invite: "邀请链接", copied: "已复制", spaceHint: "登录同一个空间的人会互为联系人；不同空间互相看不见。", noSpaceContacts: "把邀请链接发给别人，或在另一个浏览器打开它、换个名字登录。" },
+  vi: { title: "Mẫu Talkwire", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", close: "Đóng", admin: "Quản trị",
+    space: "Mã không gian", newSpace: "Tạo không gian", sandbox: "Dịch vụ thử nghiệm công khai: ai cũng dùng được, đừng nhập thông tin riêng tư.", cleared: "Mọi dữ liệu bị xóa mỗi ngày lúc", end: ".", docs: "Hướng dẫn", invite: "Liên kết mời", copied: "Đã chép", spaceHint: "Những người đăng nhập cùng không gian sẽ là danh bạ của nhau; các không gian không thấy nhau.", noSpaceContacts: "Gửi liên kết mời cho người khác, hoặc mở nó ở trình duyệt khác và đăng nhập bằng tên khác." },
 } as const;
+
+const SPACE_KEY = "talkwire.sample.space";
+
+/** `?space=` from an invite link, else the space last used in this browser. */
+function initialSpace(): string {
+  const fromLink = new URLSearchParams(location.search).get("space");
+  if (fromLink) return fromLink.trim().toLowerCase();
+  try {
+    return localStorage.getItem(SPACE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberSpace(space: string): void {
+  try {
+    localStorage.setItem(SPACE_KEY, space);
+  } catch {
+    // private mode
+  }
+}
+
+const inviteLink = (space: string) => `${location.origin}${location.pathname}?space=${encodeURIComponent(space)}`;
 
 function initialLocale(): Locale {
   const l = navigator.language.toLowerCase();
@@ -44,19 +70,37 @@ export function App() {
   const [busy, setBusy] = useState(false);
   // `#/admin/...` is the admin console, beside the chat rather than inside it.
   const [admin, setAdmin] = useState(isAdminHash);
+  // The public test service (sandbox) says so at /sandbox/info; the plain sample
+  // host does not (null). undefined until asked.
+  const [sandbox, setSandbox] = useState<SandboxInfo | null | undefined>(undefined);
+  const [space, setSpace] = useState(initialSpace);
   const t = ui[locale];
   // Signaling only: the sample host's demo credentials lead to no RTC service (see examples/sample-host/src/demo-calls.ts).
   const media = useMemo(() => new NoMediaEngine(), []);
 
-  const start = async (name?: string) => {
+  const start = async (info: SandboxInfo | null, name?: string, spaceCode?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const session = name ? await devLogin(name) : savedSession();
+      let session = name ? await devLogin(name, info ? spaceCode : undefined) : savedSession();
       if (!session) return;
+      // In the sandbox a saved session is signed in again: the daily reset forgets
+      // spaces and users, while the old token would still verify.
+      if (!name && info) {
+        if (!session.space) {
+          saveSession(null);
+          return;
+        }
+        session = await devLogin(session.name, session.space);
+      }
+      if (session.space) {
+        rememberSpace(session.space);
+        setSpace(session.space);
+      }
       saveSession(session);
       setStack(await buildStack(session));
     } catch (e) {
+      if (!name) saveSession(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -64,8 +108,25 @@ export function App() {
   };
 
   useEffect(() => {
-    void start();
+    void sandboxInfo().then((info) => {
+      setSandbox(info);
+      return start(info);
+    });
   }, []);
+
+  const newSpace = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const code = await createSpace();
+      rememberSpace(code);
+      setSpace(code);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     const onHash = () => setAdmin(isAdminHash());
@@ -90,16 +151,24 @@ export function App() {
           <option value="zh">中文</option>
           <option value="vi">Tiếng Việt</option>
         </select>
-        {!admin && <a href="#/admin/im/chats">{t.admin}</a>}
+        {!admin && sandbox === null && <a href="#/admin/im/chats">{t.admin}</a>}
+        {sandbox?.docsUrl && <a href={sandbox.docsUrl} target="_blank" rel="noreferrer">{t.docs}</a>}
         {stack && !admin && (
           <>
+            {stack.session.space && <InviteLink space={stack.session.space} t={t} />}
             <LinkBadge stack={stack} />
             <span className="sample-me" data-testid="me">{stack.session.name}</span>
             <button type="button" onClick={signOut}>{t.signOut}</button>
           </>
         )}
       </header>
-      {admin ? (
+      {sandbox && (
+        <p className="sample-sandbox" role="note">
+          {t.sandbox}
+          {sandbox.resetTime && <> {t.cleared} {sandbox.resetTime}{t.end}</>}
+        </p>
+      )}
+      {admin && sandbox === null ? (
         <AdminConsole locale={locale} />
       ) : stack ? (
         <TalkwireProvider engine={stack.engine} host={stack.host} locale={locale}>
@@ -108,24 +177,36 @@ export function App() {
               <CallTraceOnWindow />
               <GroupJoinStyles />
               <CallStyles />
-              <Chats stack={stack} t={t} />
+              <Chats stack={stack} t={t} sandbox={!!sandbox} />
               <CallOverlay />
             </CallProvider>
           </GroupJoinProvider>
         </TalkwireProvider>
-      ) : (
+      ) : sandbox === undefined ? null : (
         <form
           className="sample-login"
           onSubmit={(e) => {
             e.preventDefault();
             const name = new FormData(e.currentTarget).get("name");
-            if (typeof name === "string") void start(name.trim());
+            if (typeof name === "string") void start(sandbox, name.trim(), space.trim().toLowerCase());
           }}
         >
           <label>
             {t.name}
             <input name="name" required pattern="[A-Za-z0-9_]{2,20}" autoFocus autoComplete="username" />
           </label>
+          {sandbox && (
+            <>
+              <label>
+                {t.space}
+                <span className="sample-space-row">
+                  <input name="space" required pattern="[A-Za-z0-9]{8}" value={space} onChange={(e) => setSpace(e.target.value)} autoComplete="off" spellCheck={false} />
+                  <button type="button" onClick={() => void newSpace()} disabled={busy}>{t.newSpace}</button>
+                </span>
+              </label>
+              <p className="sample-hint">{t.spaceHint}</p>
+            </>
+          )}
           <button type="submit" disabled={busy}>{t.signIn}</button>
           {error && <p className="sample-error" role="alert">{error}</p>}
         </form>
@@ -143,7 +224,7 @@ function route(): { chat: ConversationId | null; join: string | null } {
 
 const joinLink = (qrToken: string) => `${location.origin}${location.pathname}#/join/${encodeURIComponent(qrToken)}`;
 
-function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
+function Chats({ stack, t, sandbox }: { stack: Stack; t: (typeof ui)[Locale]; sandbox: boolean }) {
   const [open, setOpen] = useState<ConversationId | null>(() => route().chat);
   const [joining, setJoining] = useState<string | null>(() => route().join);
   // The open chat's settings page, in place of the chat.
@@ -228,7 +309,7 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
         <ConversationList onOpen={openChat} activeConversation={open} />
         <details className="sample-contacts" open>
           <summary>{t.contacts} ({contacts.length})</summary>
-          {contacts.length === 0 ? <p className="sample-hint">{t.noContacts}</p> : <ContactList onOpen={openChat} />}
+          {contacts.length === 0 ? <p className="sample-hint">{sandbox ? t.noSpaceContacts : t.noContacts}</p> : <ContactList onOpen={openChat} />}
         </details>
       </aside>
       <main className="sample-chat">
@@ -276,6 +357,23 @@ function Chats({ stack, t }: { stack: Stack; t: (typeof ui)[Locale] }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** The space code and a button that copies a link signing others in to it. */
+function InviteLink({ space, t }: { space: string; t: (typeof ui)[Locale] }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(inviteLink(space)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <span className="sample-space" data-testid="space" title={inviteLink(space)}>
+      {t.space} <code>{space}</code>
+      <button type="button" onClick={copy}>{copied ? t.copied : t.invite}</button>
+    </span>
   );
 }
 

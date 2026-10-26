@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sample_title">Mẫu Talkwire</string>
+    <string name="sample_sandbox_hint">Dịch vụ thử nghiệm công khai: ai cũng dùng được, đừng nhập thông tin riêng tư. Mọi dữ liệu bị xóa lúc 04:00 giờ Trung Quốc mỗi ngày.</string>
+    <string name="sample_space">Mã không gian</string>
+    <string name="sample_new_space">Tạo không gian</string>
+    <string name="sample_space_hint">Những người đăng nhập cùng không gian sẽ là danh bạ của nhau; các không gian không thấy nhau.</string>
     <string name="sample_dev_hint">Đăng nhập vào máy chủ mẫu cục bộ bằng tên. Chỉ dùng khi phát triển.</string>
     <string name="sample_name">Tên của bạn</string>
     <string name="sample_sign_in">Đăng nhập</string>

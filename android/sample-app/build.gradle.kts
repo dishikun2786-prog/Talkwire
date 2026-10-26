@@ -17,12 +17,25 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        // The sample host and the IM server on the development machine, reached through
-        // `adb reverse tcp:6001 tcp:6001` and `adb reverse tcp:6062 tcp:6062`.
-        buildConfigField("String", "HOST_URL", "\"http://127.0.0.1:6001\"")
-        buildConfigField("String", "IM_URL", "\"ws://127.0.0.1:6062/ws/im\"")
-        // The web sample (`npm run sample` in web/): group QR codes made here link to its join page.
-        buildConfigField("String", "WEB_URL", "\"http://127.0.0.1:5173/\"")
+        // The public sandbox in place of the development machine:
+        //   ./gradlew :sample-app:installDebug -PtalkwireSandbox=https://imtalk.openedskill.com
+        // Sign-in then asks for a space code too (deploy/imtalk/README.md).
+        val sandbox = (project.findProperty("talkwireSandbox") as String?)?.trimEnd('/')
+        if (sandbox != null) {
+            require(sandbox.startsWith("https://")) { "talkwireSandbox must be an https:// address" }
+            buildConfigField("String", "HOST_URL", "\"$sandbox\"")
+            buildConfigField("String", "IM_URL", "\"${sandbox.replaceFirst("https://", "wss://")}/ws/im\"")
+            buildConfigField("String", "WEB_URL", "\"$sandbox/\"")
+            buildConfigField("boolean", "SANDBOX", "true")
+        } else {
+            // The sample host and the IM server on the development machine, reached through
+            // `adb reverse tcp:6001 tcp:6001` and `adb reverse tcp:6062 tcp:6062`.
+            buildConfigField("String", "HOST_URL", "\"http://127.0.0.1:6001\"")
+            buildConfigField("String", "IM_URL", "\"ws://127.0.0.1:6062/ws/im\"")
+            // The web sample (`npm run sample` in web/): group QR codes made here link to its join page.
+            buildConfigField("String", "WEB_URL", "\"http://127.0.0.1:5173/\"")
+            buildConfigField("boolean", "SANDBOX", "false")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

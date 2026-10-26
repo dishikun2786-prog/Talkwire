@@ -30,3 +30,6 @@ ci-logs/
 
 # website build cache
 site/.vitepress/cache/
+
+# sandbox release builds (deploy/imtalk/release.sh)
+deploy/imtalk/.build/

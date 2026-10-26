@@ -43,9 +43,9 @@
    ```
 
 5. 云服务器的安全组放行入站 TCP 80 与 443。
-6. DNS：`talkwire.openedskill.com` 的 A 记录指向服务器。Caddy 首次访问时自动申请证书。
+6. DNS：在 Cloudflare 里把 `talkwire.openedskill.com` 的 A 记录指向服务器，代理（橙色云）开着也行。Caddy 自己申请证书：Cloudflare 不会把 `/.well-known/acme-challenge/` 跳转到 HTTPS，Let's Encrypt 的 HTTP-01 验证经代理到达 80 端口。证书到手后，Cloudflare 的 SSL 模式用“完全（严格）”。
 
-   域名在 Cloudflare 上且开着代理（橙色云）时，有两种做法：先设为“仅 DNS”，等 Caddy 拿到证书后再打开代理；或者用 Cloudflare 的源站证书，在站点块里加 `tls /etc/caddy/origin.pem /etc/caddy/origin.key`，并把 SSL 模式设为“完全（严格）”。
+   `Caddyfile` 让源站对 HTTP 与 HTTPS 都直接返回网站、不做跳转，所以 SSL 模式是“灵活”时也不会循环跳转；但那样 Cloudflare 到源站这一段是明文，不建议长期使用。
 
 ## GitHub 上做一次
 
@@ -68,3 +68,9 @@ sudo -u talkwire mv -Tf /var/www/talkwire/current.next /var/www/talkwire/current
 ```
 
 工作流每次部署后保留最近 5 个目录，更早的删掉。
+
+## 排查
+
+- **经 Cloudflare 访问返回 521**：Cloudflare 连不上源站。先在服务器上看请求到没到：`timeout 20 tcpdump -nn -i any 'tcp[tcpflags] & tcp-syn != 0 and (dst port 80 or dst port 443)'`，同时从外面访问网站。一个连接都没有，说明 DNS 记录指的不是这台服务器；有连接却被拒，查 `systemctl status caddy` 与安全组。
+- **证书没拿到**：`journalctl -u caddy --no-pager | grep -E 'challenge failed|certificate obtained'`。DNS 改对后 `systemctl restart caddy` 让它立刻重试，不用等退避。
+- **阿里云控制台绑定密钥对会覆盖 `/root/.ssh/authorized_keys`**，之前手工加的公钥会一起消失。

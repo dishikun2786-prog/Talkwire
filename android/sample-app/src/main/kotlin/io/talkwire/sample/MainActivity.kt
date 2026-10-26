@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -96,12 +97,27 @@ class MainActivity : ComponentActivity() {
         handle(intent)
         val app = application as SampleApp
         setContent {
-            var account by remember { mutableStateOf(app.accounts.current()) }
+            // In the sandbox a saved account is signed in again once per process: the daily
+            // reset forgets spaces and users, while the saved token would still verify.
+            val saved = app.session?.account ?: app.accounts.current()?.takeIf { !SampleConfig.SANDBOX }
+            var account by remember { mutableStateOf(saved) }
+            var restoring by remember { mutableStateOf(saved == null && SampleConfig.SANDBOX && app.accounts.current() != null) }
+            var restoreError by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(restoring) {
+                if (!restoring) return@LaunchedEffect
+                val old = app.accounts.current()!!
+                runCatching { app.accounts.signIn(old.name, old.space) }
+                    .onSuccess { account = it }
+                    .onFailure { app.accounts.signOut(); restoreError = it.message ?: it.toString() }
+                restoring = false
+            }
             ImTheme {
                 Surface(Modifier.fillMaxSize()) {
                     val a = account
-                    if (a == null) {
-                        SignIn(app) { account = it }
+                    if (restoring) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    } else if (a == null) {
+                        SignIn(app, restoreError) { account = it }
                     } else {
                         Chat(app.sessionFor(a), onSignOut = { app.signOut(); account = null })
                     }
@@ -157,7 +173,8 @@ class MainActivity : ComponentActivity() {
             if (state.current is ImDestination.Conversations && joining == null) {
                 Row(Modifier.align(Alignment.BottomStart).padding(4.dp)) {
                     TextButton(onClick = onSignOut) {
-                        Text(stringResource(R.string.sample_sign_out) + " (" + session.account.name + ")", fontSize = 11.sp)
+                        val who = session.account.space?.let { session.account.name + " · " + it } ?: session.account.name
+                        Text(stringResource(R.string.sample_sign_out) + " (" + who + ")", fontSize = 11.sp)
                     }
                     TextButton(onClick = { askJoin = true }, modifier = Modifier.testTag("sample_join")) {
                         Text(stringResource(R.string.sample_join_group), fontSize = 11.sp)
@@ -214,9 +231,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SignIn(app: SampleApp, onSignedIn: (Account) -> Unit) {
+private fun SignIn(app: SampleApp, initialError: String?, onSignedIn: (Account) -> Unit) {
     var name by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var space by remember { mutableStateOf(app.accounts.lastSpace() ?: "") }
+    var error by remember { mutableStateOf(initialError) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     Column(
@@ -226,7 +244,7 @@ private fun SignIn(app: SampleApp, onSignedIn: (Account) -> Unit) {
     ) {
         Text(stringResource(R.string.sample_title), fontSize = 22.sp)
         Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.sample_dev_hint), fontSize = 13.sp)
+        Text(stringResource(if (SampleConfig.SANDBOX) R.string.sample_sandbox_hint else R.string.sample_dev_hint), fontSize = 13.sp)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
             value = name,
@@ -235,14 +253,41 @@ private fun SignIn(app: SampleApp, onSignedIn: (Account) -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth().testTag("sample_name"),
         )
+        if (SampleConfig.SANDBOX) {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = space,
+                    onValueChange = { space = it.lowercase().filter { c -> c.isLetterOrDigit() }.take(8) },
+                    label = { Text(stringResource(R.string.sample_space)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).testTag("sample_space"),
+                )
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        error = null
+                        scope.launch {
+                            runCatching { app.accounts.createSpace() }
+                                .onSuccess { space = it }
+                                .onFailure { error = it.message ?: it.toString() }
+                            busy = false
+                        }
+                    },
+                    modifier = Modifier.testTag("sample_new_space"),
+                ) { Text(stringResource(R.string.sample_new_space)) }
+            }
+            Text(stringResource(R.string.sample_space_hint), fontSize = 12.sp)
+        }
         Spacer(Modifier.height(16.dp))
         Button(
-            enabled = name.length >= 2 && !busy,
+            enabled = name.length >= 2 && (!SampleConfig.SANDBOX || space.length == 8) && !busy,
             onClick = {
                 busy = true
                 error = null
                 scope.launch {
-                    runCatching { app.accounts.signIn(name) }
+                    runCatching { app.accounts.signIn(name, space.takeIf { SampleConfig.SANDBOX }) }
                         .onSuccess(onSignedIn)
                         .onFailure { error = it.message ?: it.toString() }
                     busy = false

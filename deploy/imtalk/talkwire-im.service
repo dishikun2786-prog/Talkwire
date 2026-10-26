@@ -1,0 +1,40 @@
+[Unit]
+Description=Talkwire IM server for the sandbox (imtalk.openedskill.com)
+Documentation=https://talkwire.openedskill.com/guide/sandbox
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+# IM_PORT, DB_*, JWT_SECRET, TALKWIRE_*; root-only, written by setup.sh.
+EnvironmentFile=/etc/talkwire/im.env
+WorkingDirectory=/opt/talkwire/current
+ExecStart=/opt/talkwire/current/talkwire-server
+Restart=always
+RestartSec=2
+
+# It listens on 0.0.0.0:6062, but only loopback reaches it: the database, the
+# sandbox host and Caddy in front are all on this machine.
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryMax=400M
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

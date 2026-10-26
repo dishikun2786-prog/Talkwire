@@ -29,6 +29,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: "简介", link: "/guide/" },
       { text: "架构与概念", link: "/guide/architecture" },
       { text: "快速开始", link: "/guide/quickstart" },
+      { text: "云端测试服务", link: "/guide/sandbox" },
       { text: "术语表", link: "/guide/glossary" },
     ],
   },

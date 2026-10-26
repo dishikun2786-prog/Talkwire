@@ -3,7 +3,7 @@
 # Install as /etc/caddy/Caddyfile, or import it from there; then
 #   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
 
-talkwire.openedskill.com {
+(talkwire_site) {
 	root * /var/www/talkwire/current
 	encode zstd gzip
 
@@ -35,3 +35,22 @@ talkwire.openedskill.com {
 		}
 	}
 }
+
+# The domain is proxied by Cloudflare, which already sends visitors to HTTPS.
+# Both schemes serve the site and the origin never redirects: Cloudflare's
+# Flexible mode reaches the origin over HTTP, and a redirect there would loop.
+# Defining the http:// site also turns off Caddy's own redirect for the host.
+# Caddy still gets a certificate for the https:// site: Cloudflare passes
+# /.well-known/acme-challenge/ over plain HTTP, so the HTTP-01 challenge
+# reaches port 80. With that certificate, Cloudflare's "Full (strict)" works.
+http://talkwire.openedskill.com {
+	import talkwire_site
+}
+
+https://talkwire.openedskill.com {
+	import talkwire_site
+}
+
+# Other sites on this server, each in its own file: the sandbox
+# (deploy/imtalk/imtalk.caddy) is installed as /etc/caddy/sites/imtalk.caddy.
+import /etc/caddy/sites/*.caddy

@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sample_title">Talkwire Sample</string>
+    <string name="sample_sandbox_hint">The public test service: anyone may use it, so enter nothing private. Everything is cleared every day at 04:00 China time.</string>
+    <string name="sample_space">Space code</string>
+    <string name="sample_new_space">New space</string>
+    <string name="sample_space_hint">Others who sign in to the same space become your contacts; spaces do not see each other.</string>
     <string name="sample_dev_hint">Signs in to the local sample host by name. For development only.</string>
     <string name="sample_name">Your name</string>
     <string name="sample_sign_in">Sign in</string>

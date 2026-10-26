@@ -15,6 +15,35 @@ export interface Session {
   uid: string;
   name: string;
   accessToken: string;
+  /** The space signed in to, on the sandbox host (examples/sample-host/src/sandbox.ts). */
+  space?: string;
+}
+
+/** What the sandbox host says about itself; null on the plain sample host. */
+export interface SandboxInfo {
+  sandbox: true;
+  resetTime: string | null;
+  docsUrl: string | null;
+  limits: { usersPerSpace: number; maxUploadBytes: number; uploadsPerHour: number };
+}
+
+export async function sandboxInfo(): Promise<SandboxInfo | null> {
+  try {
+    const resp = await fetch("/sandbox/info");
+    if (!resp.ok) return null;
+    const body = (await resp.json()) as Partial<SandboxInfo>;
+    return body.sandbox === true ? (body as SandboxInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A new space on the sandbox host; its code is what others sign in to. */
+export async function createSpace(): Promise<string> {
+  const resp = await fetch("/sandbox/spaces", { method: "POST" });
+  const body = (await resp.json().catch(() => ({}))) as { space?: string; error?: string };
+  if (!resp.ok || !body.space) throw new Error(body.error ?? `could not make a space (${resp.status})`);
+  return body.space;
 }
 
 const SESSION_KEY = "talkwire-sample-session";
@@ -52,8 +81,8 @@ function deviceName(): string {
   }
 }
 
-export async function devLogin(name: string): Promise<Session> {
-  const resp = await fetch("/dev/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+export async function devLogin(name: string, space?: string): Promise<Session> {
+  const resp = await fetch("/dev/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(space ? { name, space } : { name }) });
   const body = (await resp.json().catch(() => ({}))) as Partial<Session> & { error?: string };
   if (!resp.ok || !body.accessToken) throw new Error(body.error ?? `sign-in failed (${resp.status})`);
   return body as Session;

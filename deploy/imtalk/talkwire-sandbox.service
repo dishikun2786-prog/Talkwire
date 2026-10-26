@@ -1,0 +1,40 @@
+[Unit]
+Description=Talkwire sandbox host (imtalk.openedskill.com)
+Documentation=https://talkwire.openedskill.com/guide/sandbox
+After=talkwire-im.service
+Wants=talkwire-im.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+# Uploaded files, until the daily reset: /var/lib/talkwire-sandbox/media.
+StateDirectory=talkwire-sandbox
+# JWT_SECRET (the IM server's), SANDBOX_*; root-only, written by setup.sh.
+EnvironmentFile=/etc/talkwire/sandbox.env
+Environment=NODE_ENV=production HOST=127.0.0.1 PORT=6001 IM_BASE_URL=http://127.0.0.1:6062 MEDIA_DIR=/var/lib/talkwire-sandbox/media
+WorkingDirectory=/opt/talkwire/current
+ExecStart=/usr/local/bin/node /opt/talkwire/current/sandbox.mjs
+Restart=always
+RestartSec=2
+
+# Talks only to the IM server and to Caddy, both on this machine.
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryMax=400M
+
+[Install]
+WantedBy=multi-user.target

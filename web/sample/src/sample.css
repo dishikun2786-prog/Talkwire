@@ -35,3 +35,8 @@ html, body, #root { height: 100%; margin: 0; }
 .sample-admin-nav button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; cursor: pointer; }
 .sample-admin-main { flex: 1; overflow: auto; padding: 14px; background: var(--talkwire-bg); }
 .sample-login select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; }
+.sample-sandbox { margin: 0; padding: 6px 14px; font-size: 13px; background: var(--talkwire-surface); color: var(--talkwire-text-muted); border-bottom: 1px solid var(--talkwire-border); }
+.sample-space { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--talkwire-text-muted); }
+.sample-space code { font-size: 13px; color: inherit; }
+.sample-space-row { display: flex; gap: 8px; }
+.sample-space-row input { flex: 1; min-width: 0; }

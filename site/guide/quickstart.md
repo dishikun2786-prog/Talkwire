@@ -9,6 +9,10 @@ description: "在一台开发机上把 PostgreSQL、IM 服务端、开发宿主�
 
 Talkwire 还没有发布到 npm 和 Maven，下面的命令都在仓库里运行。
 
+::: tip 先不想在本机搭
+[云端测试服务](/guide/sandbox) imtalk.openedskill.com 上已经跑好了一整套，打开就能用 Web 示例试，也能让 Android 示例或自己的客户端直接连上去。
+:::
+
 ::: warning 注意
 开发宿主的 `/dev/login` 凭名字就能登录任何人，默认只监听 127.0.0.1，只能在本机开发用。
 :::

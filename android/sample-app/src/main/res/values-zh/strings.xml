@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sample_title">Talkwire 示例</string>
+    <string name="sample_sandbox_hint">公共测试服务：任何人都能用，请勿输入任何隐私信息。所有数据每天北京时间 04:00 清空。</string>
+    <string name="sample_space">空间码</string>
+    <string name="sample_new_space">新建空间</string>
+    <string name="sample_space_hint">登录同一个空间的人会互为联系人；不同空间互相看不见。</string>
     <string name="sample_dev_hint">用名字登录本地示例宿主，仅供开发使用。</string>
     <string name="sample_name">你的名字</string>
     <string name="sample_sign_in">登录</string>

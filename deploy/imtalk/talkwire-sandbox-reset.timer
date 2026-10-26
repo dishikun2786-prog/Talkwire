@@ -1,0 +1,10 @@
+[Unit]
+Description=Clear the Talkwire sandbox every day at 04:00 China time
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Asia/Shanghai
+# A reset missed while the machine was down runs when it comes back.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

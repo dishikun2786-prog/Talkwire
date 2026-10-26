@@ -1,0 +1,7 @@
+[Unit]
+Description=Clear the Talkwire sandbox (database and uploads)
+Documentation=https://talkwire.openedskill.com/guide/sandbox
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/talkwire-sandbox-reset
