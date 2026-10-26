@@ -1,6 +1,6 @@
 {
   "scenario": "module/qr-join-review",
-  "source": "imkit strict profile (D8)",
+  "source": "talkwire strict profile (D8)",
   "steps": [
     {
       "index": 1,

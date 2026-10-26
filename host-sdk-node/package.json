@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/host-node",
+  "name": "@talkwire/host-node",
   "version": "0.1.0",
-  "description": "ImKit host SDK for Node: the host side of the IM contract as a Fastify plugin, with storage interfaces and reference stores",
+  "description": "Talkwire host SDK for Node: the host side of the IM contract as a Fastify plugin, with storage interfaces and reference stores",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -23,8 +23,8 @@
   },
   "files": [
     "dist",
-    "prisma/imkit.prisma",
-    "prisma/imkit.sql"
+    "prisma/talkwire.prisma",
+    "prisma/talkwire.sql"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

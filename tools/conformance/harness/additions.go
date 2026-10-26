@@ -29,7 +29,7 @@ var KnownAdditions = map[string]Additions{
 	},
 }
 
-// AddedFrames are frames only ImKit's server sends, for behaviour the
+// AddedFrames are frames only Talkwire's server sends, for behaviour the
 // reference server does not have (marked 【测】 in the specification). They
 // cannot have a golden case; the named test covers each instead.
 var AddedFrames = map[string]string{

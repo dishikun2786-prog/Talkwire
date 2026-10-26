@@ -2,7 +2,7 @@
 
 通话模块（协议第 16 节）只管信令：谁打给谁、接没接、何时挂断。媒体走宿主自己的 RTC 服务，IM 服务端不碰音视频。本示例给出接阿里云 ARTC 3.0（DingRTC）要的两半：
 
-- **宿主一侧**（本目录，Node）：`artcCalls()` 实现 `@imkit/host-node` 的 `CallHandlers`。每通电话开一个频道，接通时给主叫、被叫各签一个令牌；谁能打给谁、通话怎么计费仍由宿主决定。
+- **宿主一侧**（本目录，Node）：`artcCalls()` 实现 `@talkwire/host-node` 的 `CallHandlers`。每通电话开一个频道，接通时给主叫、被叫各签一个令牌；谁能打给谁、通话怎么计费仍由宿主决定。
 - **客户端一侧**：各端的 RTC 适配器，把通话模块的媒体接口落到 DingRTC SDK 上。Web 版是 `web/packages/call-dingrtc`。
 
 两半都不进核心：核心与通话模块的依赖树里没有 DingRTC，`tools/depcheck` 会检查这一点。适配器只把 SDK 写成 peer 依赖，由应用自己安装。
@@ -10,7 +10,7 @@
 ## 宿主一侧
 
 ```ts
-import { imkitHostPlugin, recordingCalls } from "@imkit/host-node";
+import { talkwireHostPlugin, recordingCalls } from "@talkwire/host-node";
 import { artcCalls, friendsOnly } from "./calls.js";
 
 const calls = artcCalls({
@@ -20,10 +20,10 @@ const calls = artcCalls({
   videoQuality: () => config.videoQuality, // "sd" | "hd"
   onSettle: (call, reason) => bill(call, reason), // 每通电话恰好一次
 });
-await app.register(imkitHostPlugin, { ..., calls: recordingCalls(calls, callRecords) });
+await app.register(talkwireHostPlugin, { ..., calls: recordingCalls(calls, callRecords) });
 ```
 
-- **频道**：每通电话一个，`imkit-` 加 24 位随机十六进制。
+- **频道**：每通电话一个，`talkwire-` 加 24 位随机十六进制。
 - **令牌**：主叫、被叫各一个，签给各自的 RTC 用户 id。IM 服务端只把各自那份交给各自，客户端不转发给对方。令牌最长 24 小时（格式本身的上限），`tokenSeconds` 可以设得更短。
 - **RTC 用户 id**：默认是用户的 IM uid（`imUid(用户id)`），这也是客户端适配器默认的入会身份，两边必须一致。宿主想用自己的用户 id 时，两边都要改：这里传 `rtcUserId`，客户端适配器传 `userId`。
 - **通话记录**：用 `recordingCalls` 包一层，后台的通话记录页才有数据。记录里只有元数据，没有频道号和令牌。
@@ -44,16 +44,16 @@ await app.register(imkitHostPlugin, { ..., calls: recordingCalls(calls, callReco
 
 | 端 | 适配器 | SDK | 状态 |
 | --- | --- | --- | --- |
-| Web | `@imkit/call-dingrtc`（`web/packages/call-dingrtc`） | npm `dingrtc`，按 3.9.37 编写 | 可用，有单元测试（假 SDK） |
-| Android | `imkit-call-dingrtc`（`android/imkit-call-dingrtc`），依赖 `com.ding.rtc:dingrtc-full` | 3.0.0 | 可用，有单元测试（SDK 替身）；渲染视图沿用参考部署在真机上验证过的写法 |
+| Web | `@talkwire/call-dingrtc`（`web/packages/call-dingrtc`） | npm `dingrtc`，按 3.9.37 编写 | 可用，有单元测试（假 SDK） |
+| Android | `talkwire-call-dingrtc`（`android/talkwire-call-dingrtc`），依赖 `com.ding.rtc:dingrtc-full` | 3.0.0 | 可用，有单元测试（SDK 替身）；渲染视图沿用参考部署在真机上验证过的写法 |
 | iOS | CocoaPods `DingRTC_iOS` | — | 待 iOS 端开工（需要 Mac） |
 
 Web：
 
 ```tsx
 import DingRTC from "dingrtc";
-import { DingRtcMediaEngine } from "@imkit/call-dingrtc";
-import { CallOverlay, CallProvider } from "@imkit/call/react";
+import { DingRtcMediaEngine } from "@talkwire/call-dingrtc";
+import { CallOverlay, CallProvider } from "@talkwire/call/react";
 
 const media = new DingRtcMediaEngine(DingRTC);
 <CallProvider media={media}>
@@ -69,8 +69,8 @@ const media = new DingRtcMediaEngine(DingRTC);
 Android：
 
 ```kotlin
-val media = DingRtcMediaEngine(context)          // io.imkit.call.dingrtc
-val calls = CallManager(client, me, media, scope) // io.imkit.call
+val media = DingRtcMediaEngine(context)          // io.talkwire.call.dingrtc
+val calls = CallManager(client, me, media, scope) // io.talkwire.call
 calls.start()
 // 界面：CallScreen(calls)、CallButtons(calls, peerUid, onRefused)
 ```

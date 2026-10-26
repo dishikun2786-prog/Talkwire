@@ -17,7 +17,7 @@
 //
 // What it does not see: Android's resolved (transitive) Gradle graph and the
 // licenses of Go and Android dependencies; CI covers those with
-// `gradlew :imkit-ui:dependencies` and the module lists.
+// `gradlew :talkwire-ui:dependencies` and the module lists.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -32,13 +32,13 @@ const WEB_MODULES = ["call", "group-join", "admin"];
 // RTC adapters: optional packages that bring a module and one RTC SDK
 // together. The SDK may only be a peer dependency (the app installs it).
 const WEB_ADAPTERS = { "call-dingrtc": ["call"] };
-const ANDROID_CORE = ["imkit-core", "imkit-android", "imkit-storage-room", "imkit-ui", "imkit-push-fcm"];
+const ANDROID_CORE = ["talkwire-core", "talkwire-android", "talkwire-storage-room", "talkwire-ui", "talkwire-push-fcm"];
 // Optional Android modules: the core only, never another module.
-const ANDROID_MODULES = ["imkit-group-join", "imkit-call", "imkit-video-compress"];
+const ANDROID_MODULES = ["talkwire-group-join", "talkwire-call", "talkwire-video-compress"];
 // Android RTC adapters: the core, the module they adapt, and their one RTC SDK.
-const ANDROID_ADAPTERS = { "imkit-call-dingrtc": { modules: ["imkit-call"], sdk: /com\.ding\.rtc|dingrtc/i } };
+const ANDROID_ADAPTERS = { "talkwire-call-dingrtc": { modules: ["talkwire-call"], sdk: /com\.ding\.rtc|dingrtc/i } };
 // The E2EE module: the core and libsignal, nothing else; AGPLv3 (it links libsignal).
-const ANDROID_E2EE = { "imkit-e2ee": /org\.signal|libsignal/i };
+const ANDROID_E2EE = { "talkwire-e2ee": /org\.signal|libsignal/i };
 // Not part of the SDK: the sample app may use everything.
 const ANDROID_APPS = ["sample-app"];
 const PERMISSIVE = new Set(["MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "BlueOak-1.0.0", "Unlicense", "CC0-1.0", "Python-2.0"]);
@@ -73,7 +73,7 @@ function imports(text) {
   return out;
 }
 
-const imkitName = (spec) => /^@imkit\/([^/]+)/.exec(spec)?.[1] ?? null;
+const talkwireName = (spec) => /^@talkwire\/([^/]+)/.exec(spec)?.[1] ?? null;
 
 /** Whether an SPDX expression allows use under a permissive license. */
 function permissive(expr) {
@@ -86,27 +86,27 @@ function permissive(expr) {
 
 // ------------------------------------------------------------------ web
 
-function webPackage(name, allowedImkit, { sdkPeer = false } = {}) {
+function webPackage(name, allowedTalkwire, { sdkPeer = false } = {}) {
   const dir = join(root, "web", "packages", name);
   const pkg = readJson(join(dir, "package.json"));
   const where = `web/packages/${name}`;
   check(pkg.license === "Apache-2.0", `${where}: license is ${pkg.license}, not Apache-2.0`);
   const declared = { ...pkg.dependencies, ...pkg.peerDependencies, ...pkg.optionalDependencies };
-  const declaredImkit = new Set(Object.keys(declared).map(imkitName).filter(Boolean));
+  const declaredTalkwire = new Set(Object.keys(declared).map(talkwireName).filter(Boolean));
   for (const dep of Object.keys(declared)) {
     const asPeer = dep in (pkg.peerDependencies ?? {}) && !(dep in (pkg.dependencies ?? {}));
     check(!FORBIDDEN.test(dep) || (sdkPeer && asPeer), `${where}/package.json: depends on ${dep}`);
-    const other = imkitName(dep);
-    if (other) check(allowedImkit.includes(other), `${where}/package.json: depends on @imkit/${other}, which it must not`);
+    const other = talkwireName(dep);
+    if (other) check(allowedTalkwire.includes(other), `${where}/package.json: depends on @talkwire/${other}, which it must not`);
   }
   for (const file of files(join(dir, "src"), [".ts", ".tsx"])) {
     for (const spec of imports(readFileSync(file, "utf8"))) {
       const peerSdk = sdkPeer && spec in (pkg.peerDependencies ?? {}) && !(spec in (pkg.dependencies ?? {}));
       check(!FORBIDDEN.test(spec) || peerSdk, `${rel(file)}: imports ${spec}`);
-      const other = imkitName(spec);
+      const other = talkwireName(spec);
       if (other && other !== name) {
-        check(allowedImkit.includes(other), `${rel(file)}: imports @imkit/${other}, which it must not`);
-        check(declaredImkit.has(other), `${rel(file)}: imports @imkit/${other} without declaring it`);
+        check(allowedTalkwire.includes(other), `${rel(file)}: imports @talkwire/${other}, which it must not`);
+        check(declaredTalkwire.has(other), `${rel(file)}: imports @talkwire/${other} without declaring it`);
       }
     }
   }

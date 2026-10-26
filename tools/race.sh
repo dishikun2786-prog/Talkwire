@@ -27,7 +27,7 @@
 #     start ("failed to allocate ... error code: 87"). Test binaries are
 #     linked with --disable-dynamicbase and --disable-high-entropy-va.
 #
-# The toolchain location can be overridden with IMKIT_MINGW (the directory
+# The toolchain location can be overridden with TALKWIRE_MINGW (the directory
 # that holds bin/gcc.exe).
 set -euo pipefail
 
@@ -42,11 +42,11 @@ MINGW* | MSYS* | CYGWIN*) ;;
 	;;
 esac
 
-mingw="${IMKIT_MINGW:-/f/Program Files/tools/winlibs/mingw64}"
+mingw="${TALKWIRE_MINGW:-/f/Program Files/tools/winlibs/mingw64}"
 gcc="$mingw/bin/gcc.exe"
 if [ ! -x "$gcc" ]; then
 	echo "race.sh: no gcc at $gcc" >&2
-	echo "race.sh: install WinLibs GCC (MinGW-w64, UCRT, POSIX threads) there, or set IMKIT_MINGW" >&2
+	echo "race.sh: install WinLibs GCC (MinGW-w64, UCRT, POSIX threads) there, or set TALKWIRE_MINGW" >&2
 	exit 2
 fi
 
@@ -54,7 +54,7 @@ fi
 # like any other flag in CGO_LDFLAGS.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-specs="$tmp/imkit-endfile.specs"
+specs="$tmp/talkwire-endfile.specs"
 {
 	echo '*endfile:'
 	"$gcc" -dumpspecs | awk '/^\*endfile:/ { getline; print; exit }' |

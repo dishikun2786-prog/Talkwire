@@ -22,18 +22,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- ImKit's own links (imkit://chat/…), from notifications and banners. -->
+            <!-- Talkwire's own links (talkwire://chat/…), from notifications and banners. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="imkit" />
+                <data android:scheme="talkwire" />
             </intent-filter>
-            <!-- The sample's own join links: imkitsample://join/<qr token>. -->
+            <!-- The sample's own join links: talkwiresample://join/<qr token>. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="imkitsample" android:host="join" />
+                <data android:scheme="talkwiresample" android:host="join" />
             </intent-filter>
         </activity>
     </application>

@@ -1,5 +1,5 @@
-import { Signal } from "@imkit/client";
-import { ToneRinger, ringToneFor, ringWith, type CallRinger, type CallState, type ToneContext } from "@imkit/call";
+import { Signal } from "@talkwire/client";
+import { ToneRinger, ringToneFor, ringWith, type CallRinger, type CallState, type ToneContext } from "@talkwire/call";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {

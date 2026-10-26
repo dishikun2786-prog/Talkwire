@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"example.com/imkit/tools/conformance/token"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/token"
 )
 
 // Profile is what GET /api/v1/internal/im/profile returns.

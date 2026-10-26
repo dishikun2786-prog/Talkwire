@@ -2,7 +2,7 @@
 // module. The core and every optional module own a set; a module that is not
 // installed contributes no set, so its tables are never created.
 //
-// Applied migrations are recorded in imkit_schema_migrations with a checksum
+// Applied migrations are recorded in talkwire_schema_migrations with a checksum
 // of their SQL. Startup fails if an applied migration's SQL has changed, or if
 // the database records a version this binary does not know (it was migrated
 // by a newer release).
@@ -79,9 +79,23 @@ func checksum(sql string) string {
 
 // lockKey is the advisory lock that serialises migration across processes
 // sharing one database.
-const lockKey = 0x696d6b6974 // "imkit"
+// The value is "imkit" in ASCII, the project's name when the key was
+// chosen. It stays, so a binary from before the rename and one after it
+// still exclude each other while both run against one database.
+const lockKey = 0x696d6b6974
 
-const bookkeeping = `CREATE TABLE IF NOT EXISTS imkit_schema_migrations (
+// takeOverBookkeeping renames the bookkeeping table of a database migrated
+// before the project was renamed from ImKit, so its migrations are not run a
+// second time.
+const takeOverBookkeeping = `DO $$
+BEGIN
+	IF to_regclass('talkwire_schema_migrations') IS NULL AND to_regclass('imkit_schema_migrations') IS NOT NULL THEN
+		ALTER TABLE imkit_schema_migrations RENAME TO talkwire_schema_migrations;
+		ALTER INDEX IF EXISTS imkit_schema_migrations_pkey RENAME TO talkwire_schema_migrations_pkey;
+	END IF;
+END $$`
+
+const bookkeeping = `CREATE TABLE IF NOT EXISTS talkwire_schema_migrations (
 	module     VARCHAR(64)  NOT NULL,
 	version    INT          NOT NULL,
 	name       VARCHAR(255) NOT NULL,
@@ -108,6 +122,9 @@ func Apply(ctx context.Context, db *sql.DB, sets ...Set) ([]string, error) {
 		return nil, fmt.Errorf("migrate: lock: %w", err)
 	}
 	defer conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lockKey) //nolint:errcheck
+	if _, err := conn.ExecContext(ctx, takeOverBookkeeping); err != nil {
+		return nil, fmt.Errorf("migrate: bookkeeping table from before the rename: %w", err)
+	}
 	if _, err := conn.ExecContext(ctx, bookkeeping); err != nil {
 		return nil, fmt.Errorf("migrate: bookkeeping table: %w", err)
 	}
@@ -141,7 +158,7 @@ func Apply(ctx context.Context, db *sql.DB, sets ...Set) ([]string, error) {
 }
 
 func recorded(ctx context.Context, conn *sql.Conn, module string) (map[int]string, error) {
-	rows, err := conn.QueryContext(ctx, `SELECT version, checksum FROM imkit_schema_migrations WHERE module = $1`, module)
+	rows, err := conn.QueryContext(ctx, `SELECT version, checksum FROM talkwire_schema_migrations WHERE module = $1`, module)
 	if err != nil {
 		return nil, fmt.Errorf("migrate: read %s: %w", module, err)
 	}
@@ -168,7 +185,7 @@ func run(ctx context.Context, conn *sql.Conn, module string, m Migration) error 
 		return err
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO imkit_schema_migrations (module, version, name, checksum) VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO talkwire_schema_migrations (module, version, name, checksum) VALUES ($1, $2, $3, $4)`,
 		module, m.Version, m.Name, checksum(m.SQL)); err != nil {
 		return err
 	}

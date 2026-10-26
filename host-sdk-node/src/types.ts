@@ -1,4 +1,4 @@
-// Data the host keeps for ImKit, and the storage interfaces the SDK uses to
+// Data the host keeps for Talkwire, and the storage interfaces the SDK uses to
 // reach it. A host implements them over its own database, or uses the
 // reference implementations: memory (tests, demos) and Prisma.
 //

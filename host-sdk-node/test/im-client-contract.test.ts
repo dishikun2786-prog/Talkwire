@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { after, before, describe, test } from "node:test";
 import Fastify from "fastify";
 import jwt from "jsonwebtoken";
-import { imkitHostPlugin } from "../src/host-plugin.js";
+import { talkwireHostPlugin } from "../src/host-plugin.js";
 import { ImClient, ImClientError } from "../src/im-client.js";
 import { MemoryContactStore, MemoryProfileStore } from "../src/memory.js";
 import { imUid } from "../src/uid.js";
@@ -52,7 +52,7 @@ describe("IM server internal API against the contract", { skip }, () => {
   let im: ImClient;
 
   before(async () => {
-    await host.register(imkitHostPlugin, { secret: SECRET, contacts: new MemoryContactStore(), profiles: new MemoryProfileStore() });
+    await host.register(talkwireHostPlugin, { secret: SECRET, contacts: new MemoryContactStore(), profiles: new MemoryProfileStore() });
     const hostUrl = await host.listen({ port: 0, host: "127.0.0.1" });
     server = await startImServer({ secret: SECRET, hostUrl });
     im = new ImClient({ baseUrl: server.base, secret: SECRET, fetch: recording });

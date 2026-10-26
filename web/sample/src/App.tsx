@@ -1,8 +1,8 @@
-import { NoMediaEngine, type CallTraceEntry } from "@imkit/call";
-import { CallButtons, CallOverlay, CallProvider, CallStyles, useCall } from "@imkit/call/react";
-import { BrowserNotifier, canManage, isGroupConversation, type ConversationId } from "@imkit/client";
-import { GroupJoinProvider, GroupJoinStyles, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel, groupJoinNotice, useGroupJoin, useGroupJoinEvents } from "@imkit/group-join/react";
-import { ChatScreen, ConnectionBanner, ContactList, ConversationInfo, ConversationList, ImKitProvider, ImKitStyles, PickPeople, useSignal } from "@imkit/react";
+import { NoMediaEngine, type CallTraceEntry } from "@talkwire/call";
+import { CallButtons, CallOverlay, CallProvider, CallStyles, useCall } from "@talkwire/call/react";
+import { BrowserNotifier, canManage, isGroupConversation, type ConversationId } from "@talkwire/client";
+import { GroupJoinProvider, GroupJoinStyles, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel, groupJoinNotice, useGroupJoin, useGroupJoinEvents } from "@talkwire/group-join/react";
+import { ChatScreen, ConnectionBanner, ContactList, ConversationInfo, ConversationList, TalkwireProvider, TalkwireStyles, PickPeople, useSignal } from "@talkwire/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminConsole, isAdminHash } from "./Admin.js";
 import { buildStack, devLogin, saveSession, savedSession, type Stack } from "./stack.js";
@@ -10,9 +10,9 @@ import { buildStack, devLogin, saveSession, savedSession, type Stack } from "./s
 type Locale = "en" | "zh" | "vi";
 
 const ui = {
-  en: { title: "ImKit sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", close: "Close", admin: "Admin" },
-  zh: { title: "ImKit 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", close: "关闭", admin: "管理后台" },
-  vi: { title: "Mẫu ImKit", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", close: "Đóng", admin: "Quản trị" },
+  en: { title: "Talkwire sample", name: "Your name", signIn: "Sign in", signOut: "Sign out", contacts: "Contacts", newGroup: "New group", pick: "Pick a chat", noContacts: "Sign in as someone else in another browser to get a contact.", close: "Close", admin: "Admin" },
+  zh: { title: "Talkwire 示例", name: "你的名字", signIn: "登录", signOut: "退出", contacts: "通讯录", newGroup: "发起群聊", pick: "选择一个聊天", noContacts: "在另一个浏览器用别的名字登录，就会多一个联系人。", close: "关闭", admin: "管理后台" },
+  vi: { title: "Mẫu Talkwire", name: "Tên của bạn", signIn: "Đăng nhập", signOut: "Đăng xuất", contacts: "Danh bạ", newGroup: "Tạo nhóm", pick: "Chọn một cuộc trò chuyện", noContacts: "Đăng nhập bằng tên khác ở trình duyệt khác để có danh bạ.", close: "Đóng", admin: "Quản trị" },
 } as const;
 
 function initialLocale(): Locale {
@@ -21,17 +21,17 @@ function initialLocale(): Locale {
 }
 
 /** In development every call trace line goes to the console (debug level), to find out why a call did not ring. */
-const callLog = import.meta.env.DEV ? (e: CallTraceEntry) => console.debug("[imkit-call]", new Date(e.at).toISOString(), e.what, e.callSessionId ?? "", e.note ?? "") : undefined;
+const callLog = import.meta.env.DEV ? (e: CallTraceEntry) => console.debug("[talkwire-call]", new Date(e.at).toISOString(), e.what, e.callSessionId ?? "", e.note ?? "") : undefined;
 
-/** In development, `imkitCallTrace()` in the console prints the last 100 trace lines. */
+/** In development, `talkwireCallTrace()` in the console prints the last 100 trace lines. */
 function CallTraceOnWindow() {
   const { manager } = useCall();
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    const w = window as unknown as { imkitCallTrace?: () => void };
-    w.imkitCallTrace = () => console.table(manager.trace().map((e) => ({ ...e, at: new Date(e.at).toISOString() })));
+    const w = window as unknown as { talkwireCallTrace?: () => void };
+    w.talkwireCallTrace = () => console.table(manager.trace().map((e) => ({ ...e, at: new Date(e.at).toISOString() })));
     return () => {
-      delete w.imkitCallTrace;
+      delete w.talkwireCallTrace;
     };
   }, [manager]);
   return null;
@@ -80,8 +80,8 @@ export function App() {
   };
 
   return (
-    <div className="imkit-root sample-root">
-      <ImKitStyles />
+    <div className="talkwire-root sample-root">
+      <TalkwireStyles />
       <header className="sample-bar">
         <strong>{t.title}</strong>
         <span style={{ flex: 1 }} />
@@ -102,7 +102,7 @@ export function App() {
       {admin ? (
         <AdminConsole locale={locale} />
       ) : stack ? (
-        <ImKitProvider engine={stack.engine} host={stack.host} locale={locale}>
+        <TalkwireProvider engine={stack.engine} host={stack.host} locale={locale}>
           <GroupJoinProvider>
             <CallProvider media={media} log={callLog}>
               <CallTraceOnWindow />
@@ -112,7 +112,7 @@ export function App() {
               <CallOverlay />
             </CallProvider>
           </GroupJoinProvider>
-        </ImKitProvider>
+        </TalkwireProvider>
       ) : (
         <form
           className="sample-login"

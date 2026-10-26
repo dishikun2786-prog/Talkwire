@@ -11,7 +11,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Alibaba Cloud's DingRTC SDK, for the optional imkit-call-dingrtc adapter
+        // Alibaba Cloud's DingRTC SDK, for the optional talkwire-call-dingrtc adapter
         // only: this repository serves the com.ding.rtc group and nothing else.
         exclusiveContent {
             forRepository { maven { url = uri("https://maven.aliyun.com/repository/public") } }
@@ -20,23 +20,23 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "imkit-android"
+rootProject.name = "talkwire-android"
 
-include(":imkit-core")
-include(":imkit-storage-room")
-include(":imkit-android")
-include(":imkit-push-fcm")
-include(":imkit-ui")
+include(":talkwire-core")
+include(":talkwire-storage-room")
+include(":talkwire-android")
+include(":talkwire-push-fcm")
+include(":talkwire-ui")
 
 // Optional modules: each needs only the core.
-include(":imkit-group-join")
-include(":imkit-call")
-include(":imkit-video-compress")
+include(":talkwire-group-join")
+include(":talkwire-call")
+include(":talkwire-video-compress")
 // End-to-end encryption: links libsignal, so it is AGPLv3 and published on its own.
-include(":imkit-e2ee")
+include(":talkwire-e2ee")
 
 // RTC adapters: a module and one RTC SDK, optional for apps.
-include(":imkit-call-dingrtc")
+include(":talkwire-call-dingrtc")
 
 include(":sample-app")
 

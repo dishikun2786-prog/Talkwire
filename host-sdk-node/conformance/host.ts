@@ -5,8 +5,8 @@
 //
 //   node --import tsx conformance/host.ts --port 17101 [--store memory|prisma]
 //
-// The secret is IMKIT_HOST_SECRET (the tool's test secret). --store prisma
-// needs DATABASE_URL with the tables of prisma/imkit.prisma. The business
+// The secret is TALKWIRE_HOST_SECRET (the tool's test secret). --store prisma
+// needs DATABASE_URL with the tables of prisma/talkwire.prisma. The business
 // answers of the call and group assistant modules are the fake host's, since
 // they belong to the host, not to the SDK.
 
@@ -16,7 +16,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import Fastify, { type FastifyRequest } from "fastify";
 import { defaultHandle } from "../src/app-routes.js";
-import { imkitHostPlugin, type CallHandlers } from "../src/host-plugin.js";
+import { talkwireHostPlugin, type CallHandlers } from "../src/host-plugin.js";
 import { LocalDiskBlobStore } from "../src/media/local.js";
 import { mediaDeleter } from "../src/media/media.js";
 import { MemoryContactStore, MemoryProfileStore } from "../src/memory.js";
@@ -24,8 +24,8 @@ import { bearerToken, verifyInternalToken } from "../src/token.js";
 import type { ConfigSource, ContactStore, ProfileStore } from "../src/types.js";
 
 const { values } = parseArgs({ options: { port: { type: "string", default: "17101" }, store: { type: "string", default: "memory" } } });
-const secret = process.env.IMKIT_HOST_SECRET;
-if (!secret) throw new Error("set IMKIT_HOST_SECRET to the conformance tool's secret");
+const secret = process.env.TALKWIRE_HOST_SECRET;
+if (!secret) throw new Error("set TALKWIRE_HOST_SECRET to the conformance tool's secret");
 const CONTROL = "/__conformance";
 
 interface Stores {
@@ -66,7 +66,7 @@ async function prismaStores(): Promise<Stores> {
   return {
     ...stores,
     reset: async () => {
-      await prisma.$executeRawUnsafe("TRUNCATE imkit_profiles, imkit_contacts, imkit_admin_audit");
+      await prisma.$executeRawUnsafe("TRUNCATE talkwire_profiles, talkwire_contacts, talkwire_admin_audit");
     },
     close: () => prisma.$disconnect(),
   };
@@ -117,12 +117,12 @@ app.addHook("onResponse", async (request, reply) => {
   recorded.push(call);
 });
 
-await app.register(imkitHostPlugin, {
+await app.register(talkwireHostPlugin, {
   secret,
   contacts: stores.contacts,
   profiles: stores.profiles,
   config,
-  deleteMedia: mediaDeleter(new LocalDiskBlobStore(mkdtempSync(path.join(tmpdir(), "imkit-conformance-media-")))),
+  deleteMedia: mediaDeleter(new LocalDiskBlobStore(mkdtempSync(path.join(tmpdir(), "talkwire-conformance-media-")))),
   calls,
   groupAi: async (q) => (q.question.includes("quota") ? { ok: false, reason: "quota_exceeded" } : { ok: true, answer: "fake answer" }),
 });

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"example.com/imkit/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
 )
 
 const (

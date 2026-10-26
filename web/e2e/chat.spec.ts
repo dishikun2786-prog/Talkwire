@@ -41,36 +41,36 @@ test("a group: create, invite, talk", async ({ browser }) => {
   await c.getByRole("button", { name: "New group" }).click();
   const dialog = c.getByRole("dialog", { name: "New group" });
   await dialog.getByLabel("Group name").fill(group);
-  await dialog.locator(".imkit-info-row", { hasText: dave }).getByRole("checkbox").check();
+  await dialog.locator(".talkwire-info-row", { hasText: dave }).getByRole("checkbox").check();
   await dialog.getByRole("button", { name: /^Create/ }).click();
-  await expect(c.locator(".imkit-chat-title")).toHaveText(group);
+  await expect(c.locator(".talkwire-chat-title")).toHaveText(group);
   await send(c, "hello group");
   await expectStored(c, "hello group", true);
 
   await openConversation(d, group);
   await expectStored(d, "hello group", false);
   // Dave has it open, so it is read: Carol sees who read it.
-  await expect(c.locator(".imkit-row", { hasText: "hello group" }).locator(".imkit-readers")).toHaveText(/Read by 1$/);
+  await expect(c.locator(".talkwire-row", { hasText: "hello group" }).locator(".talkwire-readers")).toHaveText(/Read by 1$/);
   await send(d, "hi carol");
   await expectStored(c, "hi carol", false);
 
   // The owner makes Dave an admin; as an admin he may rename the group, and Carol sees the new name.
   await c.getByRole("button", { name: "Group info" }).click();
-  const info = c.locator(".imkit-info");
+  const info = c.locator(".talkwire-info");
   await expect(info.getByText("Members (2)")).toBeVisible();
-  await info.locator(".imkit-info-row", { hasText: dave }).click();
+  await info.locator(".talkwire-info-row", { hasText: dave }).click();
   await c.getByRole("menuitem", { name: "Make admin" }).click();
-  await expect(info.locator(".imkit-info-row", { hasText: dave }).locator(".imkit-role")).toHaveText("Admin");
+  await expect(info.locator(".talkwire-info-row", { hasText: dave }).locator(".talkwire-role")).toHaveText("Admin");
 
   await d.getByRole("button", { name: "Group info" }).click();
-  const dInfo = d.locator(".imkit-info");
-  await expect(dInfo.locator(".imkit-info-row", { hasText: "You" }).locator(".imkit-role")).toHaveText("Admin");
+  const dInfo = d.locator(".talkwire-info");
+  await expect(dInfo.locator(".talkwire-info-row", { hasText: "You" }).locator(".talkwire-role")).toHaveText("Admin");
   await expect(dInfo.getByRole("button", { name: "Leave group" })).toBeVisible();
   await dInfo.getByRole("button", { name: "Rename group" }).click();
   const rename = d.getByRole("dialog", { name: "Rename group" });
   await rename.getByLabel("Group name").fill(group + " renamed");
   await rename.getByRole("button", { name: "Save" }).click();
-  await expect(info.locator(".imkit-info-title")).toHaveText(group + " renamed");
+  await expect(info.locator(".talkwire-info-title")).toHaveText(group + " renamed");
 });
 
 test("one account on two tabs and a second device receives everywhere", async ({ browser }) => {
@@ -124,41 +124,41 @@ test("reply with a quote, forward to another chat, forward several at once", asy
   // Yui replies to the first one; both sides show the quote.
   await openConversation(y, xan);
   await expectStored(y, "the news", false);
-  await y.locator(".imkit-row", { hasText: "the news" }).locator(".imkit-bubble").click({ button: "right" });
+  await y.locator(".talkwire-row", { hasText: "the news" }).locator(".talkwire-bubble").click({ button: "right" });
   await y.getByRole("menuitem", { name: "Reply" }).click();
-  await expect(y.locator(".imkit-reply-bar")).toContainText("Reply to " + xan);
+  await expect(y.locator(".talkwire-reply-bar")).toContainText("Reply to " + xan);
   await send(y, "thanks");
   await expectStored(y, "thanks", true);
   // Xan sees her own message quoted as "You".
   for (const [p, who] of [[x, "You"], [y, xan]] as const) {
-    const quote = p.locator(".imkit-row", { hasText: "thanks" }).locator(".imkit-quote");
-    await expect(quote.locator(".imkit-quote-name")).toHaveText(who);
-    await expect(quote.locator(".imkit-quote-text")).toHaveText("the news");
+    const quote = p.locator(".talkwire-row", { hasText: "thanks" }).locator(".talkwire-quote");
+    await expect(quote.locator(".talkwire-quote-name")).toHaveText(who);
+    await expect(quote.locator(".talkwire-quote-text")).toHaveText("the news");
   }
 
   // Yui forwards one message to Zed.
-  await y.locator(".imkit-row", { hasText: "the news" }).first().locator(".imkit-bubble").click({ button: "right" });
+  await y.locator(".talkwire-row", { hasText: "the news" }).first().locator(".talkwire-bubble").click({ button: "right" });
   await y.getByRole("menuitem", { name: "Forward" }).click();
   const dialog = y.getByRole("dialog", { name: "Forward to" });
-  await dialog.locator(".imkit-info-row", { hasText: zed }).getByRole("checkbox").check();
+  await dialog.locator(".talkwire-info-row", { hasText: zed }).getByRole("checkbox").check();
   await dialog.getByRole("button", { name: "Send (1)" }).click();
   await expect(y.getByRole("alert")).toHaveText("Forwarded");
   await openConversation(z, yui);
-  const forwarded = z.locator(".imkit-row", { hasText: "the news" });
+  const forwarded = z.locator(".talkwire-row", { hasText: "the news" });
   await expectStored(z, "the news", false);
-  await expect(forwarded.locator(".imkit-forwarded")).toHaveText("Forwarded");
+  await expect(forwarded.locator(".talkwire-forwarded")).toHaveText("Forwarded");
 
   // Two at once, bundled into Zed's chat in their order.
-  await y.locator(".imkit-row", { hasText: "more news" }).locator(".imkit-bubble").click({ button: "right" });
+  await y.locator(".talkwire-row", { hasText: "more news" }).locator(".talkwire-bubble").click({ button: "right" });
   await y.getByRole("menuitem", { name: "Select" }).click();
-  await y.locator(".imkit-row", { hasText: "thanks" }).locator(".imkit-bubble").click();
-  await expect(y.locator(".imkit-select-bar")).toContainText("2 selected");
-  await y.locator(".imkit-select-bar").getByRole("button", { name: "Forward" }).click();
-  await y.getByRole("dialog", { name: "Forward to" }).locator(".imkit-info-row", { hasText: zed }).click();
+  await y.locator(".talkwire-row", { hasText: "thanks" }).locator(".talkwire-bubble").click();
+  await expect(y.locator(".talkwire-select-bar")).toContainText("2 selected");
+  await y.locator(".talkwire-select-bar").getByRole("button", { name: "Forward" }).click();
+  await y.getByRole("dialog", { name: "Forward to" }).locator(".talkwire-info-row", { hasText: zed }).click();
   await expect(y.getByRole("alert")).toHaveText("Forwarded");
   await expectStored(z, "more news", false);
   await expectStored(z, "thanks", false);
-  const order = await z.locator(".imkit-row").evaluateAll((rows) => rows.map((r) => r.textContent ?? ""));
+  const order = await z.locator(".talkwire-row").evaluateAll((rows) => rows.map((r) => r.textContent ?? ""));
   const at = (t: string) => order.findIndex((r) => r.includes(t));
   expect(at("more news")).toBeLessThan(at("thanks"));
 });
@@ -176,7 +176,7 @@ test("unsend leaves a note on both sides; search finds a message and opens its c
   await openConversation(f, erin);
   await expectStored(f, "oops wrong chat", false);
 
-  await row(e, "oops wrong chat").locator(".imkit-bubble").click({ button: "right" });
+  await row(e, "oops wrong chat").locator(".talkwire-bubble").click({ button: "right" });
   await e.getByRole("menuitem", { name: "Unsend" }).click();
   await expect(e.getByText("You unsent a message")).toBeVisible();
   await expect(f.getByText(`${erin} unsent a message`)).toBeVisible();
@@ -189,5 +189,5 @@ test("unsend leaves a note on both sides; search finds a message and opens its c
   await expect(hit.locator("mark")).toHaveText("Friday");
   await expect(f.locator("[data-hit]", { hasText: "oops" }), "an unsent message is not found").toHaveCount(0);
   await hit.click();
-  await expect(f.locator(".imkit-chat-title")).toHaveText(erin);
+  await expect(f.locator(".talkwire-chat-title")).toHaveText(erin);
 });

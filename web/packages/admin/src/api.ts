@@ -1,6 +1,6 @@
 /**
- * A client for the host's administrator endpoints (imkitAdminRoutes in
- * @imkit/host-node): a user's conversations, their messages, clearing a
+ * A client for the host's administrator endpoints (talkwireAdminRoutes in
+ * @talkwire/host-node): a user's conversations, their messages, clearing a
  * two-person conversation, and call records. The host signs its
  * administrators in; pass their credentials through `headers`.
  */
@@ -122,7 +122,7 @@ export class ImAdminError extends Error {
 }
 
 export interface ImAdminApiOptions {
-  /** Where imkitAdminRoutes live; default /api/v1/admin/im. */
+  /** Where talkwireAdminRoutes live; default /api/v1/admin/im. */
   baseUrl?: string;
   /** Headers for every request, typically the administrator's Authorization. */
   headers?: () => Record<string, string> | Promise<Record<string, string>>;

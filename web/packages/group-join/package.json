@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/group-join",
+  "name": "@talkwire/group-join",
   "version": "0.1.0",
-  "description": "Scan-to-join for ImKit on the web: group QR tokens, joining, and reviewing join requests (protocol section 14), with optional React components",
+  "description": "Scan-to-join for Talkwire on the web: group QR tokens, joining, and reviewing join requests (protocol section 14), with optional React components",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,14 +19,14 @@
   "files": ["dist"],
   "sideEffects": false,
   "dependencies": {
-    "@imkit/client": "0.1.0"
+    "@talkwire/client": "0.1.0"
   },
   "peerDependencies": {
-    "@imkit/react": "0.1.0",
+    "@talkwire/react": "0.1.0",
     "react": ">=18.2 <20"
   },
   "peerDependenciesMeta": {
-    "@imkit/react": { "optional": true },
+    "@talkwire/react": { "optional": true },
     "react": { "optional": true }
   }
 }

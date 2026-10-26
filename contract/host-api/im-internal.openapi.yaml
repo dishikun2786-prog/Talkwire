@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ImKit host contract — endpoints the IM server exposes to the host
+  title: Talkwire host contract — endpoints the IM server exposes to the host
   version: 1.0.0
   description: |
     The host calls these endpoints on the IM server, which listens on
@@ -30,7 +30,7 @@ paths:
         one-to-one conversation, makes both users members and tells both
         connected users; removed takes both users out of it (the history
         stays). Both users are created on the IM side if needed.
-      x-imkit: { requirement: required }
+      x-talkwire: { requirement: required }
       requestBody:
         required: true
         content:
@@ -65,7 +65,7 @@ paths:
         Ask before deleting a blob the host stores: a forwarded message
         shares the original's URL, so the blob may still be in use. Recalled
         messages do not count.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       requestBody:
         required: true
         content:
@@ -98,7 +98,7 @@ paths:
         in resolveUids, the host user id behind it (null when the IM server
         has never seen the uid) and whether that user is a member. Blank
         entries are skipped.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       requestBody:
         required: true
         content:
@@ -151,7 +151,7 @@ paths:
         request. Best effort: nothing is queued for clients that are not
         connected, so the host must also let a client fetch the current
         state.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       requestBody:
         required: true
         content:
@@ -203,7 +203,7 @@ paths:
         Kept for hosts written against the reference server. Relays payload
         as {"action":"red_packet_update","topic":...,"extra":payload}. New
         hosts use custom-broadcast.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       requestBody:
         required: true
         content:
@@ -237,7 +237,7 @@ paths:
         is sent byte for byte. A payload whose type is call_ended also frees
         the call on the IM server. delivered is false when the user had no
         connected device; nothing is queued.
-      x-imkit: { requirement: "module:call" }
+      x-talkwire: { requirement: "module:call" }
       requestBody:
         required: true
         content:
@@ -265,7 +265,7 @@ paths:
     get:
       operationId: adminTopics
       summary: A user's conversations, for the admin console
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       parameters:
         - name: uid
           in: query
@@ -293,7 +293,7 @@ paths:
     get:
       operationId: adminTopic
       summary: One conversation, for the admin console
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       parameters:
         - name: topic
           in: query
@@ -313,7 +313,7 @@ paths:
       operationId: adminMessages
       summary: A conversation's messages, newest first, for the admin console
       description: Recalled messages are left out. Pages go backwards with beforeSeq.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       parameters:
         - name: topic
           in: query
@@ -363,7 +363,7 @@ paths:
         users (connected now, or at their next login). Groups answer 409.
         Confirming with an operator first and auditing the action are the
         host's job.
-      x-imkit: { requirement: optional }
+      x-talkwire: { requirement: optional }
       requestBody:
         required: true
         content:

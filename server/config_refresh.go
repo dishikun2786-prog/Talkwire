@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"example.com/imkit/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
 )
 
 // StartRuntimeConfigRefresh fetches the runtime config once synchronously,

@@ -1,6 +1,6 @@
 {
   "name": "core/login-tokens",
-  "description": "Which tokens the server accepts at login. Records the reference behaviour: refresh, agent and admin tokens are accepted (to be rejected by ImKit under R18).",
+  "description": "Which tokens the server accepts at login. Records the reference behaviour: refresh, agent and admin tokens are accepted (to be rejected by Talkwire under R18).",
   "redlines": ["R18"],
   "users": ["B", "C", "D", "E", "F", "G", "H"],
   "steps": [

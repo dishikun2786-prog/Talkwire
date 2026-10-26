@@ -1,5 +1,5 @@
 {
-  "about": "ImKit 红线对照表（计划任务 0.8）。每条红线对应到已录的黄金对话步骤和计划中的自动化用例。matrix.md 由本文件生成，校验与生成命令见 tools/conformance/README.md。",
+  "about": "Talkwire 红线对照表（计划任务 0.8）。每条红线对应到已录的黄金对话步骤和计划中的自动化用例。matrix.md 由本文件生成，校验与生成命令见 tools/conformance/README.md。",
   "platforms": {
     "server": "服务端",
     "host": "宿主",

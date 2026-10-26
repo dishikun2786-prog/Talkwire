@@ -26,7 +26,7 @@ test("a call in the call records; a chat read and cleared for both users", async
   for (const p of [a, b]) await expect(status(p)).toHaveText(/^\d+:\d\d$/);
   await a.getByRole("button", { name: "Hang up" }).click();
   await expect(status(b)).toHaveText("Call ended");
-  await expect(b.locator(".imkit-call")).toHaveCount(0);
+  await expect(b.locator(".talkwire-call")).toHaveCount(0);
   await openConversation(b, caller);
   await expectStored(b, "something to clear", false);
 
@@ -49,7 +49,7 @@ test("a call in the call records; a chat read and cleared for both users", async
   await expect(calls).toContainText("Ended");
   await calls.getByRole("button", { name: "Details" }).click();
   await expect(admin.getByRole("heading", { name: `${caller} → ${callee}` })).toBeVisible();
-  const timeline = admin.locator(".imkit-admin-timeline");
+  const timeline = admin.locator(".talkwire-admin-timeline");
   await expect(timeline).toContainText("Answered");
   await expect(timeline).toContainText("Ended");
 
@@ -57,11 +57,11 @@ test("a call in the call records; a chat read and cleared for both users", async
   await admin.getByLabel("User ID").fill(callerId);
   await admin.getByRole("button", { name: "Search" }).click();
   await admin.getByRole("button", { name: new RegExp(callee) }).click();
-  await expect(admin.locator(".imkit-admin-message-list")).toContainText("something to clear");
+  await expect(admin.locator(".talkwire-admin-message-list")).toContainText("something to clear");
 
   await admin.getByRole("button", { name: "Clear chat records" }).click();
   const dialog = admin.getByRole("dialog", { name: "Clear this conversation for both users?" });
-  const topic = (await dialog.locator(".imkit-admin-mono").textContent())!;
+  const topic = (await dialog.locator(".talkwire-admin-mono").textContent())!;
   const go = dialog.getByRole("button", { name: "Clear chat records" });
   await dialog.getByLabel("Reason").fill("e2e: the user asked");
   await expect(go).toBeDisabled();

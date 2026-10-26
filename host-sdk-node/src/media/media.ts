@@ -100,7 +100,7 @@ export function mediaDeleter(store: BlobStore, servePath = "/media"): (urls: str
   };
 }
 
-export async function imkitMediaRoutes(app: FastifyInstance, options: MediaOptions): Promise<void> {
+export async function talkwireMediaRoutes(app: FastifyInstance, options: MediaOptions): Promise<void> {
   const types = options.types ?? DEFAULT_MEDIA_TYPES;
   const maxBytes = options.maxBytes ?? 50 * 1024 * 1024;
   const servePath = (options.servePath ?? "/media").replace(/\/$/, "");
@@ -172,7 +172,7 @@ export async function imkitMediaRoutes(app: FastifyInstance, options: MediaOptio
     try {
       refs = await options.im.mediaRefCount(`${servePath}/${name}`);
     } catch (err) {
-      request.log.warn({ err }, "imkit: media-ref-count failed");
+      request.log.warn({ err }, "talkwire: media-ref-count failed");
       return reply.status(503).send({ error: "cannot check whether a message uses the file; try again" });
     }
     if (refs > 0) return reply.status(409).send({ error: "a message uses this file" });

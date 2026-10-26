@@ -15,9 +15,9 @@ async function createGroup(page: Page, name: string, member: string): Promise<vo
   await page.getByRole("button", { name: "New group" }).click();
   const dialog = page.getByRole("dialog", { name: "New group" });
   await dialog.getByLabel("Group name").fill(name);
-  await dialog.locator(".imkit-info-row", { hasText: member }).getByRole("checkbox").check();
+  await dialog.locator(".talkwire-info-row", { hasText: member }).getByRole("checkbox").check();
   await dialog.getByRole("button", { name: /^Create/ }).click();
-  await expect(page.locator(".imkit-chat-title")).toHaveText(name);
+  await expect(page.locator(".talkwire-chat-title")).toHaveText(name);
 }
 
 test("join a group by its link, then with approval", async ({ browser }) => {
@@ -30,7 +30,7 @@ test("join a group by its link, then with approval", async ({ browser }) => {
 
   // The owner shares the group's link from the group's info page.
   await o.getByRole("button", { name: "Group info" }).click();
-  const panel = o.locator(".imkit-info");
+  const panel = o.locator(".talkwire-info");
   const link = panel.locator("[data-qr-link]");
   await expect(link).toContainText("#/join/");
   const url = (await link.textContent())!.trim();
@@ -44,7 +44,7 @@ test("join a group by its link, then with approval", async ({ browser }) => {
   await expect(j.getByText("2 members")).toBeVisible();
   await j.getByRole("button", { name: "Join group" }).click();
   await j.getByRole("button", { name: "Open chat" }).click();
-  await expect(j.locator(".imkit-chat-title")).toHaveText(group);
+  await expect(j.locator(".talkwire-chat-title")).toHaveText(group);
   await send(j, "found you by the link");
   await expectStored(j, "found you by the link", true);
   await expectStored(o, "found you by the link", false);

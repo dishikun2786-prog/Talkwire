@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"example.com/imkit/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
 )
 
 // Matrix is the whole registry file.

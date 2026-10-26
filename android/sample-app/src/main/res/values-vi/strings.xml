@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sample_title">Mẫu ImKit</string>
+    <string name="sample_title">Mẫu Talkwire</string>
     <string name="sample_dev_hint">Đăng nhập vào máy chủ mẫu cục bộ bằng tên. Chỉ dùng khi phát triển.</string>
     <string name="sample_name">Tên của bạn</string>
     <string name="sample_sign_in">Đăng nhập</string>

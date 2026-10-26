@@ -1,7 +1,7 @@
 /**
- * A real `imkit-server` in standalone mode (no host process) on a throwaway
- * PostgreSQL database. Needs `server/bin/imkit-server(.exe)` and
- * IMKIT_TEST_DSN (libpq key=value, the variable the server's own database
+ * A real `talkwire-server` in standalone mode (no host process) on a throwaway
+ * PostgreSQL database. Needs `server/bin/talkwire-server(.exe)` and
+ * TALKWIRE_TEST_DSN (libpq key=value, the variable the server's own database
  * tests use); without either the tests skip. The DSN's password goes to the
  * server through its environment and is never logged.
  */
@@ -15,8 +15,8 @@ import { join } from "node:path";
 import { repoRoot } from "./replay.js";
 
 const serverDir = join(repoRoot, "server");
-const binary = join(serverDir, process.platform === "win32" ? "bin/imkit-server.exe" : "bin/imkit-server");
-export const realServerAvailable = existsSync(binary) && !!process.env.IMKIT_TEST_DSN;
+const binary = join(serverDir, process.platform === "win32" ? "bin/talkwire-server.exe" : "bin/talkwire-server");
+export const realServerAvailable = existsSync(binary) && !!process.env.TALKWIRE_TEST_DSN;
 
 /** libpq key=value pairs; values may be single-quoted with backslash escapes. */
 export function parseDsn(dsn: string): Record<string, string> {
@@ -79,11 +79,11 @@ export class RealServer {
 
   /** Starts the server with protocol `profile` and waits for its health check. */
   static async start(profile: "strict" | "legacy"): Promise<RealServer> {
-    const db = parseDsn(process.env.IMKIT_TEST_DSN!);
-    if (!db.dbname) throw new Error("IMKIT_TEST_DSN has no dbname");
+    const db = parseDsn(process.env.TALKWIRE_TEST_DSN!);
+    if (!db.dbname) throw new Error("TALKWIRE_TEST_DSN has no dbname");
     const port = await freePort();
     const secret = randomBytes(32).toString("hex");
-    const tmp = mkdtempSync(join(tmpdir(), "imkit-standalone-"));
+    const tmp = mkdtempSync(join(tmpdir(), "talkwire-standalone-"));
     const config = join(tmp, "standalone.json");
     writeFileSync(config, '{"relations":"allow-all"}');
     const proc = spawn(binary, [], {
@@ -99,9 +99,9 @@ export class RealServer {
         DB_NAME: db.dbname,
         DB_SSLMODE: db.sslmode ?? "disable",
         JWT_SECRET: secret,
-        IMKIT_HOST_MODE: "standalone",
-        IMKIT_STANDALONE_CONFIG: config,
-        IMKIT_PROTOCOL_PROFILE: profile,
+        TALKWIRE_HOST_MODE: "standalone",
+        TALKWIRE_STANDALONE_CONFIG: config,
+        TALKWIRE_PROTOCOL_PROFILE: profile,
         IM_CALL_DISCONNECT_GRACE_SEC: "1",
       },
     });
@@ -113,13 +113,13 @@ export class RealServer {
     for (;;) {
       if (proc.exitCode !== null) {
         await server.close();
-        throw new Error("imkit-server exited:\n" + server.logTail());
+        throw new Error("talkwire-server exited:\n" + server.logTail());
       }
       const healthy = await fetch(`${server.httpUrl}/api/health`).then((r) => r.status === 200, () => false);
       if (healthy) return server;
       if (Date.now() > deadline) {
         await server.close();
-        throw new Error("imkit-server not healthy in 30s:\n" + server.logTail());
+        throw new Error("talkwire-server not healthy in 30s:\n" + server.logTail());
       }
       await new Promise((r) => setTimeout(r, 100));
     }

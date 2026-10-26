@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"example.com/imkit/tools/conformance/fakehost"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/fakehost"
 )
 
 // Transcript is what a scenario produced, after normalization.

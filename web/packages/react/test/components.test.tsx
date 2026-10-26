@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, type ChatMessage } from "@imkit/client";
-import { uidOf } from "@imkit/protocol";
+import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, type ChatMessage } from "@talkwire/client";
+import { uidOf } from "@talkwire/protocol";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";
-import { ChatScreen, ConversationList, ImKitProvider, MessageBubble, MessageTypeRegistry, type ImUiHost, type MessageType } from "../src/index.js";
+import { ChatScreen, ConversationList, TalkwireProvider, MessageBubble, MessageTypeRegistry, type ImUiHost, type MessageType } from "../src/index.js";
 
 afterEach(cleanup);
 
@@ -28,9 +28,9 @@ const msg = (over: Partial<ChatMessage>): ChatMessage => ({
 function bubble(message: ChatMessage, types?: MessageTypeRegistry) {
   const engine = new ChatEngine(new ImClient({ endpoints: ["ws://x"], tokenProvider: () => null, watchNetwork: false }), new MemoryChatStore(), { appUserId: "alice" });
   return render(
-    <ImKitProvider engine={engine} host={host} types={types}>
+    <TalkwireProvider engine={engine} host={host} types={types}>
       <MessageBubble message={message} />
-    </ImKitProvider>,
+    </TalkwireProvider>,
   );
 }
 
@@ -51,7 +51,7 @@ describe("message types", () => {
 
     const widths = [2, 30].map((duration) => {
       const v = bubble(msg({ content: "[Voice]", contentType: "audio/mp4", fileUrl: "https://media.example/v.m4a", duration }));
-      const w = Number.parseInt((v.container.querySelector(".imkit-voice") as HTMLElement).style.width, 10);
+      const w = Number.parseInt((v.container.querySelector(".talkwire-voice") as HTMLElement).style.width, 10);
       expect(v.queryByText("[Voice]")).toBeNull();
       cleanup();
       return w;
@@ -66,15 +66,15 @@ describe("message types", () => {
   it("lets the app register its own type, ahead of the built-in ones", () => {
     const redPacket: MessageType = {
       name: "red_packet",
-      matches: (m) => m.contentType === "application/vnd.imkit.red-packet+json",
+      matches: (m) => m.contentType === "application/vnd.talkwire.red-packet+json",
       framed: false,
       render: (m) => <div className="red-packet">🧧 {String((m.extra as { amount?: number }).amount)}</div>,
       preview: () => "[Red packet]",
     };
     const types = new MessageTypeRegistry.Builder().register(redPacket).build();
-    const r = bubble(msg({ content: "[Red packet]", contentType: "application/vnd.imkit.red-packet+json", extra: { amount: 8 } }), types);
+    const r = bubble(msg({ content: "[Red packet]", contentType: "application/vnd.talkwire.red-packet+json", extra: { amount: 8 } }), types);
     expect(r.container.querySelector(".red-packet")?.textContent).toBe("🧧 8");
-    expect(types.preview(msg({ contentType: "application/vnd.imkit.red-packet+json" }), {} as never)).toBe("[Red packet]");
+    expect(types.preview(msg({ contentType: "application/vnd.talkwire.red-packet+json" }), {} as never)).toBe("[Red packet]");
   });
 });
 
@@ -94,9 +94,9 @@ describe("list and chat", () => {
     await client.awaitConnected(5_000);
     let opened: string | null = null;
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="zh">
+      <TalkwireProvider engine={engine} host={host} locale="zh">
         <ConversationList onOpen={(c) => (opened = c)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     expect(ui.getByText("还没有聊天，从通讯录发起一个吧")).toBeTruthy();
     await act(async () => {
@@ -111,9 +111,9 @@ describe("list and chat", () => {
     ui.unmount();
 
     const chat = render(
-      <ImKitProvider engine={engine} host={host} locale="zh">
+      <TalkwireProvider engine={engine} host={host} locale="zh">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("message shown", () => !!chat.queryByText("你好"));
     const input = chat.getByLabelText("发消息");
@@ -138,9 +138,9 @@ describe("list and chat", () => {
     client.start();
     await client.awaitConnected(5_000);
     const chat = render(
-      <ImKitProvider engine={engine} host={anonymous} locale="zh">
+      <TalkwireProvider engine={engine} host={anonymous} locale="zh">
         <ChatScreen conversation={group} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await act(async () => {
       server.live[0]!.push({ type: "ai_typing", topic: group });

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"example.com/imkit/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
 )
 
 // Placeholders a golden transcript uses, and the wildcards that stand for

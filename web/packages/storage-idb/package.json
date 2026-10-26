@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/storage-idb",
+  "name": "@talkwire/storage-idb",
   "version": "0.1.0",
-  "description": "IndexedDB and in-memory stores for the ImKit web client, with optional WebCrypto encryption at rest",
+  "description": "IndexedDB and in-memory stores for the Talkwire web client, with optional WebCrypto encryption at rest",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,7 +15,7 @@
   "files": ["dist"],
   "sideEffects": false,
   "dependencies": {
-    "@imkit/client": "0.1.0",
-    "@imkit/protocol": "0.1.0"
+    "@talkwire/client": "0.1.0",
+    "@talkwire/protocol": "0.1.0"
   }
 }

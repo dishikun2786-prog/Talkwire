@@ -5,10 +5,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 type Config struct {
@@ -106,14 +107,14 @@ func LoadConfig() *Config {
 	if v := os.Getenv("MAIN_API_BASE_URL"); v != "" {
 		cfg.MainAPIBaseURL = v
 	}
-	if v := os.Getenv("IMKIT_HOST_MODE"); v != "" {
+	if v := getenv("TALKWIRE_HOST_MODE"); v != "" {
 		cfg.HostMode = v
 	}
-	cfg.StandaloneConfig = os.Getenv("IMKIT_STANDALONE_CONFIG")
-	// IMKIT_MODULES: a comma-separated list, or "none". Unset installs every
+	cfg.StandaloneConfig = getenv("TALKWIRE_STANDALONE_CONFIG")
+	// TALKWIRE_MODULES: a comma-separated list, or "none". Unset installs every
 	// module the host supports.
 	cfg.Modules = moduleNames()
-	if v, ok := os.LookupEnv("IMKIT_MODULES"); ok {
+	if v, ok := lookupEnv("TALKWIRE_MODULES"); ok {
 		cfg.ModulesExplicit = true
 		cfg.Modules = nil
 		if strings.TrimSpace(v) != "none" {
@@ -126,26 +127,26 @@ func LoadConfig() *Config {
 	}
 	loadPushConfig(cfg)
 	cfg.Profile = ProfileStrict
-	if v := os.Getenv("IMKIT_PROTOCOL_PROFILE"); v != "" {
+	if v := getenv("TALKWIRE_PROTOCOL_PROFILE"); v != "" {
 		cfg.Profile = v
 	}
 	if cfg.Profile != ProfileLegacy && cfg.Profile != ProfileStrict {
-		log.Fatalf("IMKIT_PROTOCOL_PROFILE must be legacy or strict, got %q", cfg.Profile)
+		log.Fatalf("TALKWIRE_PROTOCOL_PROFILE must be legacy or strict, got %q", cfg.Profile)
 	}
-	cfg.AcceptLegacyTokens = os.Getenv("IMKIT_ACCEPT_LEGACY_TOKENS") == "1"
-	if v := os.Getenv("IMKIT_TOKEN_USER_ROLES"); v != "" {
+	cfg.AcceptLegacyTokens = getenv("TALKWIRE_ACCEPT_LEGACY_TOKENS") == "1"
+	if v := getenv("TALKWIRE_TOKEN_USER_ROLES"); v != "" {
 		for _, r := range strings.Split(v, ",") {
 			if r = strings.TrimSpace(r); r != "" {
 				cfg.TokenUserRoles = append(cfg.TokenUserRoles, r)
 			}
 		}
 	}
-	cfg.JWKSURL = os.Getenv("IMKIT_JWKS_URL")
+	cfg.JWKSURL = getenv("TALKWIRE_JWKS_URL")
 	if cfg.HostMode != "http" && cfg.HostMode != "standalone" {
-		log.Fatalf("IMKIT_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
+		log.Fatalf("TALKWIRE_HOST_MODE must be http or standalone, got %q", cfg.HostMode)
 	}
 	if cfg.StandaloneConfig != "" && cfg.HostMode != "standalone" {
-		log.Fatal("IMKIT_STANDALONE_CONFIG is set but IMKIT_HOST_MODE is not standalone")
+		log.Fatal("TALKWIRE_STANDALONE_CONFIG is set but TALKWIRE_HOST_MODE is not standalone")
 	}
 	if cfg.DBPassword == "" {
 		log.Fatal("DB_PASSWORD is required: set it in the service environment")
@@ -158,47 +159,76 @@ func LoadConfig() *Config {
 
 // loadPushConfig reads the APNs and Web Push settings.
 //
-//	IMKIT_APNS_KEY_PATH, IMKIT_APNS_KEY_ID, IMKIT_APNS_TEAM_ID, IMKIT_APNS_TOPIC
-//	IMKIT_APNS_ENV                production (default) or sandbox
-//	IMKIT_VAPID_KEY_PATH, IMKIT_VAPID_SUBJECT
-//	IMKIT_WEBPUSH_ALLOWED_HOSTS   push services subscriptions may name
-//	IMKIT_WEBPUSH_TTL_SEC         how long a push service keeps a message
-//	IMKIT_PUSH_HTTP_TIMEOUT_SEC   per request; IM_FCM_HTTP_TIMEOUT_SEC is the
+//	TALKWIRE_APNS_KEY_PATH, TALKWIRE_APNS_KEY_ID, TALKWIRE_APNS_TEAM_ID, TALKWIRE_APNS_TOPIC
+//	TALKWIRE_APNS_ENV                production (default) or sandbox
+//	TALKWIRE_VAPID_KEY_PATH, TALKWIRE_VAPID_SUBJECT
+//	TALKWIRE_WEBPUSH_ALLOWED_HOSTS   push services subscriptions may name
+//	TALKWIRE_WEBPUSH_TTL_SEC         how long a push service keeps a message
+//	TALKWIRE_PUSH_HTTP_TIMEOUT_SEC   per request; IM_FCM_HTTP_TIMEOUT_SEC is the
 //	                              older name, still read
 func loadPushConfig(cfg *Config) {
-	cfg.PushTimeout = envDuration("IMKIT_PUSH_HTTP_TIMEOUT_SEC", envDuration("IM_FCM_HTTP_TIMEOUT_SEC", 10*time.Second))
+	cfg.PushTimeout = envDuration("TALKWIRE_PUSH_HTTP_TIMEOUT_SEC", envDuration("IM_FCM_HTTP_TIMEOUT_SEC", 10*time.Second))
 	cfg.APNs = push.APNsConfig{
-		KeyPath: os.Getenv("IMKIT_APNS_KEY_PATH"),
-		KeyID:   os.Getenv("IMKIT_APNS_KEY_ID"),
-		TeamID:  os.Getenv("IMKIT_APNS_TEAM_ID"),
-		Topic:   os.Getenv("IMKIT_APNS_TOPIC"),
+		KeyPath: getenv("TALKWIRE_APNS_KEY_PATH"),
+		KeyID:   getenv("TALKWIRE_APNS_KEY_ID"),
+		TeamID:  getenv("TALKWIRE_APNS_TEAM_ID"),
+		Topic:   getenv("TALKWIRE_APNS_TOPIC"),
 		BaseURL: push.APNsProduction,
 		Timeout: cfg.PushTimeout,
 	}
-	switch v := os.Getenv("IMKIT_APNS_ENV"); v {
+	switch v := getenv("TALKWIRE_APNS_ENV"); v {
 	case "", "production":
 	case "sandbox":
 		cfg.APNs.BaseURL = push.APNsSandbox
 	default:
-		log.Fatalf("IMKIT_APNS_ENV must be production or sandbox, got %q", v)
+		log.Fatalf("TALKWIRE_APNS_ENV must be production or sandbox, got %q", v)
 	}
 	cfg.WebPush = push.WebPushConfig{
-		KeyPath: os.Getenv("IMKIT_VAPID_KEY_PATH"),
-		Subject: os.Getenv("IMKIT_VAPID_SUBJECT"),
+		KeyPath: getenv("TALKWIRE_VAPID_KEY_PATH"),
+		Subject: getenv("TALKWIRE_VAPID_SUBJECT"),
 		Hosts:   push.DefaultWebPushHosts,
-		TTL:     envDuration("IMKIT_WEBPUSH_TTL_SEC", 24*time.Hour),
+		TTL:     envDuration("TALKWIRE_WEBPUSH_TTL_SEC", 24*time.Hour),
 		Timeout: cfg.PushTimeout,
 	}
-	if v, ok := os.LookupEnv("IMKIT_WEBPUSH_ALLOWED_HOSTS"); ok {
+	if v, ok := lookupEnv("TALKWIRE_WEBPUSH_ALLOWED_HOSTS"); ok {
 		cfg.WebPush.Hosts = push.ParseHosts(v)
 	}
+}
+
+// lookupEnv reads a setting. A TALKWIRE_* setting not set under that name is
+// read under the IMKIT_* name it had before the project was renamed, with a
+// warning logged once per name, so a deployment configured for ImKit keeps
+// working. The fallback goes at 1.0.
+func lookupEnv(name string) (string, bool) {
+	if v, ok := os.LookupEnv(name); ok {
+		return v, true
+	}
+	rest, ok := strings.CutPrefix(name, "TALKWIRE_")
+	if !ok {
+		return "", false
+	}
+	v, ok := os.LookupEnv("IMKIT_" + rest)
+	if ok {
+		if _, warned := oldEnvWarned.LoadOrStore(rest, true); !warned {
+			log.Printf("WARNING: IMKIT_%s is the old name of %s; rename it, the old name stops working at 1.0", rest, name)
+		}
+	}
+	return v, ok
+}
+
+var oldEnvWarned sync.Map
+
+// getenv is lookupEnv without the "is it set" answer, like os.Getenv.
+func getenv(name string) string {
+	v, _ := lookupEnv(name)
+	return v
 }
 
 // envInt reads a positive integer from an env var, falling back to def when
 // unset, unparseable or non-positive. Same rationale as envDuration: a typo
 // in an optional tuning knob must not take the service down.
 func envInt(name string, def int) int {
-	v := os.Getenv(name)
+	v := getenv(name)
 	if v == "" {
 		return def
 	}
@@ -633,7 +663,7 @@ var maxConnections = envInt("IM_MAX_CONNECTIONS", 10000)
 // device beyond the cap is refused ("too many devices"); a login from a device
 // already connected replaces it as always. The check is made at login, so
 // logins of new devices racing each other can overshoot it by their number.
-var maxDevicesPerUser = envInt("IMKIT_MAX_DEVICES_PER_USER", 10)
+var maxDevicesPerUser = envInt("TALKWIRE_MAX_DEVICES_PER_USER", 10)
 
 // connCount is the live count of accepted-and-not-yet-disconnected WS
 // connections. Package-level atomic rather than a Hub field so ServeWS

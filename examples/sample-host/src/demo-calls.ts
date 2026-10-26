@@ -5,7 +5,7 @@
 // them from its RTC provider (see examples/artc for an adapter) and bills the
 // call in `settle`.
 
-import type { CallHandlers, ContactStore } from "@imkit/host-node";
+import type { CallHandlers, ContactStore } from "@talkwire/host-node";
 
 interface DemoCall {
   callerAppUserId: string;

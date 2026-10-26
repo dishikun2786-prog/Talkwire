@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -222,10 +222,10 @@ func TestR18_OnlyAccessTokensLogIn(t *testing.T) {
 		{"superadmin token", jwt.MapClaims{"type": "access", "role": "superadmin"}, false},
 		{"no type, no role", jwt.MapClaims{}, false},
 	}
-	t.Setenv("IMKIT_ACCEPT_LEGACY_TOKENS", "")
+	t.Setenv("TALKWIRE_ACCEPT_LEGACY_TOKENS", "")
 	t.Setenv("DB_PASSWORD", "x")
 	t.Setenv("JWT_SECRET", secret)
-	t.Setenv("IMKIT_PROTOCOL_PROFILE", "strict")
+	t.Setenv("TALKWIRE_PROTOCOL_PROFILE", "strict")
 	if cfg := LoadConfig(); cfg.AcceptLegacyTokens {
 		t.Fatal("the migration switch is on by default")
 	}

@@ -1,11 +1,11 @@
 /**
  * React components for calls: the in-tab call screen (ringing, calling, in
  * a call, ended) and the call buttons for a single chat's header. They need
- * an `<ImKitProvider>` above a `<CallProvider>`, and use the kit's CSS
+ * an `<TalkwireProvider>` above a `<CallProvider>`, and use the kit's CSS
  * variables.
  */
 
-import { useImKit, useProfile, useSignal } from "@imkit/react";
+import { useTalkwire, useProfile, useSignal } from "@talkwire/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CallManager, ToneRinger, ringWith, type CallEndReason, type CallMediaEngine, type CallRinger, type CallState, type CallTraceEntry, type CallType, type TabChannel } from "./index.js";
 
@@ -174,23 +174,23 @@ export function refusedText(strings: CallStrings, r: { code: number; reason: str
 }
 
 export const callCss = `
-.imkit-call { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: rgb(17 24 39 / .92); color: #fff; font-family: var(--imkit-font); }
-.imkit-call-name { font-size: 22px; font-weight: 600; }
-.imkit-call-status { opacity: .8; }
-.imkit-call-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.imkit-call-actions button { border: 0; border-radius: 999px; padding: 12px 20px; font: inherit; cursor: pointer; background: rgb(255 255 255 / .16); color: #fff; }
-.imkit-call-actions .imkit-call-accept { background: #16a34a; }
-.imkit-call-actions .imkit-call-end { background: var(--imkit-danger, #dc2626); }
-.imkit-call-videos { position: relative; width: min(720px, 92vw); aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; }
-.imkit-call-remote { position: absolute; inset: 0; }
-.imkit-call-local { position: absolute; right: 10px; bottom: 10px; width: 28%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #111; }
-.imkit-call-notice { background: rgb(255 255 255 / .12); border-radius: 10px; padding: 8px 14px; display: flex; gap: 10px; align-items: center; }
+.talkwire-call { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: rgb(17 24 39 / .92); color: #fff; font-family: var(--talkwire-font); }
+.talkwire-call-name { font-size: 22px; font-weight: 600; }
+.talkwire-call-status { opacity: .8; }
+.talkwire-call-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.talkwire-call-actions button { border: 0; border-radius: 999px; padding: 12px 20px; font: inherit; cursor: pointer; background: rgb(255 255 255 / .16); color: #fff; }
+.talkwire-call-actions .talkwire-call-accept { background: #16a34a; }
+.talkwire-call-actions .talkwire-call-end { background: var(--talkwire-danger, #dc2626); }
+.talkwire-call-videos { position: relative; width: min(720px, 92vw); aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden; }
+.talkwire-call-remote { position: absolute; inset: 0; }
+.talkwire-call-local { position: absolute; right: 10px; bottom: 10px; width: 28%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #111; }
+.talkwire-call-notice { background: rgb(255 255 255 / .12); border-radius: 10px; padding: 8px 14px; display: flex; gap: 10px; align-items: center; }
 `;
 
-/** Puts the module's stylesheet in the page once (next to `<ImKitStyles>`). */
+/** Puts the module's stylesheet in the page once (next to `<TalkwireStyles>`). */
 export function CallStyles() {
-  return <style data-imkit-call="">{callCss}</style>;
+  return <style data-talkwire-call="">{callCss}</style>;
 }
 
 // ------------------------------------------------------------------ context
@@ -215,9 +215,9 @@ export interface CallProviderProps {
   children: ReactNode;
 }
 
-/** Makes calls available below; one per `<ImKitProvider>`. */
+/** Makes calls available below; one per `<TalkwireProvider>`. */
 export function CallProvider({ media, channel, strings, ringer, log, children }: CallProviderProps) {
-  const { engine, locale } = useImKit();
+  const { engine, locale } = useTalkwire();
   const logRef = useRef(log);
   useEffect(() => {
     logRef.current = log;
@@ -260,7 +260,7 @@ export interface CallButtonsProps {
 }
 
 /** Voice and video call buttons for a single chat's header. */
-export function CallButtons({ peer, onRefused, className = "imkit-icon-button" }: CallButtonsProps) {
+export function CallButtons({ peer, onRefused, className = "talkwire-icon-button" }: CallButtonsProps) {
   const { manager, strings, state } = useCall();
   const busy = state.phase !== "idle" && state.phase !== "ended";
   const call = async (type: CallType) => {
@@ -296,10 +296,10 @@ export function CallOverlay({ nameOf }: CallOverlayProps) {
 
   if (state.phase === "idle") return null;
   return (
-    <div className="imkit-call" role="dialog" aria-label={name} data-call-phase={state.phase}>
+    <div className="talkwire-call" role="dialog" aria-label={name} data-call-phase={state.phase}>
       {state.phase === "incoming" && state.callerAvatar && <img src={state.callerAvatar} alt="" width={72} height={72} style={{ borderRadius: "50%" }} />}
-      <div className="imkit-call-name">{name}</div>
-      <div className="imkit-call-status" data-call-status="">
+      <div className="talkwire-call-name">{name}</div>
+      <div className="talkwire-call-status" data-call-status="">
         {state.phase === "incoming" && (state.callType === "video" ? strings.incomingVideo : strings.incomingVoice)}
         {state.phase === "outgoing" && strings.calling}
         {state.phase === "active" && (state.connecting ? strings.connecting : elapsed)}
@@ -307,10 +307,10 @@ export function CallOverlay({ nameOf }: CallOverlayProps) {
       </div>
       {state.phase === "active" && state.callType === "video" && <Videos />}
       {state.phase === "active" && state.upgrade === "theirs" && (
-        <div className="imkit-call-notice">
+        <div className="talkwire-call-notice">
           {strings.videoRequested}
-          <div className="imkit-call-actions">
-            <button type="button" className="imkit-call-accept" onClick={() => void manager.acceptVideo()}>
+          <div className="talkwire-call-actions">
+            <button type="button" className="talkwire-call-accept" onClick={() => void manager.acceptVideo()}>
               {strings.acceptVideo}
             </button>
             <button type="button" onClick={() => void manager.declineVideo()}>
@@ -319,12 +319,12 @@ export function CallOverlay({ nameOf }: CallOverlayProps) {
           </div>
         </div>
       )}
-      {state.phase === "active" && state.upgrade === "mine" && <div className="imkit-call-notice">{strings.videoAsked}</div>}
-      {state.phase === "active" && state.upgrade === "declined" && <div className="imkit-call-notice">{strings.videoDeclined}</div>}
-      <div className="imkit-call-actions">
+      {state.phase === "active" && state.upgrade === "mine" && <div className="talkwire-call-notice">{strings.videoAsked}</div>}
+      {state.phase === "active" && state.upgrade === "declined" && <div className="talkwire-call-notice">{strings.videoDeclined}</div>}
+      <div className="talkwire-call-actions">
         {state.phase === "incoming" && (
           <>
-            <button type="button" className="imkit-call-accept" onClick={() => void manager.accept()}>
+            <button type="button" className="talkwire-call-accept" onClick={() => void manager.accept()}>
               {strings.accept}
             </button>
             {state.callType === "video" && (
@@ -332,13 +332,13 @@ export function CallOverlay({ nameOf }: CallOverlayProps) {
                 {strings.acceptAsVoice}
               </button>
             )}
-            <button type="button" className="imkit-call-end" onClick={() => void manager.reject()}>
+            <button type="button" className="talkwire-call-end" onClick={() => void manager.reject()}>
               {strings.decline}
             </button>
           </>
         )}
         {state.phase === "outgoing" && (
-          <button type="button" className="imkit-call-end" onClick={() => void manager.cancel()}>
+          <button type="button" className="talkwire-call-end" onClick={() => void manager.cancel()}>
             {strings.cancel}
           </button>
         )}
@@ -352,7 +352,7 @@ export function CallOverlay({ nameOf }: CallOverlayProps) {
                 {strings.switchToVideo}
               </button>
             )}
-            <button type="button" className="imkit-call-end" onClick={() => void manager.hangup()}>
+            <button type="button" className="talkwire-call-end" onClick={() => void manager.hangup()}>
               {strings.hangUp}
             </button>
           </>
@@ -377,9 +377,9 @@ function Videos() {
     };
   }, [media]);
   return (
-    <div className="imkit-call-videos">
-      <div className="imkit-call-remote" ref={remote} />
-      <div className="imkit-call-local" ref={local} />
+    <div className="talkwire-call-videos">
+      <div className="talkwire-call-remote" ref={remote} />
+      <div className="talkwire-call-local" ref={local} />
     </div>
   );
 }

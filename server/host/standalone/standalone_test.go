@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"example.com/imkit/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
 )
 
 func TestAllowAll(t *testing.T) {

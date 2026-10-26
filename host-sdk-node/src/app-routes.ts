@@ -79,7 +79,7 @@ const errorStatus: Record<ContactError, number> = {
   not_friends: 400,
 };
 
-export async function imkitAppRoutes(app: FastifyInstance, options: AppRoutesOptions): Promise<void> {
+export async function talkwireAppRoutes(app: FastifyInstance, options: AppRoutesOptions): Promise<void> {
   const base = (options.basePath ?? "/api/v1/chat").replace(/\/$/, "");
   const { profiles, contacts, im } = options;
   // Every request here is a few small fields; see host-plugin.ts on why it is limited.
@@ -92,10 +92,10 @@ export async function imkitAppRoutes(app: FastifyInstance, options: AppRoutesOpt
   const isActive = options.isUserActive ?? (async () => true);
   // A key of its own, so an add token can never pass for any other HMAC the
   // host makes with the same secret.
-  const addTokenKey = createHmac("sha256", options.addTokenSecret).update("imkit add token").digest("hex");
-  const contactQrKey = createHmac("sha256", options.addTokenSecret).update("imkit contact qr").digest("hex");
+  const addTokenKey = createHmac("sha256", options.addTokenSecret).update("talkwire add token").digest("hex");
+  const contactQrKey = createHmac("sha256", options.addTokenSecret).update("talkwire contact qr").digest("hex");
   const reportError = (err: unknown, what: string) =>
-    options.onError ? options.onError(err, what) : app.log.warn({ err }, `imkit: ${what} failed`);
+    options.onError ? options.onError(err, what) : app.log.warn({ err }, `talkwire: ${what} failed`);
 
   const notify = (userId: string, event: AppEvent) => {
     const send = options.notify

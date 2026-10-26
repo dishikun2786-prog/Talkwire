@@ -1,14 +1,14 @@
 // The call module's host side over ARTC 3.0: CallHandlers for
-// imkitHostPlugin that open one RTC channel per call and give each side its
+// talkwireHostPlugin that open one RTC channel per call and give each side its
 // own token. Who may call whom and what a call costs stay with the host
 // (canCall, onSettle); wrap the handlers in recordingCalls for the admin
 // pages.
 //
 //   const calls = artcCalls({ appId, appKey, canCall: friendsOnly(contacts), onSettle: bill });
-//   await app.register(imkitHostPlugin, { ..., calls: recordingCalls(calls, callRecords) });
+//   await app.register(talkwireHostPlugin, { ..., calls: recordingCalls(calls, callRecords) });
 
 import crypto from "node:crypto";
-import { imUid, type CallHandlers, type ContactStore } from "@imkit/host-node";
+import { imUid, type CallHandlers, type ContactStore } from "@talkwire/host-node";
 import { MAX_TOKEN_SECONDS, buildAppToken } from "./app-token.js";
 
 export type CallType = "voice" | "video";
@@ -33,7 +33,7 @@ export interface ArtcCallsOptions {
   canCall?: CallPolicy;
   /**
    * The RTC user id a token is for. Default the user's IM uid, which is what
-   * @imkit/call-dingrtc joins as unless it is told otherwise; the two must agree.
+   * @talkwire/call-dingrtc joins as unless it is told otherwise; the two must agree.
    */
   rtcUserId?(userId: string): string;
   videoQuality?(): "sd" | "hd";
@@ -70,7 +70,7 @@ export function artcCalls(o: ArtcCallsOptions): CallHandlers & { readonly calls:
         calleeUserId: req.calleeAppUserId,
         callType: req.callType,
         // One channel per call; DingRTC allows letters, digits, "_" and "-", up to 64.
-        channelId: "imkit-" + crypto.randomBytes(12).toString("hex"),
+        channelId: "talkwire-" + crypto.randomBytes(12).toString("hex"),
       });
       return { ok: true };
     },

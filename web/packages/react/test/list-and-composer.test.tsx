@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore, Signal, type ChatMessage } from "@imkit/client";
-import { uidOf } from "@imkit/protocol";
+import { ChatEngine, ImClient, MemoryChatStore, Signal, type ChatMessage } from "@talkwire/client";
+import { uidOf } from "@talkwire/protocol";
 import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";
-import { ChatScreen, ContactList, ConversationList, EMOJI, ImKitProvider, readersOf, snippet, type ImUiHost } from "../src/index.js";
+import { ChatScreen, ContactList, ConversationList, EMOJI, TalkwireProvider, readersOf, snippet, type ImUiHost } from "../src/index.js";
 
 afterEach(cleanup);
 
@@ -60,9 +60,9 @@ describe("conversation list", () => {
       await until("listed", () => engine.conversations.value.length === 2);
     });
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationList onOpen={() => {}} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     const order = () => [...ui.container.querySelectorAll("[data-conversation]")].map((e) => e.getAttribute("data-conversation"));
     await until("rows", () => order().length === 2);
@@ -72,7 +72,7 @@ describe("conversation list", () => {
     fireEvent.contextMenu(row(bob));
     fireEvent.click(ui.getByRole("menuitem", { name: "Pin" }));
     await until("pinned first", () => order()[0] === bob);
-    expect(row(bob).className).toContain("imkit-list-item-pinned");
+    expect(row(bob).className).toContain("talkwire-list-item-pinned");
 
     fireEvent.contextMenu(row(bob));
     expect(ui.getByRole("menuitem", { name: "Unpin" })).toBeTruthy();
@@ -105,9 +105,9 @@ describe("search", () => {
     });
     const opened: string[] = [];
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationList onOpen={(c) => opened.push(c)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("rows", () => ui.container.querySelectorAll("[data-conversation]").length === 3);
     const box = ui.getByRole("searchbox", { name: "Search chats and messages" });
@@ -142,9 +142,9 @@ describe("search", () => {
 
     const { engine, close } = await setup();
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationList onOpen={() => {}} searchable={false} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     expect(ui.queryByRole("searchbox")).toBeNull();
     ui.unmount();
@@ -157,9 +157,9 @@ describe("composer", () => {
     const { server, engine, close } = await setup();
     await engine.ensureConversation(bob);
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     const input = ui.getByLabelText("Message") as HTMLTextAreaElement;
     fireEvent.change(input, { target: { value: "ab" } });
@@ -181,9 +181,9 @@ describe("contacts", () => {
     const { engine, close } = await setup();
     let opened: string | null = null;
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="zh">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="zh">
         <ContactList onOpen={(c) => (opened = c)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     expect(ui.getByText("Bob")).toBeTruthy();
     fireEvent.change(ui.getByRole("searchbox", { name: "搜索" }), { target: { value: "car" } });
@@ -211,9 +211,9 @@ describe("read by", () => {
     const { engine, push, close } = await setup();
     await engine.ensureConversation(group, "team");
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={group} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     const input = ui.getByLabelText("Message");
     fireEvent.change(input, { target: { value: "who reads this" } });
@@ -245,9 +245,9 @@ describe("new messages line", () => {
     });
     await engine.markRead(bob);
     const quiet = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await act(async () => {
       push({ action: "data", topic: bob, from: bob, seq: 2, ts: Date.now(), content: "while looking", contentType: "text" });
@@ -262,9 +262,9 @@ describe("new messages line", () => {
       await until("unread", () => engine.conversations.value.find((c) => c.id === bob)?.unread === 1);
     });
     const busy = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("line", () => !!busy.queryByText("New messages"));
     await act(async () => {
@@ -273,7 +273,7 @@ describe("new messages line", () => {
     });
     await until("shown", () => !!busy.queryByText("later"));
     // The line stays above the message that was unread at opening.
-    const rows = [...busy.container.querySelectorAll(".imkit-messages > *")].map((e) => e.textContent);
+    const rows = [...busy.container.querySelectorAll(".talkwire-messages > *")].map((e) => e.textContent);
     expect(rows.indexOf("New messages")).toBe(rows.findIndex((r) => r?.includes("unread one")) - 1);
     busy.unmount();
     close();

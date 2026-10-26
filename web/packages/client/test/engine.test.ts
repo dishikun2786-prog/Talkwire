@@ -1,4 +1,4 @@
-import { p2pTopic, uidOf } from "@imkit/protocol";
+import { p2pTopic, uidOf } from "@talkwire/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { AI_ASSISTANT_UID, ChatEngine, ImClient, MemoryChatStore, PresenceTracker, RECALLED_CONTENT_TYPE, resumeSeq, seqsGone, type ChatEvent, type EngineConfig, type PageBounds } from "../src/index.js";
 import { FakeServer, type Frame } from "./fake-server.js";

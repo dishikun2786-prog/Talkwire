@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/example-artc",
+  "name": "@talkwire/example-artc",
   "private": true,
-  "description": "Calls over Alibaba Cloud ARTC 3.0 (DingRTC): the host's CallHandlers and its channel tokens, for @imkit/host-node",
+  "description": "Calls over Alibaba Cloud ARTC 3.0 (DingRTC): the host's CallHandlers and its channel tokens, for @talkwire/host-node",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@imkit/host-node": "file:../../host-sdk-node"
+    "@talkwire/host-node": "file:../../host-sdk-node"
   },
   "devDependencies": {
     "@types/node": "22.19.19",

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useImKit } from "./context.js";
+import { useTalkwire } from "./context.js";
 
 /** A modal card over the page; Escape or a click outside closes it. */
 export function Dialog({ label, children, onClose }: { label: string; children: ReactNode; onClose(): void }) {
@@ -9,23 +9,23 @@ export function Dialog({ label, children, onClose }: { label: string; children: 
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="imkit-dialog" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="imkit-dialog-card">{children}</div>
+    <div className="talkwire-dialog" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="talkwire-dialog-card">{children}</div>
     </div>
   );
 }
 
 /** Asks before something that cannot be undone; the action button is drawn as destructive. */
 export function ConfirmDialog({ message, action, onConfirm, onClose }: { message: string; action: string; onConfirm(): void; onClose(): void }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   return (
     <Dialog label={action} onClose={onClose}>
-      <p className="imkit-dialog-text">{message}</p>
-      <div className="imkit-dialog-actions">
-        <button type="button" className="imkit-text-button" onClick={onClose}>{strings.cancel}</button>
+      <p className="talkwire-dialog-text">{message}</p>
+      <div className="talkwire-dialog-actions">
+        <button type="button" className="talkwire-text-button" onClick={onClose}>{strings.cancel}</button>
         <button
           type="button"
-          className="imkit-text-button imkit-danger-text"
+          className="talkwire-text-button talkwire-danger-text"
           onClick={() => {
             onClose();
             onConfirm();
@@ -51,7 +51,7 @@ export function PopupMenu({ x, y, children, onClose }: { x: number; y: number; c
     };
   }, [onClose]);
   return (
-    <div className="imkit-menu" role="menu" style={{ left: Math.max(0, Math.min(x, window.innerWidth - 180)), top: Math.max(0, Math.min(y, window.innerHeight - 160)) }}>
+    <div className="talkwire-menu" role="menu" style={{ left: Math.max(0, Math.min(x, window.innerWidth - 180)), top: Math.max(0, Math.min(y, window.innerHeight - 160)) }}>
       {children}
     </div>
   );

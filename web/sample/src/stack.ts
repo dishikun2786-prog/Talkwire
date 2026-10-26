@@ -4,11 +4,11 @@
  * IndexedDB store, the host adapter and media.
  */
 
-import { ChatEngine, ImClient, MediaSender, MediaUploader, Signal, createTabTransport, type TabTransport } from "@imkit/client";
-import type { ImProfile, ImUiHost } from "@imkit/react";
-import { IdbChatStore } from "@imkit/storage-idb";
+import { ChatEngine, ImClient, MediaSender, MediaUploader, Signal, createTabTransport, type TabTransport } from "@talkwire/client";
+import type { ImProfile, ImUiHost } from "@talkwire/react";
+import { IdbChatStore } from "@talkwire/storage-idb";
 // One SharedWorker per account holds the WebSocket for all of its tabs.
-import ImkitWorker from "./imkit-worker.ts?sharedworker";
+import TalkwireWorker from "./talkwire-worker.ts?sharedworker";
 
 export interface Session {
   userId: string;
@@ -17,8 +17,8 @@ export interface Session {
   accessToken: string;
 }
 
-const SESSION_KEY = "imkit-sample-session";
-const DEVICE_KEY = "imkit-sample-device";
+const SESSION_KEY = "talkwire-sample-session";
+const DEVICE_KEY = "talkwire-sample-device";
 
 export function savedSession(): Session | null {
   try {
@@ -76,11 +76,11 @@ export async function buildStack(session: Session): Promise<Stack> {
     name: session.userId,
     sharedWorker:
       typeof SharedWorker === "function" && !new URLSearchParams(location.search).has("noworker")
-        ? () => new ImkitWorker({ name: "imkit:" + session.userId })
+        ? () => new TalkwireWorker({ name: "talkwire:" + session.userId })
         : undefined,
   });
   const client = new ImClient({ endpoints: [wsUrl], tokenProvider: token, transport: tabs.transport, deviceName: deviceName() });
-  const store = await IdbChatStore.open({ name: "imkit-sample", encrypt: true });
+  const store = await IdbChatStore.open({ name: "talkwire-sample", encrypt: true });
   const engine = new ChatEngine(client, store, { appUserId: session.userId });
 
   const authed = (path: string) => fetch(path, { headers: { Authorization: `Bearer ${session.accessToken}` } }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));

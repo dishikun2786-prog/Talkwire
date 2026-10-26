@@ -25,7 +25,7 @@ export async function signIn(page: Page, name: string): Promise<void> {
 export async function expectSignedIn(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId("me")).toHaveText(name);
   // The banner shows while connecting or offline; it goes once logged in.
-  await expect(page.locator(".imkit-banner")).toHaveCount(0);
+  await expect(page.locator(".talkwire-banner")).toHaveCount(0);
 }
 
 /** A browser profile of its own: a separate device as far as the server is concerned. */
@@ -48,14 +48,14 @@ export async function openContact(page: Page, name: string): Promise<void> {
   const contact = contactItem(page, name);
   await expect(contact).toBeVisible();
   await contact.click();
-  await expect(page.locator(".imkit-chat-title")).toHaveText(name);
+  await expect(page.locator(".talkwire-chat-title")).toHaveText(name);
 }
 
 export async function openConversation(page: Page, title: string): Promise<void> {
   const item = conversationItem(page, title);
   await expect(item).toBeVisible();
   await item.click();
-  await expect(page.locator(".imkit-chat-title")).toHaveText(title);
+  await expect(page.locator(".talkwire-chat-title")).toHaveText(title);
 }
 
 export async function send(page: Page, text: string): Promise<void> {
@@ -70,12 +70,12 @@ export const contactItem = (page: Page, name: string) => page.locator("[data-con
 /** The conversation list's entry (contacts use the same style but carry data-contact instead). */
 export const conversationItem = (page: Page, title: string) => page.locator("[data-conversation]", { hasText: title });
 
-export const row = (page: Page, text: string) => page.locator(".imkit-row", { hasText: text });
+export const row = (page: Page, text: string) => page.locator(".talkwire-row", { hasText: text });
 
 /** The message is on screen and the server has given it a sequence number. */
 export async function expectStored(page: Page, text: string, mine: boolean): Promise<void> {
   const r = row(page, text);
   await expect(r).toHaveAttribute("data-seq", /^\d+$/);
-  if (mine) await expect(r).toHaveClass(/imkit-row-mine/);
-  else await expect(r).not.toHaveClass(/imkit-row-mine/);
+  if (mine) await expect(r).toHaveClass(/talkwire-row-mine/);
+  else await expect(r).not.toHaveClass(/talkwire-row-mine/);
 }

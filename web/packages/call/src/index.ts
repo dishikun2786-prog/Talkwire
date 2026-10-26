@@ -15,7 +15,7 @@
  * A side's `rtcToken` is its own and is never sent to the other side.
  */
 
-import { Emitter, Signal, isOk, num, optStr, str, type Frame, type ImClient, type ImEvent, type ReadonlySignal, type Reply, type Unsubscribe } from "@imkit/client";
+import { Emitter, Signal, isOk, num, optStr, str, type Frame, type ImClient, type ImEvent, type ReadonlySignal, type Reply, type Unsubscribe } from "@talkwire/client";
 
 export type CallType = "voice" | "video";
 
@@ -880,5 +880,5 @@ export class ToneRinger implements CallRinger {
 }
 
 function defaultChannel(me: string): TabChannel | null {
-  return typeof BroadcastChannel === "undefined" ? null : (new BroadcastChannel(`imkit-call:${me}`) as unknown as TabChannel);
+  return typeof BroadcastChannel === "undefined" ? null : (new BroadcastChannel(`talkwire-call:${me}`) as unknown as TabChannel);
 }

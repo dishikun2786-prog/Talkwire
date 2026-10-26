@@ -1,29 +1,29 @@
-# ImKit Android SDK
+# Talkwire Android SDK
 
 Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 App。接入步骤见 [QUICKSTART.md](QUICKSTART.md)，真机检查记录见 [DEVICE_CHECKS.md](DEVICE_CHECKS.md)。
 
-包名 `io.imkit` 是占位符，定名后统一替换。
+包名 `io.talkwire` 是占位符，定名后统一替换。
 
 ## 模块
 
 | 模块 | 类型 | 内容 | 主要依赖 |
 | --- | --- | --- | --- |
-| `imkit-core` | 纯 Kotlin/JVM 库 | `ImClient`：连接、登录、多线路地址、重连与退避、请求关联。`ChatEngine`：发送队列与重试（C2）、接收排序与空洞检测（C3）、撤回墓碑、本地消息搜索（`searchMessages`）、已读游标、未读与草稿、群名册与本人角色（C9）、清空水位、缓存归属（C4）。另有 `ChatStore` 接口与内存实现、在线三态（C5）、通知决策（C6 的纯函数部分）、推送令牌注册、媒体上传接口、线协议常量与 JSON。 | kotlinx-coroutines 1.9.0、OkHttp 4.12.0。不依赖 Android、Room、Compose。 |
-| `imkit-storage-room` | Android 库 | 用 Room 实现的 `ChatStore`：新库从 v1 开始，schema 导出在 `schemas/`。可选的加密粉碎：每个会话一把数据密钥，由宿主提供的 `KeyWrapper` 包裹；删会话、清空、换账号时连密钥一起销毁。另有源项目 v18 旧库的只读导入器 `LegacyChatImporter`。 | Room 2.6.1 |
-| `imkit-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
-| `imkit-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `ImkitMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
-| `imkit-ui` | Android 库（Compose） | 整套聊天界面：会话列表（带搜索：会话名与本机存的文字消息）、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享；撤回后留“某某撤回了一条消息”）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口；可选模块的界面经它的 `topBarExtras`、`groupInfoExtras` 两个槽位接入）、深链接 `imkit://`。另有 `imkit-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
-| `imkit-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。服务端同意申请后只通知申请人（F45），所以 `JoinRequestsPanel(client, engine, topic)` 要引擎：同意后调 `engine.noteGroupChanged(topic)`，本设备的成员列表随之刷新；`JoinGroupScreen` 停在“申请已发送”时会跟着审核结果变成已入群或被拒绝。 | `imkit-ui` |
-| `imkit-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、来电铃声与回铃音、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `imkit-ui`、activity-compose 1.8.1 |
-| `imkit-call-dingrtc` | RTC 适配器 | 用阿里云 ARTC 3.0（DingRTC）实现 `CallMediaEngine`，说明见 `examples/artc/README.md`。SDK 只在这里出现。 | `imkit-call`、`com.ding.rtc:dingrtc-full:3.0.0`（阿里云 Maven） |
-| `imkit-video-compress` | 可选模块 | 发送前重新编码大视频（H.264 + AAC，计划 3.9）：`Media3VideoCompressor`，交给 `MediaSender(videoCompressor = …)`。单独成模块，不发大视频的 App 不必带上编码器与 ExoPlayer。 | `imkit-android`、media3-transformer 1.4.1 |
-| `imkit-e2ee` | 可选模块（Compose），**AGPLv3** | 端到端加密（协议第 13 节）：`E2eeSignaling`（协议层，不链接 libsignal）、`E2eeCrypto`（libsignal：身份、密钥包、单聊会话、群发送密钥、安全码）、`E2eeChats`（收发、本机存储、清空与结束）、`EncryptedChatScreen`。说明见下文“端到端加密”。 | `imkit-ui`、`org.signal:libsignal-android:0.73.0`（钉死）、Room 2.6.1 |
-| `example-red-packet`（`examples/red-packet/android`） | 示例 | 红包卡片：只靠注册一个 `MessageType` 接入，状态由宿主推送实时更新。服务端一侧在 `examples/red-packet/src`。 | `imkit-ui` |
-| `sample-app` | 示例 App | 接入方要写的三样东西（令牌、联系人与资料、推送配置）的完整例子，配 `examples/sample-host`（Node 开发宿主）在本机跑。另接了通话（只有信令，媒体用 `NoMediaEngine`）与扫码入群两个可选模块。包名 `io.imkit.sample`。 | 以上全部（加密与 FCM 除外） |
+| `talkwire-core` | 纯 Kotlin/JVM 库 | `ImClient`：连接、登录、多线路地址、重连与退避、请求关联。`ChatEngine`：发送队列与重试（C2）、接收排序与空洞检测（C3）、撤回墓碑、本地消息搜索（`searchMessages`）、已读游标、未读与草稿、群名册与本人角色（C9）、清空水位、缓存归属（C4）。另有 `ChatStore` 接口与内存实现、在线三态（C5）、通知决策（C6 的纯函数部分）、推送令牌注册、媒体上传接口、线协议常量与 JSON。 | kotlinx-coroutines 1.9.0、OkHttp 4.12.0。不依赖 Android、Room、Compose。 |
+| `talkwire-storage-room` | Android 库 | 用 Room 实现的 `ChatStore`：新库从 v1 开始，schema 导出在 `schemas/`。可选的加密粉碎：每个会话一把数据密钥，由宿主提供的 `KeyWrapper` 包裹；删会话、清空、换账号时连密钥一起销毁。另有源项目 v18 旧库的只读导入器 `LegacyChatImporter`。 | Room 2.6.1 |
+| `talkwire-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
+| `talkwire-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `TalkwireMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
+| `talkwire-ui` | Android 库（Compose） | 整套聊天界面：会话列表（带搜索：会话名与本机存的文字消息）、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享；撤回后留“某某撤回了一条消息”）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口；可选模块的界面经它的 `topBarExtras`、`groupInfoExtras` 两个槽位接入）、深链接 `talkwire://`。另有 `talkwire-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |
+| `talkwire-group-join` | 可选模块（Compose） | 扫码入群（协议第 14 节）：`GroupJoinClient`（二维码令牌、预览、入群、申请列表与审批、是否需要审批）与界面（`GroupQrCard`、`JoinGroupScreen`、`JoinRequestsPanel`、`JoinApprovalSetting`）。只依赖核心；二维码的绘制与扫描由 App 提供。服务端同意申请后只通知申请人（F45），所以 `JoinRequestsPanel(client, engine, topic)` 要引擎：同意后调 `engine.noteGroupChanged(topic)`，本设备的成员列表随之刷新；`JoinGroupScreen` 停在“申请已发送”时会跟着审核结果变成已入群或被拒绝。 | `talkwire-ui` |
+| `talkwire-call` | 可选模块（Compose） | 音视频通话的信令与界面（协议第 16 节）：`CallManager` 状态机、`CallSystem`（来电通知、来电铃声与回铃音、前台服务）、`CallScreen`、`CallButtons`。媒体走 `CallMediaEngine` 接口，模块自带的 `NoMediaEngine` 只打日志。 | `talkwire-ui`、activity-compose 1.8.1 |
+| `talkwire-call-dingrtc` | RTC 适配器 | 用阿里云 ARTC 3.0（DingRTC）实现 `CallMediaEngine`，说明见 `examples/artc/README.md`。SDK 只在这里出现。 | `talkwire-call`、`com.ding.rtc:dingrtc-full:3.0.0`（阿里云 Maven） |
+| `talkwire-video-compress` | 可选模块 | 发送前重新编码大视频（H.264 + AAC，计划 3.9）：`Media3VideoCompressor`，交给 `MediaSender(videoCompressor = …)`。单独成模块，不发大视频的 App 不必带上编码器与 ExoPlayer。 | `talkwire-android`、media3-transformer 1.4.1 |
+| `talkwire-e2ee` | 可选模块（Compose），**AGPLv3** | 端到端加密（协议第 13 节）：`E2eeSignaling`（协议层，不链接 libsignal）、`E2eeCrypto`（libsignal：身份、密钥包、单聊会话、群发送密钥、安全码）、`E2eeChats`（收发、本机存储、清空与结束）、`EncryptedChatScreen`。说明见下文“端到端加密”。 | `talkwire-ui`、`org.signal:libsignal-android:0.73.0`（钉死）、Room 2.6.1 |
+| `example-red-packet`（`examples/red-packet/android`） | 示例 | 红包卡片：只靠注册一个 `MessageType` 接入，状态由宿主推送实时更新。服务端一侧在 `examples/red-packet/src`。 | `talkwire-ui` |
+| `sample-app` | 示例 App | 接入方要写的三样东西（令牌、联系人与资料、推送配置）的完整例子，配 `examples/sample-host`（Node 开发宿主）在本机跑。另接了通话（只有信令，媒体用 `NoMediaEngine`）与扫码入群两个可选模块。包名 `io.talkwire.sample`。 | 以上全部（加密与 FCM 除外） |
 
 构建环境与源项目一致：AGP 8.4.2、Kotlin 1.9.24、Gradle 8.7、JDK 17、compileSdk 34。minSdk 是 26。计划 3.1 写的是 27，但源项目自己是 26，这里先按源项目，待定。
 
-`imkit-core` 的测试夹具（`src/testFixtures`）提供存储契约 `ChatStoreContract`，以及内存服务器 `MiniServer`、`FakeServer`，其他模块的测试共用。
+`talkwire-core` 的测试夹具（`src/testFixtures`）提供存储契约 `ChatStoreContract`，以及内存服务器 `MiniServer`、`FakeServer`，其他模块的测试共用。
 
 ## 构建与测试
 
@@ -31,13 +31,13 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 
 ```bash
 cd android
-./gradlew :imkit-core:test :imkit-storage-room:testDebugUnitTest :imkit-android:testDebugUnitTest :imkit-push-fcm:testDebugUnitTest :imkit-ui:testDebugUnitTest \
-  :imkit-group-join:testDebugUnitTest :imkit-call:testDebugUnitTest :imkit-call-dingrtc:testDebugUnitTest :imkit-video-compress:testDebugUnitTest \
-  :imkit-e2ee:testDebugUnitTest :example-red-packet:testDebugUnitTest
-./gradlew :imkit-core:jar :imkit-storage-room:assembleRelease :imkit-android:assembleRelease :imkit-push-fcm:assembleRelease :imkit-ui:assembleRelease :sample-app:assembleDebug
+./gradlew :talkwire-core:test :talkwire-storage-room:testDebugUnitTest :talkwire-android:testDebugUnitTest :talkwire-push-fcm:testDebugUnitTest :talkwire-ui:testDebugUnitTest \
+  :talkwire-group-join:testDebugUnitTest :talkwire-call:testDebugUnitTest :talkwire-call-dingrtc:testDebugUnitTest :talkwire-video-compress:testDebugUnitTest \
+  :talkwire-e2ee:testDebugUnitTest :example-red-packet:testDebugUnitTest
+./gradlew :talkwire-core:jar :talkwire-storage-room:assembleRelease :talkwire-android:assembleRelease :talkwire-push-fcm:assembleRelease :talkwire-ui:assembleRelease :sample-app:assembleDebug
 ```
 
-`imkit-ui`、带界面的可选模块与示例模块只跑 debug 的单测：界面测试需要 debug 清单里的测试 Activity。
+`talkwire-ui`、带界面的可选模块与示例模块只跑 debug 的单测：界面测试需要 debug 清单里的测试 Activity。
 
 Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运行时它会下载 Android 运行时（约 144 MB）到 Maven 本地缓存，离线环境要先备好。
 
@@ -54,10 +54,10 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - **M1 验收测试**（`m1/M1RealServerTest`）需要服务端二进制与一个可以随便写的 PostgreSQL 库：
 
   ```bash
-  cd server && go build -o bin/imkit-server.exe .
+  cd server && go build -o bin/talkwire-server.exe .
   ```
 
-  连接串放在环境变量 `IMKIT_TEST_DSN`（libpq 的 `key=value` 格式，和服务端自己的数据库测试共用）。测试以独立模式（不连宿主）启动服务端，strict、legacy 两档各跑一遍。口令只经环境变量交给服务端进程，不进日志。已知问题：服务端拼连接串时不给值加引号，口令里有空格会连不上。
+  连接串放在环境变量 `TALKWIRE_TEST_DSN`（libpq 的 `key=value` 格式，和服务端自己的数据库测试共用）。测试以独立模式（不连宿主）启动服务端，strict、legacy 两档各跑一遍。口令只经环境变量交给服务端进程，不进日志。已知问题：服务端拼连接串时不给值加引号，口令里有空格会连不上。
 
 - **示例全链路测试**（`m2/SampleStackTest`）除上面两样外还要 Node 与 `examples/sample-host` 的依赖（`npm install`）。它起示例宿主和宿主模式的服务端，两个用户经开发登录走一遍：自动加好友、联系人与资料接口、单聊、语音经宿主上传、建群、红包创建与领取及实时推送。
 
@@ -67,7 +67,7 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 
 - `M1RealServerTest` 的 `strictProfile`、`legacyProfile` 覆盖上面整条流程，另加群聊往返与本人角色、多页补拉。两档都对真实服务端通过（连续 3 次）。
 - C1–C5、C9 的用例见下一节。
-- `imkit-core` 是纯 JVM 模块，依赖只有协程与 OkHttp。
+- `talkwire-core` 是纯 JVM 模块，依赖只有协程与 OkHttp。
 
 ## M2 验收
 
@@ -104,12 +104,12 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 
 对照表里 Android 还剩 2 个没写：C6、C8 的真机用例（`C6_DeviceSoundAndCallTiming`、`C8_DeviceHoldToTalk`）是人工检查，不是测试函数，结果记在 DEVICE_CHECKS.md（C6 只验证了提示音，来电时序未验证）。
 
-## 端到端加密（`imkit-e2ee`）
+## 端到端加密（`talkwire-e2ee`）
 
 - **许可证**：模块链接 libsignal，单独发布，AGPLv3（模块目录的 `LICENSE` 是官方全文，每个源文件带 `SPDX-License-Identifier: AGPL-3.0-only`）。其余模块都是 Apache-2.0，不依赖它；`tools/depcheck` 检查这几点，CI 另查解析后的依赖图里 libsignal 仍是 0.73.0。
 - **钉死版本**：会话两端必须用同一版 libsignal（计划 7.1）。单测里的对端用同一版本的 JVM 构建 `libsignal-client:0.73.0`（libsignal-android 的传递依赖，带 Windows、Linux、macOS 的原生库），加解密是真跑的，不是替身。
 - **打 APK 的 App 必须开核心库脱糖**（`isCoreLibraryDesugaringEnabled = true` 加 `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:…")`）：libsignal 的 AAR 元数据要求这一项，minSdk 26 实际用不到。模块自己的单测关掉了这项检查（JVM 上与脱糖无关）。
-- **本机数据**：独立的数据库文件 `imkit-e2ee.db`（`E2eeDatabase.open`），存身份私钥、会话棘轮与解密后的文本，App 应把它排除在备份之外。一个文件只属于一个账号：换账号时调 `wipe()`；用另一个 uid 打开会先清空。给了 `KeyWrapper`（如 `AndroidKeystoreKeyWrapper`）时文本按会话加密存放，清空即销毁该会话的数据密钥。
+- **本机数据**：独立的数据库文件 `talkwire-e2ee.db`（`E2eeDatabase.open`），存身份私钥、会话棘轮与解密后的文本，App 应把它排除在备份之外。一个文件只属于一个账号：换账号时调 `wipe()`；用另一个 uid 打开会先清空。给了 `KeyWrapper`（如 `AndroidKeystoreKeyWrapper`）时文本按会话加密存放，清空即销毁该会话的数据密钥。
 - **与协议的对应**：每次登录后发布密钥包（v1 每个账号一套密钥，最后发布的设备收加密消息）；一次性预密钥低于 5 个时补 20 个。单聊的 `topic` 用规范单聊主题，收到时按发送者归档，不看对方带的标签（F43）。群用发送密钥：我的密钥经与每个成员的单聊会话包一层、走单聊通道发给他（群主题会扇出给全体），确认发出后才记为已分发；收到任何 `e2e_set_group_encrypted` 推送都换新密钥（13.3），换钥与“分发加加密”在同一把锁里，避免成员拿到旧钥、消息却用新钥。先于发送密钥到达的群消息先挂起，密钥一到就补解。
 - **失败分类（C10）**：`E2eeFailure` 七类，`e2eeFailureText` 给每类一句可操作的文案，只有 `OFFLINE` 是“重试”。`PEER_KEYS_UNAVAILABLE` 服务端刻意不区分“没开启”与“不是好友”，只在已知是联系人的地方（例如从已有会话进入）读成“对方还没开启”。发送失败的消息保留密文，重发用同一份密文，对方已收到时会当重复丢弃。
 - **与参考部署互通**：消息内容是 UTF-8 文本；分发的发送密钥是“base64 字符串经单聊会话加密”，群消息类型 7，与参考部署一致。参考部署把发送密钥发在群主题上，本模块收到不是给自己的那份会解不开，按预期忽略。
@@ -129,7 +129,7 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 
 不适用、未迁移的：
 
-- `ChatUtilitiesTest`、`ChatUITest`：时间格式化、消息气泡分组、文件图标、输入框、草稿界面状态，属于 UI，Phase 4 在 `imkit-ui` 的 `ChatLogicTest`（分组、日期分隔、未读分隔线、列表规则、时间）与 `RedLineUiTest`（C7）里重新写了，没有逐个搬。
+- `ChatUtilitiesTest`、`ChatUITest`：时间格式化、消息气泡分组、文件图标、输入框、草稿界面状态，属于 UI，Phase 4 在 `talkwire-ui` 的 `ChatLogicTest`（分组、日期分隔、未读分隔线、列表规则、时间）与 `RedLineUiTest`（C7）里重新写了，没有逐个搬。
 - `ConversationPeerNameTest`、`NotificationSenderNameTest`、`AvatarProfileTest`、`ChatApiModelsTest`，以及 `ChatIntegrationTest` 里的联系人部分：备注、昵称回退、头像、自定义聊天号、联系人解析都归宿主（框架不管人的资料，只给 uid）。
 - 源项目自己的实现细节（`keyAction`、`ConversationLoader`、`conversation tick`）随实现一起换掉了。
 
@@ -139,8 +139,8 @@ Android 模块的单测跑在 Robolectric 4.12.2（SDK 34）上。第一次运�
 - **视频压缩只在 JVM 上测了发送逻辑**：`MediaSender` 对大于 50 MB（或超过上限）的视频先交给 `VideoCompressor` 重新编码，失败或没变小就发原片（放得下时），仍超限才拒绝；这些分支有单测。`Media3VideoCompressor` 真正的编码要真机，只测了“读不了的文件返回 false 且不留文件”。旋转视频编码后方向是否正确、首帧缩略图按旋转角调整宽高，都没拿真机拍的视频验证过。
 - **群助手“正在输入”**（`ai_typing`，协议第 15 节）：本人所在的群收到它时，`typingIn` 里出现 `ChatMessage.AI_ASSISTANT_UID` 15 秒（`EngineConfig.aiTypingTtlMs`），助手的回复一到即结束；界面显示为“助手”。只在单测与界面测试里验证过。
 - **新设备上单聊的历史全算未读**：已修，但要 strict 档服务端：它存本人的单聊已读位置，`get` 应答带 `readSeq`，`ChatEngine` 同步时据此推进本地已读位置（只前进）。legacy 档服务端与原版一致不存，接它时照旧。没有在真机上复核，见 DEVICE_CHECKS.md。
-- **按摘要同步只在测试里验证过**：服务端宣告了 `sync-summary`（strict 档的 ImKit 服务端）时，`syncAll` 先发一次 `sync_summary`，只对有新消息、被清空或群里他人已读位置变了的会话 `get`，其余只按摘要推进本人的已读位置；`ChatEvent.Synced.pulled` 是真正拉了的会话数。补拉时服务端跳过的 seq 一律记为已撤回（协议第 8.2 节），包括本机从没收到过的。群里他人的已读时刻（`readsAt`）只记在内存里，App 重启后开着已读回执的群会各多拉一次。单测与 `M1RealServerTest` 两档都过了（strict 档重连后 `pulled` 为 0，legacy 档照旧逐个拉），没上真机。
-- **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.imkit.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，2026-10-26 与网页示例在真机上互通也过了。
+- **按摘要同步只在测试里验证过**：服务端宣告了 `sync-summary`（strict 档的 Talkwire 服务端）时，`syncAll` 先发一次 `sync_summary`，只对有新消息、被清空或群里他人已读位置变了的会话 `get`，其余只按摘要推进本人的已读位置；`ChatEvent.Synced.pulled` 是真正拉了的会话数。补拉时服务端跳过的 seq 一律记为已撤回（协议第 8.2 节），包括本机从没收到过的。群里他人的已读时刻（`readsAt`）只记在内存里，App 重启后开着已读回执的群会各多拉一次。单测与 `M1RealServerTest` 两档都过了（strict 档重连后 `pulled` 为 0，legacy 档照旧逐个拉），没上真机。
+- **撤回留痕只在测试里验证过**：本机有那条消息时，引擎把它换成一条墓碑（同 seq、发送人、时间，没有内容，`contentType` 为 `application/vnd.talkwire.recalled`，只在本地、不发出），聊天里显示“你撤回了一条消息”或“某某撤回了一条消息”，不计未读；本机没收过的消息被撤回时只记 seq。单测、界面测试与 `M1RealServerTest` 两档都过了，2026-10-26 与网页示例在真机上互通也过了。
 - 保存图片与视频到相册需要 Android 10（API 29）以上，更低的系统不显示“保存”。
 - 旧库导入只用按源项目 v18 schema 构造的库测过，没有拿真实用户的旧库验证。
 - **本地消息搜索**（`ChatEngine.searchMessages`，会话列表顶上的搜索框）只搜本机存的文字消息，每个会话读最近 500 条（`scanPerConversation`），按时间倒序；点结果打开那个会话，不跳到那条消息。真机上只用英文关键词试过（adb 输不了中文）。

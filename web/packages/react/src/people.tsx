@@ -1,6 +1,6 @@
-import { canManage, isGroupConversation, isOk, type ConversationId, type GroupMember, type GroupRole, type Reply } from "@imkit/client";
+import { canManage, isGroupConversation, isOk, type ConversationId, type GroupMember, type GroupRole, type Reply } from "@talkwire/client";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { shortUid, useConversation, useImKit, useProfile, useProfilesVersion, useSignal, type ImProfile } from "./context.js";
+import { shortUid, useConversation, useTalkwire, useProfile, useProfilesVersion, useSignal, type ImProfile } from "./context.js";
 import { Avatar } from "./components.js";
 import { ConfirmDialog, Dialog, PopupMenu, useToast } from "./dialogs.js";
 import { format } from "./strings.js";
@@ -67,7 +67,7 @@ type Pending =
  * clear. The web counterpart of the Android kit's info screen.
  */
 export function ConversationInfo({ conversation, onBack, onLeft, onAddMembers, groupExtras, maxAdmins = 10 }: ConversationInfoProps) {
-  const { engine, strings, host, profiles } = useImKit();
+  const { engine, strings, host, profiles } = useTalkwire();
   const summary = useConversation(conversation);
   const isGroup = isGroupConversation(conversation);
   const peer = useProfile(isGroup ? undefined : conversation);
@@ -116,25 +116,25 @@ export function ConversationInfo({ conversation, onBack, onLeft, onAddMembers, g
   const menuPerms = menuMember ? memberPermissions(myRole, engine.me, menuMember) : null;
 
   return (
-    <section className="imkit-info" aria-label={isGroup ? strings.groupInfo : strings.chatInfo} style={{ position: "relative" }}>
-      <header className="imkit-chat-header">
+    <section className="talkwire-info" aria-label={isGroup ? strings.groupInfo : strings.chatInfo} style={{ position: "relative" }}>
+      <header className="talkwire-chat-header">
         {onBack && (
-          <button type="button" className="imkit-icon-button" onClick={onBack} aria-label={strings.back}>
+          <button type="button" className="talkwire-icon-button" onClick={onBack} aria-label={strings.back}>
             ←
           </button>
         )}
-        <div className="imkit-chat-title" style={{ flex: 1 }}>{isGroup ? strings.groupInfo : strings.chatInfo}</div>
+        <div className="talkwire-chat-title" style={{ flex: 1 }}>{isGroup ? strings.groupInfo : strings.chatInfo}</div>
       </header>
-      <div className="imkit-info-body">
-        <div className="imkit-info-head">
+      <div className="talkwire-info-body">
+        <div className="talkwire-info-head">
           <Avatar uid={conversation} name={title} url={isGroup ? undefined : peer?.avatarUrl} size={56} />
-          <span className="imkit-info-title">{title}</span>
+          <span className="talkwire-info-title">{title}</span>
         </div>
 
         {isGroup && (
           <>
-            <div className="imkit-info-caption">{format(strings.membersCount, members.length)}</div>
-            <div className="imkit-info-group" role="list" aria-label={format(strings.membersCount, members.length)}>
+            <div className="talkwire-info-caption">{format(strings.membersCount, members.length)}</div>
+            <div className="talkwire-info-group" role="list" aria-label={format(strings.membersCount, members.length)}>
               {members.map((m) => {
                 const perms = memberPermissions(myRole, engine.me, m);
                 const any = perms.setRole || perms.kick || perms.transfer;
@@ -143,50 +143,50 @@ export function ConversationInfo({ conversation, onBack, onLeft, onAddMembers, g
                 const row = (
                   <>
                     <Avatar uid={m.uid} name={profile.name} url={host.resolveMediaUrl ? host.resolveMediaUrl(profile.avatarUrl) : profile.avatarUrl} size={40} />
-                    <span className="imkit-info-name">{name}</span>
-                    {m.role !== "member" && <span className="imkit-role">{m.role === "owner" ? strings.roleOwner : strings.roleAdmin}</span>}
+                    <span className="talkwire-info-name">{name}</span>
+                    {m.role !== "member" && <span className="talkwire-role">{m.role === "owner" ? strings.roleOwner : strings.roleAdmin}</span>}
                   </>
                 );
                 // Rows open nothing for plain members: members cannot view each other's profiles.
                 return any ? (
-                  <button key={m.uid} type="button" role="listitem" className="imkit-info-row" data-member={m.uid} onClick={(e) => setMenu({ uid: m.uid, x: e.clientX, y: e.clientY })}>
+                  <button key={m.uid} type="button" role="listitem" className="talkwire-info-row" data-member={m.uid} onClick={(e) => setMenu({ uid: m.uid, x: e.clientX, y: e.clientY })}>
                     {row}
                   </button>
                 ) : (
-                  <div key={m.uid} role="listitem" className="imkit-info-row" data-member={m.uid}>
+                  <div key={m.uid} role="listitem" className="talkwire-info-row" data-member={m.uid}>
                     {row}
                   </div>
                 );
               })}
-              <button type="button" className="imkit-info-row imkit-info-accent" onClick={() => (onAddMembers ? onAddMembers() : setPending({ kind: "add" }))}>
-                <span className="imkit-info-plus" aria-hidden="true">＋</span>
+              <button type="button" className="talkwire-info-row talkwire-info-accent" onClick={() => (onAddMembers ? onAddMembers() : setPending({ kind: "add" }))}>
+                <span className="talkwire-info-plus" aria-hidden="true">＋</span>
                 {strings.addMembers}
               </button>
             </div>
-            <p className="imkit-info-hint">{strings.membersPrivate}</p>
+            <p className="talkwire-info-hint">{strings.membersPrivate}</p>
             {canManage(myRole) && (
-              <div className="imkit-info-group">
-                <button type="button" className="imkit-info-row" onClick={() => setPending({ kind: "rename" })}>{strings.renameGroup}</button>
+              <div className="talkwire-info-group">
+                <button type="button" className="talkwire-info-row" onClick={() => setPending({ kind: "rename" })}>{strings.renameGroup}</button>
               </div>
             )}
             {groupExtras?.(conversation, myRole)}
           </>
         )}
 
-        <div className="imkit-info-group">
+        <div className="talkwire-info-group">
           <Toggle label={strings.pinChat} on={summary?.pinned === true} onChange={(on) => void engine.setPinned(conversation, on).catch(() => showToast(strings.actionFailed))} />
           <Toggle label={strings.muteNotifications} on={summary?.muted === true} onChange={(on) => void engine.setMuted(conversation, on).catch(() => showToast(strings.actionFailed))} />
         </div>
-        <div className="imkit-info-group">
+        <div className="talkwire-info-group">
           {/* In groups only owners and admins clear for everyone; the server checks it too. */}
           {(!isGroup || canManage(myRole)) && (
-            <button type="button" className="imkit-info-row imkit-danger-text" onClick={() => setPending({ kind: "clear" })}>{strings.clearHistory}</button>
+            <button type="button" className="talkwire-info-row talkwire-danger-text" onClick={() => setPending({ kind: "clear" })}>{strings.clearHistory}</button>
           )}
           {isGroup &&
             (myRole === "owner" ? (
-              <button type="button" className="imkit-info-row imkit-danger-text" onClick={() => setPending({ kind: "disband" })}>{strings.disbandGroup}</button>
+              <button type="button" className="talkwire-info-row talkwire-danger-text" onClick={() => setPending({ kind: "disband" })}>{strings.disbandGroup}</button>
             ) : (
-              <button type="button" className="imkit-info-row imkit-danger-text" onClick={() => setPending({ kind: "leave" })}>{strings.leaveGroup}</button>
+              <button type="button" className="talkwire-info-row talkwire-danger-text" onClick={() => setPending({ kind: "leave" })}>{strings.leaveGroup}</button>
             ))}
         </div>
       </div>
@@ -213,7 +213,7 @@ export function ConversationInfo({ conversation, onBack, onLeft, onAddMembers, g
             </button>
           )}
           {menuPerms.kick && (
-            <button type="button" role="menuitem" className="imkit-danger-text" onClick={() => { setMenu(null); setPending({ kind: "kick", uid: menuMember.uid }); }}>
+            <button type="button" role="menuitem" className="talkwire-danger-text" onClick={() => { setMenu(null); setPending({ kind: "kick", uid: menuMember.uid }); }}>
               {strings.removeMember}
             </button>
           )}
@@ -247,14 +247,14 @@ export function ConversationInfo({ conversation, onBack, onLeft, onAddMembers, g
           <PickPeople topic={conversation} onDone={() => { setPending(null); void reload(); }} onCancel={() => setPending(null)} />
         </Dialog>
       )}
-      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
+      {toast && <div className="talkwire-toast" role="alert">{toast}</div>}
     </section>
   );
 }
 
 function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange(on: boolean): void }) {
   return (
-    <label className="imkit-info-row imkit-toggle">
+    <label className="talkwire-info-row talkwire-toggle">
       <span style={{ flex: 1 }}>{label}</span>
       <input type="checkbox" role="switch" checked={on} onChange={(e) => onChange(e.target.checked)} />
     </label>
@@ -262,7 +262,7 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange(
 }
 
 function RenameDialog({ initial, onSave, onClose }: { initial: string; onSave(name: string): void; onClose(): void }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const [name, setName] = useState(initial);
   return (
     <Dialog label={strings.renameGroup} onClose={onClose}>
@@ -274,11 +274,11 @@ function RenameDialog({ initial, onSave, onClose }: { initial: string; onSave(na
           onSave(name.trim().slice(0, GROUP_NAME_MAX));
         }}
       >
-        <h3 className="imkit-dialog-title">{strings.renameGroup}</h3>
-        <input className="imkit-field" aria-label={strings.groupName} value={name} maxLength={GROUP_NAME_MAX} onChange={(e) => setName(e.target.value)} autoFocus />
-        <div className="imkit-dialog-actions">
-          <button type="button" className="imkit-text-button" onClick={onClose}>{strings.cancel}</button>
-          <button type="submit" className="imkit-text-button" disabled={!name.trim()}>{strings.save}</button>
+        <h3 className="talkwire-dialog-title">{strings.renameGroup}</h3>
+        <input className="talkwire-field" aria-label={strings.groupName} value={name} maxLength={GROUP_NAME_MAX} onChange={(e) => setName(e.target.value)} autoFocus />
+        <div className="talkwire-dialog-actions">
+          <button type="button" className="talkwire-text-button" onClick={onClose}>{strings.cancel}</button>
+          <button type="submit" className="talkwire-text-button" disabled={!name.trim()}>{strings.save}</button>
         </div>
       </form>
     </Dialog>
@@ -300,7 +300,7 @@ export interface PickPeopleProps {
  * already in the group are shown but cannot be picked.
  */
 export function PickPeople({ topic, onDone, onCancel }: PickPeopleProps) {
-  const { engine, strings, host } = useImKit();
+  const { engine, strings, host } = useTalkwire();
   const contacts = useContacts();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -347,20 +347,20 @@ export function PickPeople({ topic, onDone, onCancel }: PickPeopleProps) {
   };
 
   return (
-    <div className="imkit-pick" style={{ position: "relative" }}>
-      <h3 className="imkit-dialog-title">{topic ? strings.addMembers : strings.createGroup}</h3>
+    <div className="talkwire-pick" style={{ position: "relative" }}>
+      <h3 className="talkwire-dialog-title">{topic ? strings.addMembers : strings.createGroup}</h3>
       {!topic && (
-        <input className="imkit-field" aria-label={strings.groupName} placeholder={strings.groupName} value={groupName} maxLength={GROUP_NAME_MAX} onChange={(e) => setGroupName(e.target.value)} />
+        <input className="talkwire-field" aria-label={strings.groupName} placeholder={strings.groupName} value={groupName} maxLength={GROUP_NAME_MAX} onChange={(e) => setGroupName(e.target.value)} />
       )}
-      <input className="imkit-field" type="search" aria-label={strings.search} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
-      <div className="imkit-pick-list" role="list">
+      <input className="talkwire-field" type="search" aria-label={strings.search} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="talkwire-pick-list" role="list">
         {shown.length === 0 ? (
-          <div className="imkit-list-empty">{strings.noContacts}</div>
+          <div className="talkwire-list-empty">{strings.noContacts}</div>
         ) : (
           shown.map((c) => {
             const already = existing.has(c.uid);
             return (
-              <label key={c.uid} className="imkit-info-row" role="listitem" data-contact={c.uid} aria-disabled={already}>
+              <label key={c.uid} className="talkwire-info-row" role="listitem" data-contact={c.uid} aria-disabled={already}>
                 <input
                   type="checkbox"
                   checked={already || picked.has(c.uid)}
@@ -373,19 +373,19 @@ export function PickPeople({ topic, onDone, onCancel }: PickPeopleProps) {
                   }}
                 />
                 <Avatar uid={c.uid} name={c.name} url={host.resolveMediaUrl ? host.resolveMediaUrl(c.avatarUrl) : c.avatarUrl} size={36} />
-                <span className="imkit-info-name">{c.name}</span>
+                <span className="talkwire-info-name">{c.name}</span>
               </label>
             );
           })
         )}
       </div>
-      <div className="imkit-dialog-actions">
-        {onCancel && <button type="button" className="imkit-text-button" onClick={onCancel}>{strings.cancel}</button>}
-        <button type="button" className="imkit-send" disabled={picked.size === 0 || busy} onClick={() => void submit()}>
+      <div className="talkwire-dialog-actions">
+        {onCancel && <button type="button" className="talkwire-text-button" onClick={onCancel}>{strings.cancel}</button>}
+        <button type="button" className="talkwire-send" disabled={picked.size === 0 || busy} onClick={() => void submit()}>
           {format(topic ? strings.addCount : strings.createCount, picked.size)}
         </button>
       </div>
-      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
+      {toast && <div className="talkwire-toast" role="alert">{toast}</div>}
     </div>
   );
 }
@@ -395,7 +395,7 @@ const emptyContacts = { value: NO_CONTACTS, subscribe: () => () => {} };
 
 /** The host's contacts (refreshed when a picker opens), also put into the profile cache. */
 export function useContacts(): ImProfile[] {
-  const { host, profiles } = useImKit();
+  const { host, profiles } = useTalkwire();
   const contacts = useSignal(host.contacts ?? emptyContacts);
   useEffect(() => {
     void host.refreshContacts?.().catch(() => {});
@@ -413,24 +413,24 @@ export interface ContactListProps {
 
 /** The host's contacts with a search box; a click starts (or opens) the single chat. */
 export function ContactList({ onOpen }: ContactListProps) {
-  const { engine, strings, host } = useImKit();
+  const { engine, strings, host } = useTalkwire();
   const contacts = useContacts();
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const shown = contacts.filter((c) => c.uid !== engine.me && (!q || c.name.toLowerCase().includes(q))).sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <div className="imkit-contacts">
-      <input className="imkit-field" type="search" aria-label={strings.search} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
-      <div className="imkit-contact-list" role="list" aria-label={strings.contacts}>
+    <div className="talkwire-contacts">
+      <input className="talkwire-field" type="search" aria-label={strings.search} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="talkwire-contact-list" role="list" aria-label={strings.contacts}>
         {shown.length === 0 ? (
-          <div className="imkit-list-empty">{strings.noContacts}</div>
+          <div className="talkwire-list-empty">{strings.noContacts}</div>
         ) : (
           shown.map((c) => (
             <button
               key={c.uid}
               type="button"
               role="listitem"
-              className="imkit-info-row"
+              className="talkwire-info-row"
               data-contact={c.uid}
               onClick={async () => {
                 await engine.ensureConversation(c.uid, c.name).catch(() => {});
@@ -438,7 +438,7 @@ export function ContactList({ onOpen }: ContactListProps) {
               }}
             >
               <Avatar uid={c.uid} name={c.name} url={host.resolveMediaUrl ? host.resolveMediaUrl(c.avatarUrl) : c.avatarUrl} size={36} />
-              <span className="imkit-info-name">{c.name}</span>
+              <span className="talkwire-info-name">{c.name}</span>
             </button>
           ))
         )}

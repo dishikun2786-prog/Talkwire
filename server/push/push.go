@@ -52,7 +52,7 @@ const (
 
 // LocKeyE2eMessage is the localisation key an encrypted message is announced
 // with on APNs and Web Push.
-const LocKeyE2eMessage = "IMKIT_E2E_MESSAGE"
+const LocKeyE2eMessage = "TALKWIRE_E2E_MESSAGE"
 
 var (
 	// ErrTokenGone means the provider reported the token as no longer valid

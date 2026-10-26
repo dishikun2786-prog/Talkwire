@@ -2,7 +2,7 @@
  * Persistence for the chat engine. The logical tables are the same as the
  * Android Room store (`messages`, `pending_messages`, `conversations`,
  * `recalled_seqs`, `clear_states`, `read_cursors`, `owner`); implementations
- * are `MemoryChatStore` here and `IdbChatStore` in `@imkit/storage-idb`.
+ * are `MemoryChatStore` here and `IdbChatStore` in `@talkwire/storage-idb`.
  *
  * The engine is the only writer and keeps its own in-memory view; a store
  * only has to remember. A message row is keyed by `(conversation, seq)` once

@@ -8,7 +8,7 @@
  * - videos carry `extra.thumbUrl` / `thumbWidth` / `thumbHeight` and `duration`;
  * - voice is `audio/*` with `duration` in seconds;
  * - `content` is a short fallback text for clients that do not know the
- *   type ("[Image]" …); ImKit's own UI never shows it.
+ *   type ("[Image]" …); Talkwire's own UI never shows it.
  */
 
 import type { TokenProvider } from "./connection.js";

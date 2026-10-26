@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/react",
+  "name": "@talkwire/react",
   "version": "0.1.0",
-  "description": "React components for ImKit: conversation list, chat screen and message renderers",
+  "description": "React components for Talkwire: conversation list, chat screen and message renderers",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,8 +15,8 @@
   "files": ["dist"],
   "sideEffects": false,
   "dependencies": {
-    "@imkit/client": "0.1.0",
-    "@imkit/protocol": "0.1.0"
+    "@talkwire/client": "0.1.0",
+    "@talkwire/protocol": "0.1.0"
   },
   "peerDependencies": {
     "react": ">=18.2 <20",

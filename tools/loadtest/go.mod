@@ -1,4 +1,4 @@
-module example.com/imkit/tools/loadtest
+module github.com/dishikun2786-prog/Talkwire/tools/loadtest
 
 go 1.26.4
 

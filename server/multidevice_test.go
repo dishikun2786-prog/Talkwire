@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"example.com/imkit/server/host"
-	"example.com/imkit/server/migrate"
-	"example.com/imkit/server/migrations"
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/migrate"
+	"github.com/dishikun2786-prog/Talkwire/server/migrations"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 func mustE2eeMigrations(t *testing.T) migrate.Set {

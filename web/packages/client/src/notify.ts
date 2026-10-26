@@ -87,7 +87,7 @@ export class BrowserNotifier {
       return;
     }
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    const opts: NotificationOptions = { body: rendered.body, tag: "imkit:" + e.message.conversation, data: { conversation: e.message.conversation } };
+    const opts: NotificationOptions = { body: rendered.body, tag: "talkwire:" + e.message.conversation, data: { conversation: e.message.conversation } };
     if (rendered.icon) opts.icon = rendered.icon;
     const n = new Notification(rendered.title, opts);
     n.onclick = () => {
@@ -165,7 +165,7 @@ export function showPushNotification(
   const data = payload.data ?? {};
   const title = payload.title || options.appName;
   const body = payload.locKey ? (options.localize?.(payload.locKey) ?? "") : (payload.body ?? "");
-  const n: NotificationOptions = { body, data, tag: data.topic ? "imkit:" + data.topic : "imkit" };
+  const n: NotificationOptions = { body, data, tag: data.topic ? "talkwire:" + data.topic : "talkwire" };
   if (options.icon) n.icon = options.icon;
   return registration.showNotification(title, n);
 }

@@ -1,6 +1,6 @@
 package main
 
-import "example.com/imkit/server/host"
+import "github.com/dishikun2786-prog/Talkwire/server/host"
 
 // uidScheme maps host user ids to wire uids. The host computes uids the same
 // way, so this must match the host's scheme.

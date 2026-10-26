@@ -87,7 +87,7 @@ func TestAPNsEncryptedAlert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"aps":{"alert":{"loc-key":"IMKIT_E2E_MESSAGE"},"sound":"default","thread-id":"uid_a","mutable-content":1},"e2e":"true","isGroup":"false","topic":"uid_a","type":"e2e_message"}`
+	want := `{"aps":{"alert":{"loc-key":"TALKWIRE_E2E_MESSAGE"},"sound":"default","thread-id":"uid_a","mutable-content":1},"e2e":"true","isGroup":"false","topic":"uid_a","type":"e2e_message"}`
 	if string(b) != want {
 		t.Errorf("payload\n got  %s\n want %s", b, want)
 	}

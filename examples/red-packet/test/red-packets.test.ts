@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import Fastify from "fastify";
-import { ImClient } from "@imkit/host-node";
+import { ImClient } from "@talkwire/host-node";
 import { redPacketRoutes } from "../src/red-packets.js";
 
 const GROUP = "grp_lucky";

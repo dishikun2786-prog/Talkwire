@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
-  title: ImKit host contract — endpoints the host implements
+  title: Talkwire host contract — endpoints the host implements
   version: 1.0.0
   description: |
     The IM server calls these endpoints on the business backend (the
-    "host") when it runs in HTTP host mode (IMKIT_HOST_MODE=http, base URL
+    "host") when it runs in HTTP host mode (TALKWIRE_HOST_MODE=http, base URL
     MAIN_API_BASE_URL). The endpoints the IM server itself exposes to the
     host are in im-internal.openapi.yaml.
 
@@ -13,7 +13,7 @@ info:
     with claims `{"role": "internal_service", "exp": <now + 60 s>}`. The host
     must reject any other token with 401.
 
-    Each operation states, in `x-imkit`:
+    Each operation states, in `x-talkwire`:
       - `requirement`: `required` (the core needs it), `optional` (the IM
         server copes without it) or `module:<name>` (only that optional
         module calls it);
@@ -39,7 +39,7 @@ paths:
         Direct chats, invitations into a group and group creation require
         an accepted relationship. The relationship is symmetric: (a, b) and
         (b, a) must give the same answer.
-      x-imkit:
+      x-talkwire:
         requirement: required
         timeoutSeconds: 3
         onFailure: the action that needed the check is refused (error frame "cannot verify relationship" or "relationship check failed")
@@ -69,7 +69,7 @@ paths:
         remark the sender set for the viewer must never be returned. An
         unknown user answers 200 with empty strings; the IM server then uses
         its configured fallback name (runtime config pushText.sender).
-      x-imkit:
+      x-talkwire:
         requirement: required
         timeoutSeconds: 3
         cacheSeconds: 300
@@ -109,7 +109,7 @@ paths:
         number keeps its built-in default. A boolean has no default once a
         document is accepted: a missing boolean is false, so send every
         boolean explicitly.
-      x-imkit:
+      x-talkwire:
         requirement: optional
         timeoutSeconds: 3
         refreshSeconds: 60
@@ -127,7 +127,7 @@ paths:
       operationId: getE2eeConfig
       summary: End-to-end encryption switches
       description: Same refresh and failure rules as runtime-config.
-      x-imkit:
+      x-talkwire:
         requirement: module:e2ee
         timeoutSeconds: 3
         refreshSeconds: 60
@@ -149,7 +149,7 @@ paths:
         references. The host deletes the blobs behind the URLs it issued and
         ignores URLs it does not recognise. Deleting a missing blob is not an
         error.
-      x-imkit:
+      x-talkwire:
         requirement: optional
         timeoutSeconds: 3
         onFailure: logged; the blobs stay
@@ -185,7 +185,7 @@ paths:
         asking. ok=false refuses the call: the caller gets an error frame
         whose reason is the host's reason (401 for not_friends, 409 for any
         other, for example insufficient_credits).
-      x-imkit:
+      x-talkwire:
         requirement: module:call
         timeoutSeconds: 3
         onFailure: the invite is refused with 500
@@ -218,7 +218,7 @@ paths:
         effectiveType is the type from now on: voice when the callee answered
         a video invite as voice. The two tokens must differ: each encodes its
         own participant.
-      x-imkit:
+      x-talkwire:
         requirement: module:call
         timeoutSeconds: 8
         onFailure: the call ends with reason "failed" for both participants; ok=false does the same, and the callee's error frame carries the host's reason
@@ -256,7 +256,7 @@ paths:
     post:
       operationId: settleCallSession
       summary: A call reached a terminal state the IM server decided
-      x-imkit:
+      x-talkwire:
         requirement: module:call
         timeoutSeconds: 3
         onFailure: logged; the host's own sweep must settle the call
@@ -285,7 +285,7 @@ paths:
     post:
       operationId: upgradeCallSession
       summary: Both sides agreed to switch a voice call to video
-      x-imkit:
+      x-talkwire:
         requirement: module:call
         timeoutSeconds: 3
         onFailure: the upgrade is refused with 500 (ok=false with 409 and the host's reason); the call continues as voice
@@ -328,7 +328,7 @@ paths:
         quota_exceeded); the IM server posts the host's message if it gave
         one, else the configured notice for the reason (runtime config
         groupAi). Any other status is a technical fault.
-      x-imkit:
+      x-talkwire:
         requirement: module:groupai
         timeoutSeconds: 10
         onFailure: treated as reason "timeout"; the group gets the fallback message
@@ -406,7 +406,7 @@ components:
     ModuleNotServed:
       description: |
         The host does not serve this module. Install the module on the IM
-        server only when the host serves it (IMKIT_MODULES); otherwise every
+        server only when the host serves it (TALKWIRE_MODULES); otherwise every
         use of it fails as the operation's onFailure describes.
       content:
         application/json:

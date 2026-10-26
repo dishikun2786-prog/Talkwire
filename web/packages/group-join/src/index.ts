@@ -6,7 +6,7 @@
  * (a replayed golden transcript checks every request), so `join` does not
  * subscribe to the group: on the legacy server the joiner is not subscribed
  * and nobody is told (D7), and the caller follows a `joined` with
- * `afterJoined`. The React components in `@imkit/group-join/react` do.
+ * `afterJoined`. The React components in `@talkwire/group-join/react` do.
  */
 
 import {
@@ -25,7 +25,7 @@ import {
   type ImClient,
   type ImEvent,
   type Unsubscribe,
-} from "@imkit/client";
+} from "@talkwire/client";
 
 export interface QrToken {
   topic: string;

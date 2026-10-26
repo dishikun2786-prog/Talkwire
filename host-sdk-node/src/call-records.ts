@@ -1,6 +1,6 @@
 // Call records: recordingCalls wraps the host's call handlers so every call
 // they let through is written to a CallRecordStore, for the administrators'
-// call-record pages (imkitAdminRoutes). Plus the paging helpers the stores share.
+// call-record pages (talkwireAdminRoutes). Plus the paging helpers the stores share.
 
 import type { CallHandlers } from "./host-plugin.js";
 import type { CallRecord, CallRecordPage, CallRecordStore } from "./types.js";
@@ -23,7 +23,7 @@ export function recordingCalls(handlers: CallHandlers, store: CallRecordStore, o
   const onError =
     options.onError ??
     ((err: unknown, step: string, id: string) => {
-      console.error(`imkit: could not record step ${step} of call ${id}`, err);
+      console.error(`talkwire: could not record step ${step} of call ${id}`, err);
     });
   const record = async (step: "create" | "answer" | "upgrade" | "settle", id: string, write: () => Promise<unknown>) => {
     try {

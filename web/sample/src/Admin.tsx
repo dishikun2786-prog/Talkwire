@@ -1,10 +1,10 @@
 /**
- * The sample's admin console at `#/admin/...`: the @imkit/admin pages behind
+ * The sample's admin console at `#/admin/...`: the @talkwire/admin pages behind
  * the sample host's /dev/admin-login. A real console signs its
  * administrators in its own way and passes their credentials as headers.
  */
 
-import { AdminStyles, ImAdminApi, ImAdminProvider, adminStringsFor, imAdminPages, matchImAdminPage, type AdminRole } from "@imkit/admin";
+import { AdminStyles, ImAdminApi, ImAdminProvider, adminStringsFor, imAdminPages, matchImAdminPage, type AdminRole } from "@talkwire/admin";
 import { useEffect, useMemo, useState } from "react";
 
 interface AdminSession {
@@ -13,7 +13,7 @@ interface AdminSession {
   token: string;
 }
 
-const KEY = "imkit-sample-admin";
+const KEY = "talkwire-sample-admin";
 
 function savedAdmin(): AdminSession | null {
   try {

@@ -5,7 +5,7 @@ import path from "node:path";
 import { after, describe, test } from "node:test";
 import Fastify from "fastify";
 import { LocalDiskBlobStore } from "../src/media/local.js";
-import { imkitMediaRoutes, mediaDeleter, mediaName, ownerTag, type MediaOptions } from "../src/media/media.js";
+import { talkwireMediaRoutes, mediaDeleter, mediaName, ownerTag, type MediaOptions } from "../src/media/media.js";
 import { stubIm } from "./helpers.js";
 
 const dirs: string[] = [];
@@ -14,7 +14,7 @@ after(async () => {
 });
 
 function multipart(filename: string, data: Buffer, type = "application/octet-stream") {
-  const boundary = "----imkit-test-boundary";
+  const boundary = "----talkwire-test-boundary";
   const payload = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${type}\r\n\r\n`),
     data,
@@ -24,13 +24,13 @@ function multipart(filename: string, data: Buffer, type = "application/octet-str
 }
 
 async function setup(extra: Partial<MediaOptions> = {}, refs = 0) {
-  const dir = await mkdtemp(path.join(tmpdir(), "imkit-media-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "talkwire-media-"));
   dirs.push(dir);
   const store = new LocalDiskBlobStore(dir);
   const { im, seen } = stubIm((req) => (req.path.endsWith("/media-ref-count") ? { status: 200, body: { count: refs } } : { status: 500, body: { error: "x" } }));
   const app = Fastify();
   let clock = 1_800_000_000_000;
-  await app.register(imkitMediaRoutes, {
+  await app.register(talkwireMediaRoutes, {
     store,
     im,
     authenticate: async (req) => (req.headers["x-user"] as string | undefined) ?? null,
@@ -142,7 +142,7 @@ describe("media", () => {
     const down = await setup();
     const app2 = Fastify();
     const { im: failing } = stubIm(() => ({ status: 503, body: "down" }));
-    await app2.register(imkitMediaRoutes, { store: down.store, im: failing, authenticate: async () => "alice" });
+    await app2.register(talkwireMediaRoutes, { store: down.store, im: failing, authenticate: async () => "alice" });
     const n2 = (await down.upload("alice", "a.png", Buffer.from("png"))).json().url.split("/").pop();
     assert.equal((await app2.inject({ method: "DELETE", url: `/api/v1/chat/upload/${n2}` })).statusCode, 503);
     assert.equal((await down.app.inject({ method: "GET", url: `/media/${n2}` })).statusCode, 200, "still there");

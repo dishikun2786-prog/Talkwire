@@ -1,8 +1,8 @@
 {
-  "name": "@imkit/web-sample",
+  "name": "@talkwire/web-sample",
   "version": "0.1.0",
   "private": true,
-  "description": "A web chat app on ImKit, the counterpart of android/sample-app",
+  "description": "A web chat app on Talkwire, the counterpart of android/sample-app",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -11,12 +11,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@imkit/admin": "0.1.0",
-    "@imkit/call": "0.1.0",
-    "@imkit/client": "0.1.0",
-    "@imkit/group-join": "0.1.0",
-    "@imkit/protocol": "0.1.0",
-    "@imkit/react": "0.1.0",
-    "@imkit/storage-idb": "0.1.0"
+    "@talkwire/admin": "0.1.0",
+    "@talkwire/call": "0.1.0",
+    "@talkwire/client": "0.1.0",
+    "@talkwire/group-join": "0.1.0",
+    "@talkwire/protocol": "0.1.0",
+    "@talkwire/react": "0.1.0",
+    "@talkwire/storage-idb": "0.1.0"
   }
 }

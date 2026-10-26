@@ -4,7 +4,7 @@
  * the test, so each test states the exact server behaviour it relies on.
  */
 
-import { uidOf } from "@imkit/protocol";
+import { uidOf } from "@talkwire/protocol";
 import type { ImSocket, ImSocketListener, ImTransport } from "../src/index.js";
 
 export type Frame = Record<string, unknown>;

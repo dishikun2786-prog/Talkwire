@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sample_title">ImKit Sample</string>
+    <string name="sample_title">Talkwire Sample</string>
     <string name="sample_dev_hint">Signs in to the local sample host by name. For development only.</string>
     <string name="sample_name">Your name</string>
     <string name="sample_sign_in">Sign in</string>

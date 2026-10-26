@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Protocol profiles, chosen with IMKIT_PROTOCOL_PROFILE.
+// Protocol profiles, chosen with TALKWIRE_PROTOCOL_PROFILE.
 //
 // strict (the default) is the protocol v1 profile. legacy answers exactly
 // like the reference server -- every frame matches the golden transcripts --

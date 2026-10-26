@@ -3,7 +3,7 @@
 //	go run ./cmd/vapidkey -out vapid.pem
 //
 // The private key is written to -out (PKCS #8 PEM, owner-only permissions;
-// an existing file is never overwritten). Point IMKIT_VAPID_KEY_PATH at it.
+// an existing file is never overwritten). Point TALKWIRE_VAPID_KEY_PATH at it.
 // The public key is printed: browsers subscribe with it
 // (PushManager.subscribe's applicationServerKey), and the server also logs it
 // at startup.

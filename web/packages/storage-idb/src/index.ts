@@ -1,5 +1,5 @@
 /**
- * IndexedDB storage for the ImKit web client (5.4). The object stores are the
+ * IndexedDB storage for the Talkwire web client (5.4). The object stores are the
  * logical tables of the Android Room store: `messages` keyed by
  * (conversation, seq), `pending_messages` by (conversation, localId),
  * `conversations`, `recalled_seqs`, `clear_states`, `read_cursors`, `owner`
@@ -26,7 +26,7 @@ import {
   type ClearState,
   type ConversationId,
   type StoredConversation,
-} from "@imkit/client";
+} from "@talkwire/client";
 
 export { MemoryChatStore };
 
@@ -35,7 +35,7 @@ const STORES = ["messages", "pending_messages", "conversations", "recalled_seqs"
 type StoreName = (typeof STORES)[number];
 
 export interface IdbStoreOptions {
-  /** Database name; one per app. Default "imkit". */
+  /** Database name; one per app. Default "talkwire". */
   name?: string;
   /** Seal message text, `extra` and drafts with a non-extractable per-conversation key. */
   encrypt?: boolean;
@@ -81,7 +81,7 @@ export class IdbChatStore implements ChatStore {
   static async open(options: IdbStoreOptions = {}): Promise<IdbChatStore> {
     const factory = options.indexedDB ?? globalThis.indexedDB;
     if (!factory) throw new Error("no IndexedDB in this environment");
-    const open = factory.open(options.name ?? "imkit", DB_VERSION);
+    const open = factory.open(options.name ?? "talkwire", DB_VERSION);
     open.onupgradeneeded = () => {
       const db = open.result;
       const create = (name: StoreName, keyPath: string | string[]) => {

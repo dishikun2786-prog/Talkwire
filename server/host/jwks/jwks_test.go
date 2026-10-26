@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/imkit/server/host/hmacjwt"
+	"github.com/dishikun2786-prog/Talkwire/server/host/hmacjwt"
 	"github.com/golang-jwt/jwt/v5"
 )
 

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"example.com/imkit/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
 	"github.com/golang-jwt/jwt/v5"
 )
 

@@ -47,7 +47,7 @@
       "index": 5,
       "do": "login",
       "conn": "a2",
-      "note": "same user from a new connection supersedes a1. The reference server queues a 401 notice for a1 and closes it right away, so the notice arrives only some of the time (hub.go Run register branch); ImKit should flush it before closing.",
+      "note": "same user from a new connection supersedes a1. The reference server queues a 401 notice for a1 and closes it right away, so the notice arrives only some of the time (hub.go Run register branch); Talkwire should flush it before closing.",
       "frames": {
         "a2": [
           {

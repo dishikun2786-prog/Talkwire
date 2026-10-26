@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 // fcmPushConcurrency is the fallback bound on how many push sends run in

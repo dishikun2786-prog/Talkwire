@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from "fastify";
 import jwt from "jsonwebtoken";
-import { imkitHostPlugin, type CallHandlers } from "../src/host-plugin.js";
+import { talkwireHostPlugin, type CallHandlers } from "../src/host-plugin.js";
 import { MemoryContactStore, MemoryProfileStore, staticConfig } from "../src/memory.js";
 import { signInternalToken } from "../src/token.js";
 import { addContact, respondToContact, setAlias } from "../src/contacts.js";
@@ -26,7 +26,7 @@ async function app(options: { calls?: CallHandlers; groupAi?: boolean; config?: 
   const contacts = new MemoryContactStore();
   const profiles = new MemoryProfileStore();
   const a = Fastify();
-  await a.register(imkitHostPlugin, {
+  await a.register(talkwireHostPlugin, {
     secret: SECRET,
     contacts,
     profiles,

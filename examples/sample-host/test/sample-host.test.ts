@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import jwt from "jsonwebtoken";
-import { MemoryContactStore, addContact, imUid, signInternalToken } from "@imkit/host-node";
+import { MemoryContactStore, addContact, imUid, signInternalToken } from "@talkwire/host-node";
 import { buildSampleHost, devUserId, signAccessToken, verifyAccessToken, verifyAdminToken } from "../src/app.ts";
 import { demoCalls } from "../src/demo-calls.ts";
 
@@ -12,7 +12,7 @@ const secret = "x".repeat(40);
 
 async function host() {
   // No IM server listens here: contact-sync fails and must not break sign-in.
-  return buildSampleHost({ secret, imBaseUrl: "http://127.0.0.1:59999", mediaDir: mkdtempSync(path.join(tmpdir(), "imkit-media-")) });
+  return buildSampleHost({ secret, imBaseUrl: "http://127.0.0.1:59999", mediaDir: mkdtempSync(path.join(tmpdir(), "talkwire-media-")) });
 }
 
 test("dev login issues the access token the IM server accepts", async () => {

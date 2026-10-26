@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-// The sample app: what an app writes to use ImKit (token provider, contact
-// source, push setup). Package io.imkit.sample, so it installs next to any
+// The sample app: what an app writes to use Talkwire (token provider, contact
+// source, push setup). Package io.talkwire.sample, so it installs next to any
 // other app on a test phone.
 plugins {
     id("com.android.application")
@@ -9,10 +9,10 @@ plugins {
 }
 
 android {
-    namespace = "io.imkit.sample"
+    namespace = "io.talkwire.sample"
     compileSdk = 34
     defaultConfig {
-        applicationId = "io.imkit.sample"
+        applicationId = "io.talkwire.sample"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -43,14 +43,14 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 dependencies {
-    implementation(project(":imkit-ui"))
-    implementation(project(":imkit-storage-room"))
+    implementation(project(":talkwire-ui"))
+    implementation(project(":talkwire-storage-room"))
     // Optional modules: re-encoding large videos before they are sent, calls
     // (signalling and the call screen; the sample has no RTC service), and
     // joining groups by QR code.
-    implementation(project(":imkit-video-compress"))
-    implementation(project(":imkit-call"))
-    implementation(project(":imkit-group-join"))
+    implementation(project(":talkwire-video-compress"))
+    implementation(project(":talkwire-call"))
+    implementation(project(":talkwire-group-join"))
     // The host's own message type, joined through the registry only.
     implementation(project(":example-red-packet"))
     implementation("androidx.activity:activity-compose:1.8.1")

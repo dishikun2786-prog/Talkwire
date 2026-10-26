@@ -15,8 +15,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"example.com/imkit/tools/conformance/fakehost"
-	"example.com/imkit/tools/conformance/token"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/fakehost"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/token"
 )
 
 const (

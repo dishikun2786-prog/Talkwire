@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 
-	"example.com/imkit/tools/conformance/harness"
-	"example.com/imkit/tools/conformance/redlines"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/redlines"
 )
 
 func main() {

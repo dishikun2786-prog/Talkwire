@@ -22,9 +22,9 @@ export class Contract {
 
   constructor(file: string) {
     this.doc = parse(readFileSync(path.join(contractDir, file), "utf8")) as Json;
-    this.id = `https://contract.imkit.invalid/${file}.json`;
+    this.id = `https://contract.talkwire.invalid/${file}.json`;
     // The whole document is registered so "#/components/..." refs resolve;
-    // non-schema keywords (openapi, paths, x-imkit) are ignored.
+    // non-schema keywords (openapi, paths, x-talkwire) are ignored.
     this.ajv = new Ajv2020({ strict: false, allErrors: true });
     this.ajv.addSchema(this.doc, this.id);
     // Query parameters arrive as strings.
@@ -87,7 +87,7 @@ export class Contract {
     }
     // Inline the parameter schemas, keeping their refs resolvable.
     return this.cached(`query ${method} ${route}`, () => this.coercing.compile({
-      $id: `https://contract.imkit.invalid/query/${method}${route}`,
+      $id: `https://contract.talkwire.invalid/query/${method}${route}`,
       type: "object",
       properties: JSON.parse(JSON.stringify(properties).replace(/"\$ref":"#/g, `"$ref":"${this.id}#`)),
       required,

@@ -1,5 +1,5 @@
 // The IM server's side of host.openapi.yaml: every host call recorded in the
-// golden transcripts (made by the reference server, which ImKit's server
+// golden transcripts (made by the reference server, which Talkwire's server
 // reproduces frame for frame) must be a request the contract describes, with
 // a status the contract allows.
 

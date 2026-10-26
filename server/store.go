@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"example.com/imkit/server/migrate"
-	"example.com/imkit/server/migrations"
+	"github.com/dishikun2786-prog/Talkwire/server/migrate"
+	"github.com/dishikun2786-prog/Talkwire/server/migrations"
 )
 
 // Store handles all database operations for the IM server

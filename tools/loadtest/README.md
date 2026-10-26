@@ -1,6 +1,6 @@
 # loadtest
 
-压测工具（计划 9.3）：很多用户同时连上一个 ImKit 服务端，登录、两两组成单聊、按人数分群，再以固定速率发消息，测量登录耗时、`pub` 应答耗时、单聊与群消息送达耗时，并统计丢失。独立的 Go 模块，依赖与 `tools/conformance` 相同（gorilla/websocket、golang-jwt）。
+压测工具（计划 9.3）：很多用户同时连上一个 Talkwire 服务端，登录、两两组成单聊、按人数分群，再以固定速率发消息，测量登录耗时、`pub` 应答耗时、单聊与群消息送达耗时，并统计丢失。独立的 Go 模块，依赖与 `tools/conformance` 相同（gorilla/websocket、golang-jwt）。
 
 ```bash
 cd tools/loadtest
@@ -23,7 +23,7 @@ LOADTEST_JWT_SECRET=<服务端的 JWT_SECRET> go run . -url ws://127.0.0.1:6062/
 
 ## 服务端怎么配
 
-- 宿主要让所有用户互为好友：用 standalone 宿主（`IMKIT_HOST_MODE=standalone`）的默认 `allow-all`。
+- 宿主要让所有用户互为好友：用 standalone 宿主（`TALKWIRE_HOST_MODE=standalone`）的默认 `allow-all`。
 - 发送频率默认每人 10 秒 20 条，`-rate` 超过 2 时要在运行配置里调高；建大群时把人数上限调到 `-group-size` 以上。standalone 宿主的配置文件：
 
   ```json

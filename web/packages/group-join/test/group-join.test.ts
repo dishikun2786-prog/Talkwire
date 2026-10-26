@@ -1,6 +1,6 @@
-import { uidOf } from "@imkit/protocol";
-import { ChatEngine, ImClient, MemoryChatStore, RequestRefused } from "@imkit/client";
-import { GroupJoinClient, afterJoined, type GroupJoinEvent } from "@imkit/group-join";
+import { uidOf } from "@talkwire/protocol";
+import { ChatEngine, ImClient, MemoryChatStore, RequestRefused } from "@talkwire/client";
+import { GroupJoinClient, afterJoined, type GroupJoinEvent } from "@talkwire/group-join";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer, type Frame } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";

@@ -1,6 +1,6 @@
 // Starts the real IM server for tests that need one: the binary built from
-// server/ (IMKIT_SERVER_BIN, default ../server/bin/imkit-server[.exe]) on the
-// database IMKIT_TEST_DSN names. Tests skip when either is missing.
+// server/ (TALKWIRE_SERVER_BIN, default ../server/bin/talkwire-server[.exe]) on the
+// database TALKWIRE_TEST_DSN names. Tests skip when either is missing.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -11,14 +11,14 @@ import { fileURLToPath } from "node:url";
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export function serverBinary(): string | null {
-  const bin = process.env.IMKIT_SERVER_BIN ?? path.join(repo, "server", "bin", process.platform === "win32" ? "imkit-server.exe" : "imkit-server");
+  const bin = process.env.TALKWIRE_SERVER_BIN ?? path.join(repo, "server", "bin", process.platform === "win32" ? "talkwire-server.exe" : "talkwire-server");
   return existsSync(bin) ? bin : null;
 }
 
 /** Why the IM server tests cannot run here, or undefined when they can. */
 export function imServerSkip(): string | undefined {
-  if (!process.env.IMKIT_TEST_DSN) return "IMKIT_TEST_DSN not set";
-  if (!serverBinary()) return "no server binary (go build -o bin/ in server/, or set IMKIT_SERVER_BIN)";
+  if (!process.env.TALKWIRE_TEST_DSN) return "TALKWIRE_TEST_DSN not set";
+  if (!serverBinary()) return "no server binary (go build -o bin/ in server/, or set TALKWIRE_SERVER_BIN)";
   return undefined;
 }
 
@@ -49,7 +49,7 @@ export interface RunningServer {
 }
 
 export async function startImServer(options: { secret: string; hostUrl: string; env?: Record<string, string> }): Promise<RunningServer> {
-  const db = parseDsn(process.env.IMKIT_TEST_DSN!);
+  const db = parseDsn(process.env.TALKWIRE_TEST_DSN!);
   const port = await freePort();
   let output = "";
   const child: ChildProcess = spawn(serverBinary()!, [], {

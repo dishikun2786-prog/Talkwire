@@ -98,7 +98,7 @@ function parse<S extends z.ZodTypeAny>(schema: S, value: unknown, reply: Fastify
  * Registers the endpoints the IM server calls. Every request must carry an
  * internal_service token signed with options.secret; anything else gets 401.
  */
-export async function imkitHostPlugin(app: FastifyInstance, options: HostPluginOptions): Promise<void> {
+export async function talkwireHostPlugin(app: FastifyInstance, options: HostPluginOptions): Promise<void> {
   const base = (options.basePath ?? "/api/v1/internal/im").replace(/\/$/, "");
   const { contacts, profiles } = options;
   // The largest request is delete-media with 500 URLs. A small limit also

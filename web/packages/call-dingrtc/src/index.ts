@@ -1,10 +1,10 @@
 /**
- * @imkit/call-dingrtc: a CallMediaEngine (see @imkit/call) over Alibaba
+ * @talkwire/call-dingrtc: a CallMediaEngine (see @talkwire/call) over Alibaba
  * Cloud's DingRTC Web SDK (ARTC 3.0, npm `dingrtc`; written against 3.9.37).
  * The app installs the SDK and hands it in, so nothing here loads it:
  *
  *   import DingRTC from "dingrtc";
- *   import { DingRtcMediaEngine } from "@imkit/call-dingrtc";
+ *   import { DingRtcMediaEngine } from "@talkwire/call-dingrtc";
  *   <CallProvider media={new DingRtcMediaEngine(DingRTC)}>…</CallProvider>
  *
  * The host answers calls/answer with a DingRTC channel, the app id and each
@@ -13,7 +13,7 @@
  * signs tokens for its own user ids passes `userId`.
  */
 
-import type { CallMediaEngine, MediaJoin } from "@imkit/call";
+import type { CallMediaEngine, MediaJoin } from "@talkwire/call";
 
 // ------------------------------------------------------------------ the SDK, as far as this uses it
 

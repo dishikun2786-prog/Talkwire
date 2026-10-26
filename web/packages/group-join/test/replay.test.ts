@@ -5,8 +5,8 @@
  * user; the step numbers are the transcript's.
  */
 
-import { ImClient, RequestRefused } from "@imkit/client";
-import { GroupJoinClient, type GroupJoinEvent } from "@imkit/group-join";
+import { ImClient, RequestRefused } from "@talkwire/client";
+import { GroupJoinClient, type GroupJoinEvent } from "@talkwire/group-join";
 import { afterEach, describe, expect, it } from "vitest";
 import { RecordingTransport, bindings, replayBuilt, replaying, until, type Replay } from "../../client/test/replay.js";
 

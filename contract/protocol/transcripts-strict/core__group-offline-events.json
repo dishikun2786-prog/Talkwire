@@ -1,6 +1,6 @@
 {
   "scenario": "core/group-offline-events",
-  "source": "imkit strict profile (D5)",
+  "source": "talkwire strict profile (D5)",
   "steps": [
     {
       "index": 1,

@@ -1,8 +1,8 @@
-# ImKit
+# Talkwire
 
-ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 实时服务端、一个宿主（业务后端）接入 SDK，以及 Android、iOS、Web 三端客户端 SDK。业务项目只需实现少量宿主接口（身份、好友关系、资料、推送、媒体），就能得到单聊、群聊、媒体消息、已读、撤回、在线状态与离线推送。
+Talkwire 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 实时服务端、一个宿主（业务后端）接入 SDK，以及 Android、iOS、Web 三端客户端 SDK。业务项目只需实现少量宿主接口（身份、好友关系、资料、推送、媒体），就能得到单聊、群聊、媒体消息、已读、撤回、在线状态与离线推送。
 
-> 名称、Go 模块路径、Android 包名（`io.imkit`）、iOS 模块名（`ImKit`）与 npm 包名（`@imkit/*`）都是占位符，定名后统一替换。Go 模块在代码里暂写作 `example.com/imkit/...`（计划里的 `github.com/<org>/imkit` 不是合法的 Go 路径）。
+> 项目原名 ImKit，2026-10-26 改名为 Talkwire：Go 模块 `github.com/dishikun2786-prog/Talkwire/...`、Android 包名 `io.talkwire`、iOS 模块名 `Talkwire`、npm 包名 `@talkwire/*`。改名对已有部署的影响见 `CHANGELOG.md`。
 
 ## 当前状态
 
@@ -12,8 +12,8 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 - **Android**（Phase 3、4）：核心 SDK、Room 存储、通知与 FCM、Compose 界面套件、示例 App 完成，M1、M2 达成（真机一台）。
 - **Web**（Phase 5）：协议类型、客户端与同步引擎、IndexedDB 存储、React 套件、示例与端到端用例完成，M3 达成（Web 与 Android 真机互发、同一账号多端在线）。
 - **iOS**（Phase 6）：未开始，需要 macOS。
-- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@imkit/call-dingrtc`、`examples/artc`）。Android 端的扫码入群、通话、ARTC 适配器、群助手“正在输入”、视频压缩与 E2EE 客户端模块（`imkit-e2ee`，AGPLv3）完成，都没有真机验证；iOS 端未做。
-- **后台**（Phase 8）：通话记录存储与后台接口（宿主 SDK）、可嵌入的后台页面 `@imkit/admin` 完成。
+- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@talkwire/call-dingrtc`、`examples/artc`）。Android 端的扫码入群、通话、ARTC 适配器、群助手“正在输入”、视频压缩与 E2EE 客户端模块（`talkwire-e2ee`，AGPLv3）完成，都没有真机验证；iOS 端未做。
+- **后台**（Phase 8）：通话记录存储与后台接口（宿主 SDK）、可嵌入的后台页面 `@talkwire/admin` 完成。
 - **文档、CI、压测**（Phase 9）：接入与迁移文档、ADR 完成；全量检查脚本 `tools/ci.sh` 与 GitHub Actions 配置写好（仓库还没有远程，没在 GitHub 上跑过）；压测工具 `tools/loadtest` 在本机试跑过，正式压测待在 Linux 上做。未发布。
 
 各部分的结果见各目录的 README，完整计划与进度见 `docs/plan.md`。
@@ -30,8 +30,8 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
 | `docs/` | 计划、架构决策记录（`adr/`）、可选模块手册（`modules.md`）、从小桃子迁移（`migration-from-xiaotaozi.md`）、清单 | 建设中 |
 | `server/` | Go 服务端 | Phase 1 完成，G1 通过 |
 | `host-sdk-node/` | Node 宿主 SDK | Phase 2 完成 |
-| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App；可选模块 `imkit-group-join`、`imkit-call`、`imkit-video-compress`、`imkit-e2ee`（AGPLv3）；通话的 ARTC 适配器 `imkit-call-dingrtc`。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台）；Phase 7 的 Android 部分完成（未上真机） |
-| `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@imkit/call`、`@imkit/group-join`；通话的 ARTC 适配器 `@imkit/call-dingrtc`；后台页面 `@imkit/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
+| `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App；可选模块 `talkwire-group-join`、`talkwire-call`、`talkwire-video-compress`、`talkwire-e2ee`（AGPLv3）；通话的 ARTC 适配器 `talkwire-call-dingrtc`。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台）；Phase 7 的 Android 部分完成（未上真机） |
+| `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@talkwire/call`、`@talkwire/group-join`；通话的 ARTC 适配器 `@talkwire/call-dingrtc`；后台页面 `@talkwire/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
 | `ios/` | iOS SDK | Phase 6，未开始 |
 | `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主：开发登录、演示通话、通话记录与后台）；`artc`（用阿里云 ARTC 3.0 打通话：宿主签频道令牌，各端适配器） | 已有 |
 
@@ -51,8 +51,8 @@ ImKit 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 
   cd server && bash ../tools/race.sh
   ```
 
-  竞态检测需要 cgo 和 C 编译器。Windows 上用私有的 MinGW-w64 GCC（WinLibs GCC 16.2.0，默认在 `F:\Program Files\tools\winlibs\mingw64`，可用 `IMKIT_MINGW` 指向别处），只在这一条命令里打开 cgo，不改系统或用户 PATH：gcc 一旦出现在 PATH 上，本机其他 Go 构建都会悄悄改用 cgo。脚本里还绕过了 Windows 上的两个问题（GCC 装在带空格的目录下链接失败；地址随机化让 ThreadSanitizer 启动失败），原因写在脚本开头。Linux 和 macOS 直接用系统编译器。
+  竞态检测需要 cgo 和 C 编译器。Windows 上用私有的 MinGW-w64 GCC（WinLibs GCC 16.2.0，默认在 `F:\Program Files\tools\winlibs\mingw64`，可用 `TALKWIRE_MINGW` 指向别处），只在这一条命令里打开 cgo，不改系统或用户 PATH：gcc 一旦出现在 PATH 上，本机其他 Go 构建都会悄悄改用 cgo。脚本里还绕过了 Windows 上的两个问题（GCC 装在带空格的目录下链接失败；地址随机化让 ThreadSanitizer 启动失败），原因写在脚本开头。Linux 和 macOS 直接用系统编译器。
 
 ## 许可证
 
-核心以 Apache-2.0 发布（见 `LICENSE`）。链接 libsignal 的 E2EE 客户端模块单独发布并采用 AGPLv3（目前是 Android 的 `android/imkit-e2ee`，目录里有它自己的 `LICENSE`）；它不会出现在核心产物的依赖树里，`tools/depcheck` 与 `tools/ci.sh` 检查这一点。
+核心以 Apache-2.0 发布（见 `LICENSE`）。链接 libsignal 的 E2EE 客户端模块单独发布并采用 AGPLv3（目前是 Android 的 `android/talkwire-e2ee`，目录里有它自己的 `LICENSE`）；它不会出现在核心产物的依赖树里，`tools/depcheck` 与 `tools/ci.sh` 检查这一点。

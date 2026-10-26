@@ -1,22 +1,22 @@
-// @imkit/host-node: the host side of ImKit for Node and Fastify.
+// @talkwire/host-node: the host side of Talkwire for Node and Fastify.
 //
-//   imkitHostPlugin   the endpoints the IM server calls (host.openapi.yaml)
-//   imkitAppRoutes    profiles and contacts for the chat app
-//   imkitMediaRoutes  chat media upload, serving and deletion
-//   imkitAdminRoutes  chat records for administrators
+//   talkwireHostPlugin   the endpoints the IM server calls (host.openapi.yaml)
+//   talkwireAppRoutes    profiles and contacts for the chat app
+//   talkwireMediaRoutes  chat media upload, serving and deletion
+//   talkwireAdminRoutes  chat records for administrators
 //   ImClient          the endpoints the IM server exposes to the host
 //
 // Storage goes through the interfaces in types.ts: memory stores here, Prisma
-// stores in "@imkit/host-node/prisma", an S3 blob store in "@imkit/host-node/s3".
+// stores in "@talkwire/host-node/prisma", an S3 blob store in "@talkwire/host-node/s3".
 
 export * from "./types.js";
 export { imUid, isUid } from "./uid.js";
 export { signInternalToken, verifyInternalToken, bearerToken } from "./token.js";
-export { imkitHostPlugin, type HostPluginOptions, type CallHandlers, type GroupAiHandler, type GroupAiRequest } from "./host-plugin.js";
-export { imkitAppRoutes, defaultHandle, type AppRoutesOptions, type AppEvent } from "./app-routes.js";
-export { imkitAdminRoutes, clearConfirmation, type AdminRoutesOptions, type AdminIdentity } from "./admin-routes.js";
+export { talkwireHostPlugin, type HostPluginOptions, type CallHandlers, type GroupAiHandler, type GroupAiRequest } from "./host-plugin.js";
+export { talkwireAppRoutes, defaultHandle, type AppRoutesOptions, type AppEvent } from "./app-routes.js";
+export { talkwireAdminRoutes, clearConfirmation, type AdminRoutesOptions, type AdminIdentity } from "./admin-routes.js";
 export {
-  imkitMediaRoutes,
+  talkwireMediaRoutes,
   mediaDeleter,
   mediaName,
   ownerTag,

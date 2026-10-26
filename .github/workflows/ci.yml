@@ -19,8 +19,8 @@ concurrency:
 env:
   # Throwaway databases in the job's own PostgreSQL service; nothing here is a secret.
   PGPASSWORD: postgres
-  IMKIT_TEST_DSN: host=127.0.0.1 port=5432 user=postgres password=postgres dbname=imkit_new sslmode=disable
-  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imkit_host
+  TALKWIRE_TEST_DSN: host=127.0.0.1 port=5432 user=postgres password=postgres dbname=talkwire_new sslmode=disable
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/talkwire_host
   # Every step's output, uploaded when a job fails.
   CI_LOGS: ci-logs
   GO_SUMS: |
@@ -60,7 +60,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
@@ -86,7 +86,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
@@ -120,7 +120,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE imkit_host"
+      - run: psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE talkwire_host"
       - run: bash tools/ci.sh node
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -149,7 +149,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
@@ -180,7 +180,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
@@ -217,7 +217,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: imkit_new
+          POSTGRES_DB: talkwire_new
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:

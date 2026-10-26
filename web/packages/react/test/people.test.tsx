@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore, Signal, type GroupMember, type GroupRole } from "@imkit/client";
-import { uidOf } from "@imkit/protocol";
+import { ChatEngine, ImClient, MemoryChatStore, Signal, type GroupMember, type GroupRole } from "@talkwire/client";
+import { uidOf } from "@talkwire/protocol";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";
-import { ChatScreen, ConversationInfo, ImKitProvider, PickPeople, defaultGroupName, memberPermissions, sortMembers, type ImProfile, type ImUiHost } from "../src/index.js";
+import { ChatScreen, ConversationInfo, TalkwireProvider, PickPeople, defaultGroupName, memberPermissions, sortMembers, type ImProfile, type ImUiHost } from "../src/index.js";
 
 afterEach(cleanup);
 
@@ -105,9 +105,9 @@ describe("conversation info", () => {
       { uid: carol, role: "admin" },
     ]);
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationInfo conversation={group} groupExtras={(topic, role) => <div>extras:{topic}:{role}</div>} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("roster", () => !!ui.queryByText("Members (3)"));
     await until("names", () => !!ui.queryByText("Bob"));
@@ -150,9 +150,9 @@ describe("conversation info", () => {
     ]);
     let left = false;
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="zh">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="zh">
         <ConversationInfo conversation={group} onLeft={() => (left = true)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("roster", () => !!ui.queryByText("群成员（3）"));
     // Members cannot open each other: no row is a button.
@@ -179,9 +179,9 @@ describe("conversation info", () => {
       { set_member_role: 409 },
     );
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationInfo conversation={group} maxAdmins={1} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("roster", () => !!ui.container.querySelector(`[data-member="${carol}"]`));
     fireEvent.click(ui.container.querySelector(`[data-member="${carol}"]`)!);
@@ -192,9 +192,9 @@ describe("conversation info", () => {
 
     // A limit the client did not know: the server's 409 says the same.
     const again = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationInfo conversation={group} maxAdmins={5} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("roster", () => !!again.container.querySelector(`[data-member="${dave}"]`));
     fireEvent.click(again.container.querySelector(`[data-member="${dave}"]`)!);
@@ -209,9 +209,9 @@ describe("conversation info", () => {
     const { engine, close } = await setup([{ uid: alice, role: "owner" }]);
     await engine.ensureConversation(bob);
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ConversationInfo conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("name", () => !!ui.queryByText("Bob"));
     expect(ui.getByText("Chat info")).toBeTruthy();
@@ -232,17 +232,17 @@ describe("conversation info", () => {
     const { engine, close } = await setup([{ uid: alice, role: "owner" }]);
     let opened = 0;
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={group} onOpenInfo={() => opened++} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     fireEvent.click(ui.getByRole("button", { name: "Group info" }));
     expect(opened).toBe(1);
     ui.unmount();
     const plain = render(
-      <ImKitProvider engine={engine} host={hostWith()} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith()} locale="en">
         <ChatScreen conversation={group} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     expect(plain.queryByRole("button", { name: "Group info" })).toBeNull();
     plain.unmount();
@@ -264,9 +264,9 @@ describe("picking people", () => {
     ]);
     let done: string | null = null;
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith(contacts)} locale="en">
+      <TalkwireProvider engine={engine} host={hostWith(contacts)} locale="en">
         <PickPeople topic={group} onDone={(c) => (done = c)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("existing", () => (ui.container.querySelector(`[data-contact="${bob}"] input`) as HTMLInputElement | null)?.disabled === true);
     fireEvent.click(ui.container.querySelector(`[data-contact="${carol}"] input`)!);
@@ -282,9 +282,9 @@ describe("picking people", () => {
     const { server, engine, close } = await setup([{ uid: alice, role: "owner" }]);
     let done: string | null = null;
     const ui = render(
-      <ImKitProvider engine={engine} host={hostWith(contacts)} locale="zh">
+      <TalkwireProvider engine={engine} host={hostWith(contacts)} locale="zh">
         <PickPeople onDone={(c) => (done = c)} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     fireEvent.change(ui.getByRole("searchbox", { name: "搜索" }), { target: { value: "ca" } });
     expect(ui.queryByText("Bob")).toBeNull();

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="talkwire_e2ee_failed_peer_keys">%1$s chưa thiết lập trò chuyện mã hóa. Tính năng sẽ hoạt động sau khi họ mở ứng dụng.</string>
+    <string name="talkwire_e2ee_failed_not_allowed">Bạn không thể làm việc này trong trò chuyện mã hóa: cần là bạn bè, hoặc là chủ nhóm hay quản trị viên.</string>
+    <string name="talkwire_e2ee_failed_group_not_encrypted">Nhóm này chưa được mã hóa. Chủ nhóm cần bật mã hóa trước.</string>
+    <string name="talkwire_e2ee_failed_disabled">Máy chủ này không hỗ trợ trò chuyện mã hóa.</string>
+    <string name="talkwire_e2ee_failed_offline">Chưa kết nối. Hãy kiểm tra mạng rồi thử lại.</string>
+    <string name="talkwire_e2ee_failed_crypto">Không thể dùng khóa mã hóa của cuộc trò chuyện này. Hãy kết thúc trò chuyện mã hóa và bắt đầu lại.</string>
+    <string name="talkwire_e2ee_failed_server">Máy chủ trả về kết quả không mong đợi. Nếu vẫn xảy ra, hãy liên hệ hỗ trợ.</string>
+
+    <string name="talkwire_e2ee_encrypted">Mã hóa đầu cuối</string>
+    <string name="talkwire_e2ee_empty">Tin nhắn ở đây được mã hóa đầu cuối. Chỉ những người trong cuộc trò chuyện đọc được và tin nhắn chỉ lưu trên thiết bị này.</string>
+    <string name="talkwire_e2ee_hint">Tin nhắn mã hóa</string>
+    <string name="talkwire_e2ee_send">Gửi</string>
+    <string name="talkwire_e2ee_back">Quay lại</string>
+    <string name="talkwire_e2ee_more">Thêm</string>
+    <string name="talkwire_e2ee_not_sent">Chưa gửi được. Chạm để gửi lại.</string>
+    <string name="talkwire_e2ee_undecryptable">Không giải mã được tin nhắn này.</string>
+    <string name="talkwire_e2ee_without_key">Một số thành viên chưa thiết lập trò chuyện mã hóa nên không đọc được tin nhắn này.</string>
+
+    <string name="talkwire_e2ee_safety_number">Mã an toàn</string>
+    <string name="talkwire_e2ee_safety_number_explain">Hãy so các số này với %1$s khi gặp trực tiếp hoặc khi gọi điện. Nếu khớp, không ai nghe lén ở giữa.</string>
+    <string name="talkwire_e2ee_safety_number_none">Mã an toàn chỉ có sau khi hai bên đã trao đổi một tin nhắn.</string>
+    <string name="talkwire_e2ee_clear">Xóa tin nhắn</string>
+    <string name="talkwire_e2ee_clear_confirm">Xóa tin nhắn trên thiết bị này? Nếu %1$s đang trực tuyến, họ cũng được yêu cầu xóa.</string>
+    <string name="talkwire_e2ee_clear_group_confirm">Xóa tin nhắn trên thiết bị này? Nếu bạn quản lý nhóm, mọi người đang trực tuyến cũng sẽ xóa.</string>
+    <string name="talkwire_e2ee_end">Kết thúc trò chuyện mã hóa</string>
+    <string name="talkwire_e2ee_end_confirm">Kết thúc trò chuyện mã hóa? Tin nhắn trên thiết bị này sẽ bị xóa. Gửi tin nhắn mới để bắt đầu lại.</string>
+    <string name="talkwire_e2ee_cancel">Hủy</string>
+    <string name="talkwire_e2ee_close">Đóng</string>
+
+    <string name="talkwire_e2ee_notice_ended">%1$s đã kết thúc trò chuyện mã hóa.</string>
+    <string name="talkwire_e2ee_notice_cleared">%1$s đã xóa các tin nhắn mã hóa.</string>
+    <string name="talkwire_e2ee_notice_group_on">Nhóm này đã bật mã hóa.</string>
+    <string name="talkwire_e2ee_notice_incoming">Tin nhắn mã hóa mới</string>
+</resources>

@@ -1,14 +1,14 @@
 /**
  * The web client against the golden transcripts: `replay` plays the server
  * and fails unless the client sends exactly the scripted requests. The same
- * cases as android/imkit-core's ReplayScenarioTest, one per client red line
+ * cases as android/talkwire-core's ReplayScenarioTest, one per client red line
  * a fake server could get wrong in the same way as the client.
  *
  * The transcripts come from the legacy-profile reference server: the login
  * reply has no `protocol`, and presence snapshots have no `id`.
  */
 
-import { p2pTopic, uidOf } from "@imkit/protocol";
+import { p2pTopic, uidOf } from "@talkwire/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { ChatEngine, ImClient, MemoryChatStore, type ChatEvent, type ImEvent, type ImTransport } from "../src/index.js";
 import { RecordingTransport, bindings, replayBuilt, replaying, until, type Replay } from "./replay.js";

@@ -1,8 +1,8 @@
 # server
 
-ImKit 的 Go 实时服务端。
+Talkwire 的 Go 实时服务端。
 
-来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.13），每一步都重新通过一致性测试：legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。默认档位是 strict，闸门 G1 已于 2026-10-25 通过。模块名 `example.com/imkit/server` 是占位符，定名后替换。
+来源是小桃子原版 IM 服务（源提交 `33e23250` 的 `server/im-go`）。Phase 1 先把它原样搬进来（1.1），再一步步改造（1.2–1.13），每一步都重新通过一致性测试：legacy 档与原版的黄金对话**逐帧一致**，有意的偏离只放在 strict 档（见协议规范第 0.3 节）。默认档位是 strict，闸门 G1 已于 2026-10-25 通过。模块名是 `github.com/dishikun2786-prog/Talkwire/server`。
 
 ## 现状（2026-10-25）
 
@@ -22,7 +22,7 @@ ImKit 的 Go 实时服务端。
 | 1.12 | 多端同时在线：登录带 `device`，不同设备同时在线（协议规范第 6.2 节） |
 | 1.13 | strict 档修正 D1、D2（`leave_grp` 校验群与成员）、D5（补投带当前群名）、D7（扫码入群通知成员、订阅入群者）、D8（审核先检查后写入）；计划外加的任务 |
 
-验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖六个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 139 个（含子测试，数据库用例需要 `IMKIT_TEST_DSN`）。
+验证结果：legacy 档 32/32 逐帧一致；strict 档（去掉新增字段并用 `transcripts-strict/` 覆盖六个有意偏离的场景）32/32；standalone 29/32（依赖宿主的通话两个、群 AI 一个场景在这种模式下必然失败）；表结构比较 5 项全部通过；竞态检测连跑三轮无报告；单测 139 个（含子测试，数据库用例需要 `TALKWIRE_TEST_DSN`）。
 
 Phase 2 之后（加入 `custom-broadcast` 与核心组场景 `core/host-red-packet`，2026-10-25 在最终代码上重跑）：legacy 33/33，strict 33/33，standalone 30/33（同样是那三个依赖宿主的场景），表结构比较 5 项通过，竞态检测三轮无报告，staticcheck 无报告，单测 146 个全部通过、无跳过。
 
@@ -57,19 +57,19 @@ M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人�
 | --- | --- | --- |
 | `IM_PORT` | 6062 | 监听端口 |
 | `DB_HOST`、`DB_PORT`、`DB_USER`、`DB_NAME`、`DB_SSLMODE` | localhost、5432、xiaotaozi、xiaotaozi、disable | 数据库 |
-| `IMKIT_HOST_MODE` | `http` | `http`：宿主是一个 HTTP 服务（`MAIN_API_BASE_URL`，默认 `http://127.0.0.1:6001`）；`standalone`：没有宿主进程，好友、资料、运行配置来自 `IMKIT_STANDALONE_CONFIG` 指向的文件 |
-| `IMKIT_MODULES` | 宿主支持的全部模块 | 逗号分隔的模块名（`call`、`groupjoin`、`groupai`、`e2ee`），或 `none`。没装的模块的动作得到 501 `module not enabled: <名>`。standalone 宿主只支持 `groupjoin`、`e2ee` |
-| `IMKIT_PROTOCOL_PROFILE` | `strict` | `strict` 或 `legacy`（协议规范第 0.3 节）；迁移原版项目时设 `legacy` |
-| `IMKIT_TOKEN_USER_ROLES` | `app_user` | strict 档允许登录的令牌 `role`，逗号分隔 |
-| `IMKIT_ACCEPT_LEGACY_TOKENS` | 不设 | 设为 `1` 时 strict 档也接受非访问令牌，只用于迁移期（启动时打印警告） |
-| `IMKIT_JWKS_URL` | 不设 | 用宿主公布的 JWKS 验用户令牌（RS256/ES256，按 `kid` 选钥，RSA 至少 2048 位）；只接受 https 或本机 http |
-| `IMKIT_MAX_DEVICES_PER_USER` | 10 | 一个账号最多同时在线的设备数（协议规范第 6.2 节） |
+| `TALKWIRE_HOST_MODE` | `http` | `http`：宿主是一个 HTTP 服务（`MAIN_API_BASE_URL`，默认 `http://127.0.0.1:6001`）；`standalone`：没有宿主进程，好友、资料、运行配置来自 `TALKWIRE_STANDALONE_CONFIG` 指向的文件 |
+| `TALKWIRE_MODULES` | 宿主支持的全部模块 | 逗号分隔的模块名（`call`、`groupjoin`、`groupai`、`e2ee`），或 `none`。没装的模块的动作得到 501 `module not enabled: <名>`。standalone 宿主只支持 `groupjoin`、`e2ee` |
+| `TALKWIRE_PROTOCOL_PROFILE` | `strict` | `strict` 或 `legacy`（协议规范第 0.3 节）；迁移原版项目时设 `legacy` |
+| `TALKWIRE_TOKEN_USER_ROLES` | `app_user` | strict 档允许登录的令牌 `role`，逗号分隔 |
+| `TALKWIRE_ACCEPT_LEGACY_TOKENS` | 不设 | 设为 `1` 时 strict 档也接受非访问令牌，只用于迁移期（启动时打印警告） |
+| `TALKWIRE_JWKS_URL` | 不设 | 用宿主公布的 JWKS 验用户令牌（RS256/ES256，按 `kid` 选钥，RSA 至少 2048 位）；只接受 https 或本机 http |
+| `TALKWIRE_MAX_DEVICES_PER_USER` | 10 | 一个账号最多同时在线的设备数（协议规范第 6.2 节） |
 | `FCM_SERVICE_ACCOUNT_KEY_PATH` | 不设 | FCM 服务账号密钥文件；旧名 `FCM_SERVICE_ACCOUNT_PATH` 也读 |
-| `IMKIT_APNS_KEY_PATH`、`_KEY_ID`、`_TEAM_ID`、`_TOPIC`、`_ENV` | `_ENV`=production | APNs（`.p8` 密钥）；`_ENV` 可设 sandbox |
-| `IMKIT_VAPID_KEY_PATH`、`IMKIT_VAPID_SUBJECT` | 不设 | Web Push 的 VAPID 密钥与联系方式；配置后 strict 登录应答带 `vapidKey` |
-| `IMKIT_WEBPUSH_ALLOWED_HOSTS` | 主流浏览器的推送服务 | 订阅里的推送服务地址只许这些主机 |
-| `IMKIT_WEBPUSH_TTL_SEC` | 86400 | 推送服务保留消息的时长 |
-| `IMKIT_PUSH_HTTP_TIMEOUT_SEC` | 10 | 每次推送请求的超时；旧名 `IM_FCM_HTTP_TIMEOUT_SEC` 也读 |
+| `TALKWIRE_APNS_KEY_PATH`、`_KEY_ID`、`_TEAM_ID`、`_TOPIC`、`_ENV` | `_ENV`=production | APNs（`.p8` 密钥）；`_ENV` 可设 sandbox |
+| `TALKWIRE_VAPID_KEY_PATH`、`TALKWIRE_VAPID_SUBJECT` | 不设 | Web Push 的 VAPID 密钥与联系方式；配置后 strict 登录应答带 `vapidKey` |
+| `TALKWIRE_WEBPUSH_ALLOWED_HOSTS` | 主流浏览器的推送服务 | 订阅里的推送服务地址只许这些主机 |
+| `TALKWIRE_WEBPUSH_TTL_SEC` | 86400 | 推送服务保留消息的时长 |
+| `TALKWIRE_PUSH_HTTP_TIMEOUT_SEC` | 10 | 每次推送请求的超时；旧名 `IM_FCM_HTTP_TIMEOUT_SEC` 也读 |
 | `IM_MAX_CONNECTIONS` | 10000 | 同时接受的 WebSocket 连接数上限 |
 | `IM_PONG_WAIT_SEC`、`IM_WRITE_WAIT_SEC` | 60、10 | 心跳超时（发 ping 的间隔是它的 0.45 倍）、写超时 |
 | `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` | 100、1024 | 内部队列长度 |
@@ -79,7 +79,7 @@ M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人�
 
 ## 数据库
 
-启动时按顺序执行 `migrations/` 里尚未执行过的脚本，记录在 `imkit_schema_migrations`。在原版服务已经建好的库上启动时，基线脚本只补缺的部分，不重建。相对原版新增的表：`imkit_schema_migrations`、`im_devices`、`im_pending_acks`；新增的列：`im_fcm_tokens.provider`、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`。`im_fcm_tokens` 保留原名，虽然它已经不只存 FCM 令牌。
+启动时按顺序执行 `migrations/` 里尚未执行过的脚本，记录在 `talkwire_schema_migrations`。在原版服务已经建好的库上启动时，基线脚本只补缺的部分，不重建。相对原版新增的表：`talkwire_schema_migrations`、`im_devices`、`im_pending_acks`；新增的列：`im_fcm_tokens.provider`、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`。`im_fcm_tokens` 保留原名，虽然它已经不只存 FCM 令牌。
 
 ## 宿主接口
 
@@ -89,17 +89,17 @@ M2 之后（2026-10-25）：strict 档把单聊的 `read` 存为发送者本人�
 
 ```bash
 cd server
-go build -o bin/imkit-server.exe .
+go build -o bin/talkwire-server.exe .
 go vet ./...
-IMKIT_TEST_DSN="host=127.0.0.1 port=55432 user=postgres dbname=imkit_new sslmode=disable" go test ./...   # 口令从 pgpass 读
-bash ../tools/race.sh                # 竞态检测（同样需要 IMKIT_TEST_DSN 才会跑数据库用例）
+TALKWIRE_TEST_DSN="host=127.0.0.1 port=55432 user=postgres dbname=talkwire_new sslmode=disable" go test ./...   # 口令从 pgpass 读
+bash ../tools/race.sh                # 竞态检测（同样需要 TALKWIRE_TEST_DSN 才会跑数据库用例）
 bash ../tools/lint.sh                # gofmt、go vet、staticcheck（没装时跳过并说明）
 
 cd ../tools/conformance              # 三种一致性检查与表结构比较，见该目录 README
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new
+./bin/conformance.exe check -bin ../../server/bin/talkwire-server.exe -db talkwire_new
 ```
 
-数据库用例在 `IMKIT_TEST_DSN` 指向的库里建临时 schema，用完删除；不设时跳过。多端、并发类用例在进程内起真实的服务端和 WebSocket（`live_test.go`）。
+数据库用例在 `TALKWIRE_TEST_DSN` 指向的库里建临时 schema，用完删除；不设时跳过。多端、并发类用例在进程内起真实的服务端和 WebSocket（`live_test.go`）。
 
 ## 与原版的差异
 
@@ -113,7 +113,7 @@ legacy 档对外的帧与原版逐帧一致，下面这些是帧以外的差异�
 - 队列长度配置 `IM_HUB_CHAN_BUF`、`IM_PRESENCE_CHAN_BUF` 真正生效（原版读了却没用，F62）。
 - 登录中途断开的连接不再被注册成在线（原版偶发让用户永久显示在线，F63）。
 - 离线期间排队的 E2EE 信封在下次登录时按发送顺序补投（原版取出的顺序不定，F64）；补投遇到发送队列满时，塞不下的放回队列、不断开连接（原版断开，塞不下的信封丢失，F65）。
-- 默认档位是 strict；要与原版逐帧一致须设 `IMKIT_PROTOCOL_PROFILE=legacy`。
+- 默认档位是 strict；要与原版逐帧一致须设 `TALKWIRE_PROTOCOL_PROFILE=legacy`。
 - 新增内部接口 `POST /api/v1/internal/im/custom-broadcast`（Phase 2）：宿主把自定义消息卡片的新状态推给一个会话的在线连接或一个用户的全部设备，帧为 `custom_update`（协议规范附录 B）。它是原版 `red-packet-broadcast` 的通用形式，后者保留。两档都有；契约见 `contract/host-api/im-internal.openapi.yaml`，测试 `custombroadcast_test.go`。
 
 strict 档在此之外修正协议规范第 18 节除 D6 以外的全部缺陷（D1–D5、D7–D9），并加上新增字段和新增动作 `sync_summary`。修正逐项有两档对照的单测（`strict_defects_test.go`、`d9_test.go`）。

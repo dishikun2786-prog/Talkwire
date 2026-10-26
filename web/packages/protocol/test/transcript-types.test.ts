@@ -65,7 +65,7 @@ it("every golden frame fits the generated types", () => {
   expect(sent).toBeGreaterThan(100);
   expect(received).toBeGreaterThan(200);
 
-  const dir = mkdtempSync(join(tmpdir(), "imkit-transcripts-"));
+  const dir = mkdtempSync(join(tmpdir(), "talkwire-transcripts-"));
   const file = join(dir, "frames.ts");
   writeFileSync(file, lines.join("\n") + "\n");
   const program = ts.createProgram([file], {

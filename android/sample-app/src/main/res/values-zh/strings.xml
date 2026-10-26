@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sample_title">ImKit 示例</string>
+    <string name="sample_title">Talkwire 示例</string>
     <string name="sample_dev_hint">用名字登录本地示例宿主，仅供开发使用。</string>
     <string name="sample_name">你的名字</string>
     <string name="sample_sign_in">登录</string>

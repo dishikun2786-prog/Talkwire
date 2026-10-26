@@ -1,4 +1,4 @@
-module example.com/imkit/tools/conformance
+module github.com/dishikun2786-prog/Talkwire/tools/conformance
 
 go 1.26.4
 

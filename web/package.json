@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/web",
+  "name": "@talkwire/web",
   "private": true,
-  "description": "ImKit for the web: protocol types, the client and sync engine, IndexedDB storage, React components, a sample and end-to-end tests",
+  "description": "Talkwire for the web: protocol types, the client and sync engine, IndexedDB storage, React components, a sample and end-to-end tests",
   "license": "Apache-2.0",
   "type": "module",
   "workspaces": [

@@ -95,17 +95,17 @@ func TestR9_DefaultsEqualOriginalValues(t *testing.T) {
 	// Knobs the reference server does not have, each with why its default is
 	// what it is.
 	added := map[string]string{
-		"env IMKIT_PUSH_HTTP_TIMEOUT_SEC": "fallback", // falls back to IM_FCM_HTTP_TIMEOUT_SEC (10s)
-		"env IMKIT_WEBPUSH_TTL_SEC":       "24 * time.Hour",
-		"Config.HostMode":                 `"http"`, // the reference has only the HTTP host
-		"RuntimeConfig.PushText":          "defaultPushText()",
+		"env TALKWIRE_PUSH_HTTP_TIMEOUT_SEC": "fallback", // falls back to IM_FCM_HTTP_TIMEOUT_SEC (10s)
+		"env TALKWIRE_WEBPUSH_TTL_SEC":       "24 * time.Hour",
+		"Config.HostMode":                    `"http"`, // the reference has only the HTTP host
+		"RuntimeConfig.PushText":             "defaultPushText()",
 		// The reference hard-coded the assistant's name and notices; the
 		// defaults are that wording (TestGroupAIDefaultsAreTheReferenceWording).
 		"RuntimeConfig.GroupAI": "defaultGroupAIText()",
 		// The reference allowed one connection per user (each login replaced
 		// the last); 10 devices covers phones, tablets and browsers without
 		// letting one account hold unbounded connections (task 1.12).
-		"env IMKIT_MAX_DEVICES_PER_USER": "10",
+		"env TALKWIRE_MAX_DEVICES_PER_USER": "10",
 	}
 	for k, v := range cur {
 		if _, inRef := ref[k]; inRef {

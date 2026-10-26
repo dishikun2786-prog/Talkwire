@@ -1,5 +1,5 @@
 /**
- * The M1 flow of android/imkit-core's M1RealServerTest, for the web client,
+ * The M1 flow of android/talkwire-core's M1RealServerTest, for the web client,
  * against a real server under both protocol profiles: login and first sync,
  * a single-chat message, publish idempotency, offline catch-up over several
  * pages, reconnecting after a dropped socket, a group round trip, history
@@ -7,7 +7,7 @@
  * count, clearing for everyone, and presence.
  */
 
-import { uidOf } from "@imkit/protocol";
+import { uidOf } from "@talkwire/protocol";
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {

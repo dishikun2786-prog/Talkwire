@@ -1,6 +1,6 @@
 {
   "scenario": "core/leave-grp",
-  "source": "imkit strict profile (D1, D2)",
+  "source": "talkwire strict profile (D1, D2)",
   "steps": [
     {
       "index": 1,

@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"example.com/imkit/tools/conformance/fakehost"
-	"example.com/imkit/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/fakehost"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
 )
 
 // The secret only signs tokens for throwaway test databases.
-const testSecret = "imkit-conformance-secret-not-for-production-0123456789"
+const testSecret = "talkwire-conformance-secret-not-for-production-0123456789"
 
 type options struct {
 	bin       string
@@ -40,9 +40,9 @@ type options struct {
 	only    string
 	source  string
 	logDir  string
-	// standalone runs the server with no host process (IMKIT_HOST_MODE=standalone).
+	// standalone runs the server with no host process (TALKWIRE_HOST_MODE=standalone).
 	standalone bool
-	// env is extra environment for the server, e.g. IMKIT_MODULES=e2ee.
+	// env is extra environment for the server, e.g. TALKWIRE_MODULES=e2ee.
 	env envList
 	// additions names fields the server under test may add (see
 	// harness.KnownAdditions); they are removed before comparing.
@@ -61,14 +61,14 @@ func main() {
 	fs.StringVar(&o.db.Host, "pghost", "127.0.0.1", "PostgreSQL host")
 	fs.IntVar(&o.db.Port, "pgport", 55432, "PostgreSQL port")
 	fs.StringVar(&o.db.User, "pguser", "postgres", "PostgreSQL user")
-	fs.StringVar(&o.db.Name, "db", "imkit_oracle", "throwaway database (its public schema is dropped)")
+	fs.StringVar(&o.db.Name, "db", "talkwire_oracle", "throwaway database (its public schema is dropped)")
 	fs.IntVar(&o.port, "port", 16062, "port for the server under test")
 	fs.IntVar(&o.hostPort, "hostport", 17001, "port for the fake host")
 	fs.StringVar(&o.hostURL, "host", "", "base URL of a host under test that serves the conformance control API; replaces the fake host")
 	fs.StringVar(&o.only, "only", "", "run only scenarios whose name contains this")
 	fs.StringVar(&o.source, "source", "oracle 33e23250", "label stored in recorded transcripts")
 	fs.StringVar(&o.logDir, "logs", "logs", "directory for server logs")
-	fs.Var(&o.env, "env", "extra server environment KEY=VALUE (repeatable), e.g. -env IMKIT_MODULES=none")
+	fs.Var(&o.env, "env", "extra server environment KEY=VALUE (repeatable), e.g. -env TALKWIRE_MODULES=none")
 	fs.StringVar(&o.additions, "additions", "", "check: fields the server may add, removed before comparing (strict = the strict protocol profile's)")
 	fs.BoolVar(&o.standalone, "standalone", false, "check: run the server without a host (friends, profiles and runtime config from the scenario); host calls are not compared")
 	out := fs.String("out", "../../contract/protocol/transcripts", "record: output directory")
@@ -78,7 +78,7 @@ func main() {
 	schemaDir := fs.String("schema", "../../contract/protocol/schema", "coverage: protocol schemas")
 	negative := fs.String("negative", "../schema/negative-cases.json", "coverage: steps that send invalid requests on purpose")
 	oracleBin := fs.String("oracle", "oracle/bin/im-oracle.exe", "schema: the reference server")
-	oracleDB := fs.String("oracle-db", "imkit_oracle", "schema: throwaway database for the reference server (must differ from -db)")
+	oracleDB := fs.String("oracle-db", "talkwire_oracle", "schema: throwaway database for the reference server (must differ from -db)")
 	_ = fs.Parse(os.Args[2:])
 
 	scenarios, err := harness.LoadScenarios(o.scenarios)
@@ -241,7 +241,7 @@ func runOne(o options, host fakehost.Control, sc *harness.Scenario) (*harness.Tr
 	// The golden transcripts are the reference server's, so the server under
 	// test runs the legacy profile unless -env names another (a later entry
 	// wins); the reference server ignores the variable.
-	cfg.Env = append(cfg.Env, "IMKIT_PROTOCOL_PROFILE=legacy")
+	cfg.Env = append(cfg.Env, "TALKWIRE_PROTOCOL_PROFILE=legacy")
 	cfg.Env = append(cfg.Env, o.env...)
 	if o.standalone {
 		path, err := writeStandaloneConfig(o.logDir, sc)
@@ -251,7 +251,7 @@ func runOne(o options, host fakehost.Control, sc *harness.Scenario) (*harness.Tr
 		// Nothing listens on port 1: a host call the server should not make
 		// fails loudly instead of being answered by the fake host.
 		cfg.HostURL = "http://127.0.0.1:1"
-		cfg.Env = append(cfg.Env, "IMKIT_HOST_MODE=standalone", "IMKIT_STANDALONE_CONFIG="+path)
+		cfg.Env = append(cfg.Env, "TALKWIRE_HOST_MODE=standalone", "TALKWIRE_STANDALONE_CONFIG="+path)
 	}
 	srv, err := harness.StartServer(cfg)
 	if err != nil {
@@ -424,7 +424,7 @@ func dropHostCalls(tr *harness.Transcript) {
 // The server's additions to the reference schema: whole tables, and columns
 // ("table.column") added to reference tables.
 var (
-	schemaAddedTables  = []string{"imkit_schema_migrations", "im_devices", "im_pending_acks"}
+	schemaAddedTables  = []string{"talkwire_schema_migrations", "im_devices", "im_pending_acks"}
 	schemaAddedColumns = []string{"im_fcm_tokens.provider", "im_fcm_tokens.device_id", "im_e2e_identities.owner_device"}
 )
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"example.com/imkit/tools/conformance/token"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/token"
 )
 
 // Control is what a scenario does to the host: script its answers and read

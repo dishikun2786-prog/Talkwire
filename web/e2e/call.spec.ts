@@ -10,7 +10,7 @@ import { closeDevices, device, openContact, user } from "./helpers.js";
 
 test.afterAll(closeDevices);
 
-const overlay = (page: Page) => page.locator(".imkit-call");
+const overlay = (page: Page) => page.locator(".talkwire-call");
 const status = (page: Page) => page.locator("[data-call-status]");
 
 test("call, answer, switch to video, hang up; then a declined call", async ({ browser }) => {
@@ -25,15 +25,15 @@ test("call, answer, switch to video, hang up; then a declined call", async ({ br
   // It rings in the callee's tab, with the caller's name from the host.
   await expect(overlay(b)).toHaveAttribute("data-call-phase", "incoming");
   await expect(status(b)).toHaveText("Incoming voice call");
-  await expect(overlay(b).locator(".imkit-call-name")).toHaveText(caller);
+  await expect(overlay(b).locator(".talkwire-call-name")).toHaveText(caller);
   await b.getByRole("button", { name: "Answer", exact: true }).click();
   for (const p of [a, b]) await expect(status(p)).toHaveText(/^\d+:\d\d$/);
-  await expect(overlay(a).locator(".imkit-call-name")).toHaveText(callee);
+  await expect(overlay(a).locator(".talkwire-call-name")).toHaveText(callee);
 
   await a.getByRole("button", { name: "Switch to video" }).click();
   await expect(overlay(b)).toContainText("They want to switch to video");
   await b.getByRole("button", { name: "Turn on video" }).click();
-  for (const p of [a, b]) await expect(overlay(p).locator(".imkit-call-videos")).toBeVisible();
+  for (const p of [a, b]) await expect(overlay(p).locator(".talkwire-call-videos")).toBeVisible();
 
   await a.getByRole("button", { name: "Hang up" }).click();
   await expect(status(b)).toHaveText("Call ended");

@@ -1,4 +1,4 @@
-module example.com/imkit/server
+module github.com/dishikun2786-prog/Talkwire/server
 
 go 1.26.4
 

@@ -23,7 +23,7 @@
  *   `grp_sync` marks stale; without a roster the role is "member" (C9).
  */
 
-import { conversationOf, isGroupTopic, isP2pTopic, uidOf } from "@imkit/protocol";
+import { conversationOf, isGroupTopic, isP2pTopic, uidOf } from "@talkwire/protocol";
 import { RequestRefused, type HistoryPage, type ImClient, type PublishFields, type PublishOutcome, type SyncTopic } from "./client.js";
 import type { ImEvent } from "./connection.js";
 import {

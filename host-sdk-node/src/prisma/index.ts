@@ -1,6 +1,6 @@
 // Prisma implementations of the storage interfaces, over the models in
-// prisma/imkit.prisma. Pass your generated PrismaClient; the stores only use
-// the imkit* models, $transaction and $executeRaw.
+// prisma/talkwire.prisma. Pass your generated PrismaClient; the stores only use
+// the talkwire* models, $transaction and $executeRaw.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
@@ -46,17 +46,17 @@ interface Delegate {
 }
 
 /** The part of a generated transaction client the stores use. */
-export interface ImkitPrismaTx {
-  imkitProfile: Delegate;
-  imkitContact: Delegate;
-  imkitAdminAudit: Delegate;
+export interface TalkwirePrismaTx {
+  talkwireProfile: Delegate;
+  talkwireContact: Delegate;
+  talkwireAdminAudit: Delegate;
   /** Only for PrismaCallRecordStore. */
-  imkitCallRecord?: Delegate;
+  talkwireCallRecord?: Delegate;
   $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
 }
 
 /** The part of a generated PrismaClient the stores use. */
-export interface ImkitPrisma extends ImkitPrismaTx {
+export interface TalkwirePrisma extends TalkwirePrismaTx {
   $transaction<T>(fn: (tx: Loose) => Promise<T>, options?: { timeout?: number; maxWait?: number }): Promise<T>;
 }
 
@@ -90,38 +90,38 @@ const toProfile = (r: ProfileRow): Profile => ({
 });
 
 export class PrismaProfileStore implements ProfileStore {
-  constructor(private readonly prisma: ImkitPrismaTx) {}
+  constructor(private readonly prisma: TalkwirePrismaTx) {}
 
   async get(userId: string) {
-    const row: ProfileRow | null = await this.prisma.imkitProfile.findUnique({ where: { userId } });
+    const row: ProfileRow | null = await this.prisma.talkwireProfile.findUnique({ where: { userId } });
     return row ? toProfile(row) : null;
   }
 
   async getMany(userIds: string[]) {
     if (userIds.length === 0) return [];
-    const rows: ProfileRow[] = await this.prisma.imkitProfile.findMany({ where: { userId: { in: userIds } } });
+    const rows: ProfileRow[] = await this.prisma.talkwireProfile.findMany({ where: { userId: { in: userIds } } });
     return rows.map(toProfile);
   }
 
   async findByHandle(handle: string) {
-    const row: ProfileRow | null = await this.prisma.imkitProfile.findUnique({ where: { handleKey: handle.toLowerCase() } });
+    const row: ProfileRow | null = await this.prisma.talkwireProfile.findUnique({ where: { handleKey: handle.toLowerCase() } });
     return row ? toProfile(row) : null;
   }
 
   async findByUid(uid: string) {
-    const row: ProfileRow | null = await this.prisma.imkitProfile.findUnique({ where: { uid } });
+    const row: ProfileRow | null = await this.prisma.talkwireProfile.findUnique({ where: { uid } });
     return row ? toProfile(row) : null;
   }
 
   async findManyByUid(uids: string[]) {
     if (uids.length === 0) return [];
-    const rows: ProfileRow[] = await this.prisma.imkitProfile.findMany({ where: { uid: { in: uids } } });
+    const rows: ProfileRow[] = await this.prisma.talkwireProfile.findMany({ where: { uid: { in: uids } } });
     return rows.map(toProfile);
   }
 
   async create(profile: NewProfile) {
     try {
-      const row: ProfileRow = await this.prisma.imkitProfile.create({
+      const row: ProfileRow = await this.prisma.talkwireProfile.create({
         data: {
           userId: profile.userId,
           uid: imUid(profile.userId),
@@ -142,7 +142,7 @@ export class PrismaProfileStore implements ProfileStore {
     const data: Record<string, unknown> = { ...patch };
     if (patch.handle !== undefined) data.handleKey = patch.handle.toLowerCase();
     try {
-      const row: ProfileRow = await this.prisma.imkitProfile.update({ where: { userId }, data });
+      const row: ProfileRow = await this.prisma.talkwireProfile.update({ where: { userId }, data });
       return toProfile(row);
     } catch (err) {
       if (patch.handle !== undefined && uniqueViolation(err) && (await this.handleOwner(patch.handle)) !== userId) {
@@ -200,29 +200,29 @@ export interface PrismaContactStoreOptions {
  * inside it use that transaction.
  */
 export class PrismaContactStore implements ContactStore {
-  private readonly tx = new AsyncLocalStorage<ImkitPrismaTx>();
+  private readonly tx = new AsyncLocalStorage<TalkwirePrismaTx>();
   private readonly timeout: number;
 
   constructor(
-    private readonly prisma: ImkitPrisma,
+    private readonly prisma: TalkwirePrisma,
     options: PrismaContactStoreOptions = {},
   ) {
     this.timeout = options.transactionTimeoutMs ?? 10_000;
   }
 
-  private db(): ImkitPrismaTx {
+  private db(): TalkwirePrismaTx {
     return this.tx.getStore() ?? this.prisma;
   }
 
   async get(id: string) {
     // The column is a uuid: anything else cannot exist, and Postgres would reject it.
     if (!UUID.test(id)) return null;
-    const row: ContactRow | null = await this.db().imkitContact.findUnique({ where: { id } });
+    const row: ContactRow | null = await this.db().talkwireContact.findUnique({ where: { id } });
     return row ? toContact(row) : null;
   }
 
   async findPair(a: string, b: string) {
-    const row: ContactRow | null = await this.db().imkitContact.findUnique({ where: { pairKey: pairKeyOf(a, b) } });
+    const row: ContactRow | null = await this.db().talkwireContact.findUnique({ where: { pairKey: pairKeyOf(a, b) } });
     return row ? toContact(row) : null;
   }
 
@@ -236,7 +236,7 @@ export class PrismaContactStore implements ContactStore {
     const updatedAt: Record<string, Date> = {};
     if (query.updatedAfter) updatedAt.gt = query.updatedAfter;
     if (query.updatedUntil) updatedAt.lte = query.updatedUntil;
-    const rows: ContactRow[] = await this.db().imkitContact.findMany({
+    const rows: ContactRow[] = await this.db().talkwireContact.findMany({
       where: { status: query.status, ...side, ...(Object.keys(updatedAt).length ? { updatedAt } : {}) },
       orderBy: { updatedAt: "desc" },
     });
@@ -245,7 +245,7 @@ export class PrismaContactStore implements ContactStore {
 
   async create(contact: NewContact) {
     try {
-      const row: ContactRow = await this.db().imkitContact.create({
+      const row: ContactRow = await this.db().talkwireContact.create({
         data: { ...contact, pairKey: pairKeyOf(contact.requesterId, contact.recipientId) },
       });
       return toContact(row);
@@ -262,20 +262,20 @@ export class PrismaContactStore implements ContactStore {
   async update(id: string, patch: ContactPatch) {
     const data: Record<string, unknown> = { ...patch };
     if (patch.status !== undefined && patch.status !== "blocked") data.blockedBy = null;
-    const row: ContactRow = await this.db().imkitContact.update({ where: { id }, data });
+    const row: ContactRow = await this.db().talkwireContact.update({ where: { id }, data });
     return toContact(row);
   }
 
   async delete(id: string) {
     if (!UUID.test(id)) return;
-    await this.db().imkitContact.deleteMany({ where: { id } });
+    await this.db().talkwireContact.deleteMany({ where: { id } });
   }
 
   withPair<T>(a: string, b: string, fn: () => Promise<T>): Promise<T> {
     if (this.tx.getStore()) return fn();
     const key = pairKeyOf(a, b);
     return this.prisma.$transaction(
-      async (tx: ImkitPrismaTx) => {
+      async (tx: TalkwirePrismaTx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
         return this.tx.run(tx, fn);
       },
@@ -313,11 +313,11 @@ const toAudit = (r: AuditRow): AuditEntry => ({
 });
 
 export class PrismaAuditStore implements AuditStore {
-  constructor(private readonly prisma: ImkitPrismaTx) {}
+  constructor(private readonly prisma: TalkwirePrismaTx) {}
 
   async create(entry: NewAuditEntry) {
     try {
-      const row: AuditRow = await this.prisma.imkitAdminAudit.create({
+      const row: AuditRow = await this.prisma.talkwireAdminAudit.create({
         data: {
           adminId: entry.adminId,
           action: entry.action,
@@ -339,7 +339,7 @@ export class PrismaAuditStore implements AuditStore {
   }
 
   async finish(id: string, status: "success" | "failed", details: Record<string, unknown> | null) {
-    const row: AuditRow = await this.prisma.imkitAdminAudit.update({
+    const row: AuditRow = await this.prisma.talkwireAdminAudit.update({
       where: { id },
       data: { status, completedAt: new Date(), ...(details ? { details } : {}) },
     });
@@ -348,12 +348,12 @@ export class PrismaAuditStore implements AuditStore {
 
   async get(id: string) {
     if (!UUID.test(id)) return null;
-    const row: AuditRow | null = await this.prisma.imkitAdminAudit.findUnique({ where: { id } });
+    const row: AuditRow | null = await this.prisma.talkwireAdminAudit.findUnique({ where: { id } });
     return row ? toAudit(row) : null;
   }
 
   async findByIdempotencyKey(key: string) {
-    const row: AuditRow | null = await this.prisma.imkitAdminAudit.findUnique({ where: { idempotencyKey: key } });
+    const row: AuditRow | null = await this.prisma.talkwireAdminAudit.findUnique({ where: { idempotencyKey: key } });
     return row ? toAudit(row) : null;
   }
 }
@@ -395,9 +395,9 @@ const toCall = (r: CallRow): CallRecord => ({
 export class PrismaCallRecordStore implements CallRecordStore {
   private readonly rows: Delegate;
 
-  constructor(prisma: ImkitPrismaTx) {
-    if (!prisma.imkitCallRecord) throw new Error("the Prisma client has no ImkitCallRecord model: copy it from prisma/imkit.prisma");
-    this.rows = prisma.imkitCallRecord;
+  constructor(prisma: TalkwirePrismaTx) {
+    if (!prisma.talkwireCallRecord) throw new Error("the Prisma client has no TalkwireCallRecord model: copy it from prisma/talkwire.prisma");
+    this.rows = prisma.talkwireCallRecord;
   }
 
   async create(call: NewCallRecord, at = new Date()) {
@@ -467,13 +467,13 @@ export class PrismaCallRecordStore implements CallRecordStore {
 
 /**
  * The stores over one client: the three every host needs, plus call records
- * when the client has the ImkitCallRecord model.
+ * when the client has the TalkwireCallRecord model.
  */
-export function prismaStores(prisma: ImkitPrisma, options: PrismaContactStoreOptions = {}) {
+export function prismaStores(prisma: TalkwirePrisma, options: PrismaContactStoreOptions = {}) {
   return {
     profiles: new PrismaProfileStore(prisma),
     contacts: new PrismaContactStore(prisma, options),
     audit: new PrismaAuditStore(prisma),
-    calls: prisma.imkitCallRecord ? new PrismaCallRecordStore(prisma) : undefined,
+    calls: prisma.talkwireCallRecord ? new PrismaCallRecordStore(prisma) : undefined,
   };
 }

@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/call",
+  "name": "@talkwire/call",
   "version": "0.1.0",
-  "description": "Voice and video calls for ImKit on the web: call signaling (protocol section 16), a call manager over a pluggable RTC adapter, and optional React components",
+  "description": "Voice and video calls for Talkwire on the web: call signaling (protocol section 16), a call manager over a pluggable RTC adapter, and optional React components",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,14 +21,14 @@
   ],
   "sideEffects": false,
   "dependencies": {
-    "@imkit/client": "0.1.0"
+    "@talkwire/client": "0.1.0"
   },
   "peerDependencies": {
-    "@imkit/react": "0.1.0",
+    "@talkwire/react": "0.1.0",
     "react": ">=18.2 <20"
   },
   "peerDependenciesMeta": {
-    "@imkit/react": {
+    "@talkwire/react": {
       "optional": true
     },
     "react": {

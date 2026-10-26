@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"example.com/imkit/server/host"
-	"example.com/imkit/server/migrate"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/migrate"
 )
 
 // CodeNotEnabled answers an action of a module that is not installed.
@@ -110,7 +110,7 @@ var allModules = []moduleDef{
 	}},
 }
 
-// moduleNames are the names IMKIT_MODULES accepts.
+// moduleNames are the names TALKWIRE_MODULES accepts.
 func moduleNames() []string {
 	names := make([]string, len(allModules))
 	for i, d := range allModules {

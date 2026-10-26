@@ -10,7 +10,7 @@ package main
 import (
 	"database/sql"
 
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 // GetPushTokensBatch resolves push tokens for many uids in one round trip.

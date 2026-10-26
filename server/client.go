@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -52,7 +51,7 @@ var (
 // input rather than aborting startup is deliberate for tuning knobs: a typo
 // in an optional timeout override should not take the IM service down.
 func envDuration(name string, def time.Duration) time.Duration {
-	v := os.Getenv(name)
+	v := getenv(name)
 	if v == "" {
 		return def
 	}

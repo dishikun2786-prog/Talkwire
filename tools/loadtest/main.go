@@ -1,4 +1,4 @@
-// Command loadtest drives an ImKit server with many users at once (plan 9.3):
+// Command loadtest drives an Talkwire server with many users at once (plan 9.3):
 // they connect and log in, form chat pairs and groups, then send messages at
 // a steady rate for a while. It measures how long logging in, the pub ack and
 // delivery to the other members take, and counts what was lost.

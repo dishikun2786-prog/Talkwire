@@ -63,7 +63,7 @@ func Render(m *Matrix, written Written) []byte {
 
 	w("图例：\n\n")
 	w("- 参照服务：小桃子原版服务（源提交 33e23250）在黄金对话里的表现。“违反”的红线在 legacy 档按原样录、在 strict 档由计划用例修正；“未观测”是黄金对话录不到，只能靠计划用例。\n")
-	w("- 已录用例：已经录成黄金对话的场景与步号，ImKit 服务端用一致性测试台逐帧比对，三端 SDK 用回放服务器重放。\n")
+	w("- 已录用例：已经录成黄金对话的场景与步号，Talkwire 服务端用一致性测试台逐帧比对，三端 SDK 用回放服务器重放。\n")
 	w("- 计划用例：自动化用例，标明计划任务号与平台，用例名带红线编号；并发压力用例重复 100 轮并开竞态检测，单次通过不算数。服务端、宿主、Android 与 Web 已经写好的标“已写”：`redlines check` 扫描 `server/` 下的 Go 测试函数、`host-sdk-node/` 的 node:test 用例、`android/` 各模块 `src/test` 下的 Kotlin 测试函数和 `web/` 下的 Vitest 与 Playwright 用例（`*.test.ts(x)`、`*.spec.ts` 里的 `it(…)`、`test(…)`）得出；按红线命名（服务端 `TestR<n>_…`，宿主 `R<n>_…`，Android 与 Web `R<n>_…` 或 `C<n>_…`）却不在本表里的测试会被报出来。iOS 还没有代码，不扫描。\n\n")
 
 	w("## 总表\n\n")

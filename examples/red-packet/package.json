@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/example-red-packet",
+  "name": "@talkwire/example-red-packet",
   "private": true,
-  "description": "A host-owned message type (a red packet card) on top of ImKit, using @imkit/host-node",
+  "description": "A host-owned message type (a red packet card) on top of Talkwire, using @talkwire/host-node",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@imkit/host-node": "file:../../host-sdk-node",
+    "@talkwire/host-node": "file:../../host-sdk-node",
     "fastify": "4.29.1"
   },
   "devDependencies": {

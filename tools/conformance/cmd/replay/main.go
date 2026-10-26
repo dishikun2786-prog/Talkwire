@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"example.com/imkit/tools/conformance/harness"
-	"example.com/imkit/tools/conformance/replay"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/replay"
 )
 
 func main() {

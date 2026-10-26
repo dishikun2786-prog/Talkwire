@@ -39,23 +39,23 @@ func TestFromFSRejects(t *testing.T) {
 	}
 }
 
-// testDB opens a fresh schema in the database named by IMKIT_TEST_DSN.
+// testDB opens a fresh schema in the database named by TALKWIRE_TEST_DSN.
 func testDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("IMKIT_TEST_DSN")
+	dsn := os.Getenv("TALKWIRE_TEST_DSN")
 	if dsn == "" {
-		t.Skip("set IMKIT_TEST_DSN to a throwaway PostgreSQL database to run the database tests")
+		t.Skip("set TALKWIRE_TEST_DSN to a throwaway PostgreSQL database to run the database tests")
 	}
 	admin, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { admin.Close() })
-	if _, err := admin.Exec(`DROP SCHEMA IF EXISTS imkit_migrate_test CASCADE; CREATE SCHEMA imkit_migrate_test`); err != nil {
+	if _, err := admin.Exec(`DROP SCHEMA IF EXISTS talkwire_migrate_test CASCADE; CREATE SCHEMA talkwire_migrate_test`); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { admin.Exec(`DROP SCHEMA IF EXISTS imkit_migrate_test CASCADE`) })
-	db, err := sql.Open("postgres", dsn+" search_path=imkit_migrate_test")
+	t.Cleanup(func() { admin.Exec(`DROP SCHEMA IF EXISTS talkwire_migrate_test CASCADE`) })
+	db, err := sql.Open("postgres", dsn+" search_path=talkwire_migrate_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +91,35 @@ func TestApplyOnceAndInOrder(t *testing.T) {
 	}
 }
 
+// A database migrated before the project was renamed from ImKit keeps its
+// record of applied migrations: nothing runs twice.
+func TestApplyTakesOverBookkeepingFromBeforeRename(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	s := set(`CREATE TABLE a (x INT)`, `ALTER TABLE a ADD COLUMN y INT`)
+	if _, err := db.Exec(`CREATE TABLE a (x INT);
+		CREATE TABLE imkit_schema_migrations (
+			module VARCHAR(64) NOT NULL, version INT NOT NULL, name VARCHAR(255) NOT NULL,
+			checksum CHAR(64) NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (module, version))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO imkit_schema_migrations (module, version, name, checksum) VALUES ('t', 1, 'm', $1)`, checksum(s.Migrations[0].SQL)); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := Apply(ctx, db, s)
+	if err != nil || len(applied) != 1 || applied[0] != "t/0002_m" {
+		t.Fatalf("only the migration the old table lacks should run: %v %v", applied, err)
+	}
+	var old, renamed, pkey sql.NullString
+	if err := db.QueryRow(`SELECT to_regclass('imkit_schema_migrations')::text, to_regclass('talkwire_schema_migrations')::text, to_regclass('talkwire_schema_migrations_pkey')::text`).Scan(&old, &renamed, &pkey); err != nil {
+		t.Fatal(err)
+	}
+	if old.Valid || !renamed.Valid || !pkey.Valid {
+		t.Fatalf("old table %v, new table %v, new primary key %v", old, renamed, pkey)
+	}
+}
+
 func TestApplyRefusesChangedMigration(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
@@ -123,7 +152,7 @@ func TestFailedMigrationLeavesNoTrace(t *testing.T) {
 		t.Fatal("failing migration reported success")
 	}
 	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM imkit_schema_migrations`).Scan(&n); err != nil || n != 0 {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM talkwire_schema_migrations`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("recorded a failed migration: n=%d err=%v", n, err)
 	}
 	if err := db.QueryRow(`SELECT COUNT(*) FROM a`).Scan(&n); err == nil {

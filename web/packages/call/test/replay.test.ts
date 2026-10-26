@@ -6,8 +6,8 @@
  * hang-up after the end) go through its signaling directly.
  */
 
-import { ImClient } from "@imkit/client";
-import { CallManager, NoMediaEngine, type CallState } from "@imkit/call";
+import { ImClient } from "@talkwire/client";
+import { CallManager, NoMediaEngine, type CallState } from "@talkwire/call";
 import { afterEach, describe, expect, it } from "vitest";
 import { RecordingTransport, bindings, replayBuilt, replaying, until, type Replay } from "../../client/test/replay.js";
 

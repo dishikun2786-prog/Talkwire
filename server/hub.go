@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"example.com/imkit/server/host"
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 // hostAPI is what the core asks of the host. Modules hold the host

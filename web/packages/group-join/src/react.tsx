@@ -1,12 +1,12 @@
 /**
  * React components for scan-to-join: a group's QR card, the page a scanned
  * or opened link leads to, the managers' request list and the approval
- * switch. They need an `<ImKitProvider>` above a `<GroupJoinProvider>`, and
+ * switch. They need an `<TalkwireProvider>` above a `<GroupJoinProvider>`, and
  * use the kit's CSS variables.
  */
 
-import { RequestRefused } from "@imkit/client";
-import { useImKit } from "@imkit/react";
+import { RequestRefused } from "@talkwire/client";
+import { useTalkwire } from "@talkwire/react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { GroupJoinClient, JOIN_MESSAGE_MAX, afterJoined, type GroupJoinEvent, type JoinRequest, type QrPreview, type QrToken } from "./index.js";
 
@@ -151,23 +151,23 @@ export function groupJoinNotice(ev: GroupJoinEvent, strings: GroupJoinStrings, n
 }
 
 export const groupJoinCss = `
-.imkit-gj { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--imkit-surface); border-radius: var(--imkit-radius); }
-.imkit-gj h2 { margin: 0; font-size: 17px; }
-.imkit-gj-muted { color: var(--imkit-text-muted); font-size: 13px; margin: 0; }
-.imkit-gj-error { color: var(--imkit-danger); font-size: 13px; margin: 0; }
-.imkit-gj-link { word-break: break-all; font-family: ui-monospace, monospace; font-size: 12px; padding: 8px; border: 1px solid var(--imkit-border); border-radius: 8px; }
-.imkit-gj-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.imkit-gj-request { display: flex; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--imkit-border); }
-.imkit-gj-request > div { flex: 1; min-width: 0; }
-.imkit-gj-request p { margin: 2px 0 0; color: var(--imkit-text-muted); font-size: 13px; overflow-wrap: anywhere; }
-.imkit-gj-secondary { border: 1px solid var(--imkit-border); border-radius: 18px; padding: 7px 14px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.imkit-gj-secondary:disabled { opacity: .5; cursor: default; }
-.imkit-gj textarea { resize: vertical; min-height: 64px; border: 1px solid var(--imkit-border); border-radius: 10px; padding: 8px 10px; font: inherit; background: var(--imkit-bg); color: inherit; }
+.talkwire-gj { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--talkwire-surface); border-radius: var(--talkwire-radius); }
+.talkwire-gj h2 { margin: 0; font-size: 17px; }
+.talkwire-gj-muted { color: var(--talkwire-text-muted); font-size: 13px; margin: 0; }
+.talkwire-gj-error { color: var(--talkwire-danger); font-size: 13px; margin: 0; }
+.talkwire-gj-link { word-break: break-all; font-family: ui-monospace, monospace; font-size: 12px; padding: 8px; border: 1px solid var(--talkwire-border); border-radius: 8px; }
+.talkwire-gj-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.talkwire-gj-request { display: flex; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--talkwire-border); }
+.talkwire-gj-request > div { flex: 1; min-width: 0; }
+.talkwire-gj-request p { margin: 2px 0 0; color: var(--talkwire-text-muted); font-size: 13px; overflow-wrap: anywhere; }
+.talkwire-gj-secondary { border: 1px solid var(--talkwire-border); border-radius: 18px; padding: 7px 14px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.talkwire-gj-secondary:disabled { opacity: .5; cursor: default; }
+.talkwire-gj textarea { resize: vertical; min-height: 64px; border: 1px solid var(--talkwire-border); border-radius: 10px; padding: 8px 10px; font: inherit; background: var(--talkwire-bg); color: inherit; }
 `;
 
-/** Puts the module's stylesheet in the page once (next to `<ImKitStyles>`). */
+/** Puts the module's stylesheet in the page once (next to `<TalkwireStyles>`). */
 export function GroupJoinStyles() {
-  return <style data-imkit-group-join="">{groupJoinCss}</style>;
+  return <style data-talkwire-group-join="">{groupJoinCss}</style>;
 }
 
 // ------------------------------------------------------------------ context
@@ -185,9 +185,9 @@ export interface GroupJoinProviderProps {
   children: ReactNode;
 }
 
-/** Makes the module available below; one per `<ImKitProvider>`. */
+/** Makes the module available below; one per `<TalkwireProvider>`. */
 export function GroupJoinProvider({ strings, children }: GroupJoinProviderProps) {
-  const { engine, locale } = useImKit();
+  const { engine, locale } = useTalkwire();
   const api = useMemo(() => new GroupJoinClient(engine.client), [engine]);
   // Start in the effect, not only in the constructor: StrictMode runs the
   // cleanup once before mounting again, and the listening must survive it.
@@ -228,7 +228,7 @@ export interface GroupQrCardProps {
 /** A group's current QR code and link, for members to share. */
 export function GroupQrCard({ topic, canRefresh, linkFor = (t) => t, renderQr }: GroupQrCardProps) {
   const { api, strings } = useGroupJoin();
-  const { locale } = useImKit();
+  const { locale } = useTalkwire();
   const [token, setToken] = useState<QrToken | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -264,23 +264,23 @@ export function GroupQrCard({ topic, canRefresh, linkFor = (t) => t, renderQr }:
   };
 
   return (
-    <section className="imkit-gj" aria-label={strings.qrTitle}>
+    <section className="talkwire-gj" aria-label={strings.qrTitle}>
       <h2>{strings.qrTitle}</h2>
-      {error && <p className="imkit-gj-error">{error}</p>}
-      {!token && !error && <p className="imkit-gj-muted">{strings.loading}</p>}
+      {error && <p className="talkwire-gj-error">{error}</p>}
+      {!token && !error && <p className="talkwire-gj-muted">{strings.loading}</p>}
       {token && (
         <>
           {renderQr ? renderQr(link) : null}
-          <div className="imkit-gj-link" data-qr-link="">
+          <div className="talkwire-gj-link" data-qr-link="">
             {link}
           </div>
-          <p className="imkit-gj-muted">{fill(strings.qrExpires, new Date(token.expiresAt).toLocaleString(locale))}</p>
-          <div className="imkit-gj-row">
-            <button type="button" className="imkit-send" onClick={() => void copy()}>
+          <p className="talkwire-gj-muted">{fill(strings.qrExpires, new Date(token.expiresAt).toLocaleString(locale))}</p>
+          <div className="talkwire-gj-row">
+            <button type="button" className="talkwire-send" onClick={() => void copy()}>
               {copied ? strings.copied : strings.copyLink}
             </button>
             {canRefresh && (
-              <button type="button" className="imkit-gj-secondary" disabled={busy} onClick={() => window.confirm(strings.qrRefreshConfirm) && void load(true)}>
+              <button type="button" className="talkwire-gj-secondary" disabled={busy} onClick={() => window.confirm(strings.qrRefreshConfirm) && void load(true)}>
                 {strings.qrRefresh}
               </button>
             )}
@@ -315,7 +315,7 @@ type JoinPhase =
 /** Where a scanned or opened link leads: the group, then joining or asking to join. */
 export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
   const { api, strings } = useGroupJoin();
-  const { engine } = useImKit();
+  const { engine } = useTalkwire();
   const [phase, setPhase] = useState<JoinPhase>({ kind: "loading" });
   const [message, setMessage] = useState("");
 
@@ -365,41 +365,41 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
 
   if (phase.kind === "loading") {
     return (
-      <section className="imkit-gj">
-        <p className="imkit-gj-muted">{strings.loading}</p>
+      <section className="talkwire-gj">
+        <p className="talkwire-gj-muted">{strings.loading}</p>
       </section>
     );
   }
   if (phase.kind === "invalid") {
     return (
-      <section className="imkit-gj">
-        <p className="imkit-gj-error">{strings.invalidCode}</p>
+      <section className="talkwire-gj">
+        <p className="talkwire-gj-error">{strings.invalidCode}</p>
       </section>
     );
   }
   const { preview } = phase;
   return (
-    <section className="imkit-gj" aria-label={preview.name}>
+    <section className="talkwire-gj" aria-label={preview.name}>
       <h2>{preview.name}</h2>
-      <p className="imkit-gj-muted">{fill(strings.memberCount, preview.memberCount)}</p>
+      <p className="talkwire-gj-muted">{fill(strings.memberCount, preview.memberCount)}</p>
       {phase.kind === "member" && (
         <>
           <p>{phase.note ?? strings.alreadyMember}</p>
           {onOpen && (
-            <button type="button" className="imkit-send" onClick={() => onOpen(preview.topic)}>
+            <button type="button" className="talkwire-send" onClick={() => onOpen(preview.topic)}>
               {strings.openChat}
             </button>
           )}
         </>
       )}
       {phase.kind === "pending" && <p>{strings.pending}</p>}
-      {phase.kind === "rejected" && <p className="imkit-gj-error">{fill(strings.rejectedNotice, preview.name)}</p>}
+      {phase.kind === "rejected" && <p className="talkwire-gj-error">{fill(strings.rejectedNotice, preview.name)}</p>}
       {(phase.kind === "preview" || phase.kind === "joining") && (
         <>
-          {preview.isFull && <p className="imkit-gj-error">{strings.groupFull}</p>}
+          {preview.isFull && <p className="talkwire-gj-error">{strings.groupFull}</p>}
           {preview.requireApproval && !preview.isFull && (
             <>
-              <p className="imkit-gj-muted">{strings.needsApproval}</p>
+              <p className="talkwire-gj-muted">{strings.needsApproval}</p>
               <textarea
                 aria-label={strings.joinMessage}
                 placeholder={strings.joinMessage}
@@ -408,9 +408,9 @@ export function JoinGroupScreen({ qrToken, onOpen }: JoinGroupScreenProps) {
               />
             </>
           )}
-          {phase.kind === "preview" && phase.error && !preview.isFull && <p className="imkit-gj-error">{phase.error}</p>}
+          {phase.kind === "preview" && phase.error && !preview.isFull && <p className="talkwire-gj-error">{phase.error}</p>}
           {!preview.isFull && (
-            <button type="button" className="imkit-send" disabled={phase.kind === "joining"} onClick={() => void join(preview)}>
+            <button type="button" className="talkwire-send" disabled={phase.kind === "joining"} onClick={() => void join(preview)}>
               {preview.requireApproval ? strings.askToJoin : strings.join}
             </button>
           )}
@@ -431,7 +431,7 @@ export interface JoinRequestsPanelProps {
 /** A group's pending join requests, with approve and decline. Managers only. */
 export function JoinRequestsPanel({ topic, nameOf = (r) => r.requesterName }: JoinRequestsPanelProps) {
   const { api, strings } = useGroupJoin();
-  const { engine } = useImKit();
+  const { engine } = useTalkwire();
   const [requests, setRequests] = useState<JoinRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
@@ -485,21 +485,21 @@ export function JoinRequestsPanel({ topic, nameOf = (r) => r.requesterName }: Jo
   };
 
   return (
-    <section className="imkit-gj" aria-label={strings.requestsTitle}>
+    <section className="talkwire-gj" aria-label={strings.requestsTitle}>
       <h2>{strings.requestsTitle}</h2>
-      {error && <p className="imkit-gj-error">{error}</p>}
-      {requests === null && !error && <p className="imkit-gj-muted">{strings.loading}</p>}
-      {requests?.length === 0 && <p className="imkit-gj-muted">{strings.noRequests}</p>}
+      {error && <p className="talkwire-gj-error">{error}</p>}
+      {requests === null && !error && <p className="talkwire-gj-muted">{strings.loading}</p>}
+      {requests?.length === 0 && <p className="talkwire-gj-muted">{strings.noRequests}</p>}
       {requests?.map((r) => (
-        <div key={r.id} className="imkit-gj-request" data-join-request={r.id}>
+        <div key={r.id} className="talkwire-gj-request" data-join-request={r.id}>
           <div>
             <strong>{nameOf(r)}</strong>
             {r.message && <p>{r.message}</p>}
           </div>
-          <button type="button" className="imkit-gj-secondary" disabled={busy === r.id} onClick={() => void review(r, false)}>
+          <button type="button" className="talkwire-gj-secondary" disabled={busy === r.id} onClick={() => void review(r, false)}>
             {strings.reject}
           </button>
-          <button type="button" className="imkit-send" disabled={busy === r.id} onClick={() => void review(r, true)}>
+          <button type="button" className="talkwire-send" disabled={busy === r.id} onClick={() => void review(r, true)}>
             {strings.approve}
           </button>
         </div>
@@ -544,12 +544,12 @@ export function JoinApprovalSetting({ topic, editable }: JoinApprovalSettingProp
   };
 
   return (
-    <div className="imkit-gj-row">
-      <label className="imkit-gj-row">
+    <div className="talkwire-gj-row">
+      <label className="talkwire-gj-row">
         <input type="checkbox" checked={on ?? false} disabled={!editable || on === null} onChange={(e) => void toggle(e.target.checked)} />
         {strings.requireApproval}
       </label>
-      {error && <p className="imkit-gj-error">{error}</p>}
+      {error && <p className="talkwire-gj-error">{error}</p>}
     </div>
   );
 }

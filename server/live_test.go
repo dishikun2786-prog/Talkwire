@@ -11,18 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"example.com/imkit/server/host"
-	"example.com/imkit/server/host/hmacjwt"
-	"example.com/imkit/server/host/standalone"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host/hmacjwt"
+	"github.com/dishikun2786-prog/Talkwire/server/host/standalone"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
 
 // The concurrency tests run the real hub, store and WebSocket handler
 // in-process and talk to them over loopback WebSockets, the way a client
-// does. Like the other database tests they need IMKIT_TEST_DSN.
+// does. Like the other database tests they need TALKWIRE_TEST_DSN.
 
-const liveSecret = "imkit-live-test-secret"
+const liveSecret = "talkwire-live-test-secret"
 
 // frame is one decoded server frame.
 type frame map[string]any

@@ -5,8 +5,8 @@
 ## 2026-10-25 · M2（Phase 4.5）
 
 **设备**：Xiaomi 2203121C，Android 15（HyperOS），USB 连接电脑。
-**装的是**：`sample-app` 的 debug 包（包名 `io.imkit.sample`，与手机上其他 App 互不影响）。
-**对端**：电脑上的 `examples/sample-host` 与 `imkit-server`（宿主模式，strict 档，测试库），手机经 `adb reverse` 访问 6001、6062。另一方用户 bo 由电脑上的一个小脚本扮演：经 `/dev/login` 登录，直接连 IM 服务端收发，并用宿主接口领红包。
+**装的是**：`sample-app` 的 debug 包（包名 `io.talkwire.sample`，与手机上其他 App 互不影响）。
+**对端**：电脑上的 `examples/sample-host` 与 `talkwire-server`（宿主模式，strict 档，测试库），手机经 `adb reverse` 访问 6001、6062。另一方用户 bo 由电脑上的一个小脚本扮演：经 `/dev/login` 登录，直接连 IM 服务端收发，并用宿主接口领红包。
 
 判断依据是界面层级（`uiautomator dump`）、截图、对端实际收到的帧、宿主日志和系统的通知与音频记录；不是只看“没报错”。
 
@@ -19,7 +19,7 @@
 | 输入中、在线状态 | 通过 | 对端先收到 `kp`；标题栏随对端连接显示「在线」 |
 | 已读（双向） | 通过 | 消息在打开的会话里到达，手机立即回 `read`；对端回 `read` 后手机气泡变「已读」 |
 | 前台横幅与提示音（C6 的提示音部分） | 通过 | 停在会话列表时到达新消息，顶部出现横幅；系统记录本 App 以通知音流（stream 5）起了一次 AudioTrack（22.05 kHz 单声道，即自带的 wav） |
-| 后台通知（C6） | 通过 | 退到桌面后到达新消息：通知走 `imkit_messages` 渠道，`sound=null`（渠道静音），重要性 HIGH，锁屏只显示概要；声音同样由 App 自己播出 |
+| 后台通知（C6） | 通过 | 退到桌面后到达新消息：通知走 `talkwire_messages` 渠道，`sound=null`（渠道静音），重要性 HIGH，锁屏只显示概要；声音同样由 App 自己播出 |
 | 点通知进会话 | 通过 | 点开后直接进入对应单聊，通知随之清除 |
 | 按住说话（C8 真机） | 通过 | 第一次按下弹出系统麦克风授权；授权后按住约 3 秒，对端收到 `audio/mp4`、时长 3 秒、宿主媒体地址；下载回来是合法的 MP4（`ftypmp42`，31.6 KB） |
 | 上滑取消（C8 真机） | 通过 | 按住后上滑超过阈值再松开，不发送；录音浮层显示红色「松开手指，取消发送」 |
@@ -54,7 +54,7 @@
 ## 2026-10-26 · 与网页示例互通（Phase 7 收尾）
 
 **设备**：同一台 Xiaomi 2203121C（Android 15），装 `sample-app` debug 包（含会话列表搜索、通话铃声、撤回留痕）。
-**对端**：电脑上的 `examples/sample-host`、`imkit-server`（strict 档）与网页示例（`npm run sample`，Edge 内核），手机经 `adb reverse` 访问 6001、6062、5173。手机用户 ph7，网页用户 web7。
+**对端**：电脑上的 `examples/sample-host`、`talkwire-server`（strict 档）与网页示例（`npm run sample`，Edge 内核），手机经 `adb reverse` 访问 6001、6062、5173。手机用户 ph7，网页用户 web7。
 **判断依据**：手机的界面层级（`uiautomator dump`）与截图、网页的页面内容、IM 服务端与宿主日志；铃声看系统的音频播放记录（`dumpsys audio` 的播放器、`dumpsys media.audio_flinger` 的音轨与厂商的音轨数据统计）和振动器状态，**没有人耳去听**。
 
 ### 已验证
@@ -74,7 +74,7 @@
 | 手机打给网页：回铃音 | 通过 | 手机显示“正在呼叫…”；示例 App 有一条活动音轨，音轨数据统计为每 5 秒里 1 秒有声（峰值约 14690）、4 秒静音，与 425 Hz“响 1 秒停 4 秒”的节奏一致 |
 | 回铃音随结束而停 | 通过 | 网页拒接（服务端记“rejected”）与无人接听（45 秒后服务端“ring timeout”）两种结束，手机的活动音轨都随即消失 |
 | 网页来电与无人接听 | 通过 | 网页弹出来电界面，45 秒后显示“无人接听”，3 秒后收起 |
-| 扫码入群（无需审批） | 通过 | 网页建群并移出 ph7，在手机上打开 `imkitsample://join/<令牌>`：显示群名与“加入群聊”，点后提示“你已在群里”、进入群聊；服务端记“joined via QR (no approval required)”；手机发的消息网页收到 |
+| 扫码入群（无需审批） | 通过 | 网页建群并移出 ph7，在手机上打开 `talkwiresample://join/<令牌>`：显示群名与“加入群聊”，点后提示“你已在群里”、进入群聊；服务端记“joined via QR (no approval required)”；手机发的消息网页收到 |
 | 扫码入群（需审批） | 通过 | 网页打开“需管理员同意”后再移出 ph7；手机打开同一链接显示“需要群管理员同意才能加入”，带留言申请；网页的入群申请里出现 ph7 与留言，点同意后 ph7 回到群里，手机发的消息网页收到 |
 
 ### 发现的问题
@@ -82,7 +82,7 @@
 1. **网页有一次没有响铃（未复现，已加记录）**：网页挂断与手机的通话后约 20 秒，手机回拨，网页没有出现来电界面，服务端 45 秒后按无人接听结束；期间网页连接没有断、控制台没有报错。之后按同样顺序又试了三次，都正常响铃，**没能复现，原因不明**。网页的 `CallManager` 只在“本标签页正在通话”或“本账号别的标签页在通话中”（这个记录 90 秒过期，时间上对得上）时静默丢弃来电，但没找到谁会发出那条“忙”的消息。
    现在两端都留了能定位原因的记录，再遇到时按顺序看：
    - **服务端**：IM 服务端的邀请日志带上了这次振铃推给了哪些设备，例如 `[call] uid_A invited uid_B (session=… type=voice rung=["web-bfdf99d0"])`。`rung=[]` 说明服务端那一刻认为对方没有连接；有设备号就说明推送已经发出。
-   - **网页**：`CallManager.trace()` 保留最近 100 条记录（连接断开与恢复、收到的每个推送、来电被丢弃的原因如 `busy here (active)`、`busy in another tab (<通话 id>)`、`stopped`，标签页之间的消息，状态变化），只有通话 id 与阶段。网页示例在开发模式下把每条以 `console.debug("[imkit-call]", …)` 打到控制台，并在 `window` 上挂了 `imkitCallTrace()`，在控制台执行即可看到表格。
+   - **网页**：`CallManager.trace()` 保留最近 100 条记录（连接断开与恢复、收到的每个推送、来电被丢弃的原因如 `busy here (active)`、`busy in another tab (<通话 id>)`、`stopped`，标签页之间的消息，状态变化），只有通话 id 与阶段。网页示例在开发模式下把每条以 `console.debug("[talkwire-call]", …)` 打到控制台，并在 `window` 上挂了 `talkwireCallTrace()`，在控制台执行即可看到表格。
    - 判断：服务端有设备号、网页没有对应的 `signal … ring` → 推送在路上丢了（看同一时刻有没有 `connection lost`）；有 `signal` 也有 `drop` → 看 `drop` 的原因；有 `signal` 和 `state … incoming` → 状态对了，问题在界面或铃声。
 2. **网页同意入群申请后，会话信息页的成员数不刷新（已修）**：服务端同意申请后只通知申请人（F45），同意的一方没有任何推送。`JoinRequestsPanel` 同意后调新增的 `engine.noteGroupChanged(topic)`（Android 与网页各一份），本设备的成员列表标记为过期并发出“群变化”事件，信息页随之重新拉成员。
 3. **严格模式下多出来的 `CallManager` 一直在收推送（已修）**：React 严格模式把 `useMemo` 的工厂调两次、丢掉一个结果，`CallSignaling` 构造时就开始收推送，丢掉的那个从此每通来电都在后台走一遍状态机和计时器，还开着一个标签页频道。`CallManager` 加了 `autoStart`（默认 true），`CallProvider` 用 `autoStart: false` 建、只在效果里 `start()`；它自己开的标签页频道改为 `start()` 时打开、`dispose()` 时关闭。只影响开发模式。
@@ -97,7 +97,7 @@
 | 审批后手机入群页跟随（问题 4） | 通过 | 网页把 ph7 移出“需管理员同意”的群，手机打开入群链接带留言 `retest` 申请，停在“申请已发送”；网页点同意后手机页面变成“2 人”“你的入群申请已通过，欢迎加入「扫码测试群」”“进入群聊”，点进去发的消息网页收到 |
 | 网页信息页成员数（问题 2） | 通过 | 同一次同意后，网页信息页不用重开，从“群成员（1）”变成“群成员（2）”，列表里出现 ph7 |
 | 严格模式只有一个 `CallManager` 在收（问题 3） | 通过 | 网页加载时控制台只有被启动的那个实例的记录（`start`、`dispose`、`start`）；手机打给网页时，控制台只有一条 `signal … ring` |
-| 诊断记录（问题 1） | 通过 | 同一通来电：服务端日志 `rung=["web-bfdf99d0"]`；网页 `imkitCallTrace()` 依次是 `connection connected`、`signal <id> ring`、`state <id> incoming`；网页拒接后服务端记“rejected” |
+| 诊断记录（问题 1） | 通过 | 同一通来电：服务端日志 `rung=["web-bfdf99d0"]`；网页 `talkwireCallTrace()` 依次是 `connection connected`、`signal <id> ring`、`state <id> incoming`；网页拒接后服务端记“rejected” |
 
 ### 没有验证
 

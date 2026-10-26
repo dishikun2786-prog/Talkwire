@@ -1,6 +1,6 @@
 {
   "scenario": "core/login-tokens",
-  "source": "imkit strict profile (R18, R22)",
+  "source": "talkwire strict profile (R18, R22)",
   "steps": [
     {
       "index": 1,

@@ -1,14 +1,14 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 // The red packet card for Android: a host-owned message type that joins the
-// chat UI only by being registered (plan 4.6). Nothing in ImKit names it.
+// chat UI only by being registered (plan 4.6). Nothing in Talkwire names it.
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace = "io.imkit.examples.redpacket"
+    namespace = "io.talkwire.examples.redpacket"
     compileSdk = 34
     defaultConfig {
         minSdk = 26
@@ -46,13 +46,13 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 dependencies {
-    implementation(project(":imkit-ui"))
+    implementation(project(":talkwire-ui"))
     val composeBom = platform("androidx.compose:compose-bom:2023.10.01")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
-    testImplementation(testFixtures(project(":imkit-core")))
+    testImplementation(testFixtures(project(":talkwire-core")))
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("junit:junit:4.13.2")

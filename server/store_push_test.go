@@ -11,28 +11,28 @@ import (
 	"strings"
 	"testing"
 
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 	_ "github.com/lib/pq"
 )
 
 // testStore opens a migrated core schema in a fresh PostgreSQL schema of the
-// database named by IMKIT_TEST_DSN.
+// database named by TALKWIRE_TEST_DSN.
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	dsn := os.Getenv("IMKIT_TEST_DSN")
+	dsn := os.Getenv("TALKWIRE_TEST_DSN")
 	if dsn == "" {
-		t.Skip("set IMKIT_TEST_DSN to a throwaway PostgreSQL database to run the database tests")
+		t.Skip("set TALKWIRE_TEST_DSN to a throwaway PostgreSQL database to run the database tests")
 	}
 	admin, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { admin.Close() })
-	if _, err := admin.Exec(`DROP SCHEMA IF EXISTS imkit_store_test CASCADE; CREATE SCHEMA imkit_store_test`); err != nil {
+	if _, err := admin.Exec(`DROP SCHEMA IF EXISTS talkwire_store_test CASCADE; CREATE SCHEMA talkwire_store_test`); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { admin.Exec(`DROP SCHEMA IF EXISTS imkit_store_test CASCADE`) })
-	s, err := NewStore(dsn + " search_path=imkit_store_test")
+	t.Cleanup(func() { admin.Exec(`DROP SCHEMA IF EXISTS talkwire_store_test CASCADE`) })
+	s, err := NewStore(dsn + " search_path=talkwire_store_test")
 	if err != nil {
 		t.Fatal(err)
 	}

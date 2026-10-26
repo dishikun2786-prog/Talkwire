@@ -1,7 +1,7 @@
 /**
  * Every text the components show (5.9). The keys are the Android kit's
- * resource names without the `imkit_` prefix, camel-cased; an app replaces
- * any of them through `<ImKitProvider strings>`. Placeholders are `{0}`,
+ * resource names without the `talkwire_` prefix, camel-cased; an app replaces
+ * any of them through `<TalkwireProvider strings>`. Placeholders are `{0}`,
  * `{1}` in the order of the Android `%1$s`, `%2$s`.
  */
 

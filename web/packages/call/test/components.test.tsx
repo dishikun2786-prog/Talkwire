@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
-import { NoMediaEngine, type CallRinger, type CallTraceEntry } from "@imkit/call";
-import { CallButtons, CallOverlay, CallProvider } from "@imkit/call/react";
-import { uidOf } from "@imkit/protocol";
-import { ImKitProvider, type ImUiHost } from "@imkit/react";
+import { ChatEngine, ImClient, MemoryChatStore } from "@talkwire/client";
+import { NoMediaEngine, type CallRinger, type CallTraceEntry } from "@talkwire/call";
+import { CallButtons, CallOverlay, CallProvider } from "@talkwire/call/react";
+import { uidOf } from "@talkwire/protocol";
+import { TalkwireProvider, type ImUiHost } from "@talkwire/react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -42,11 +42,11 @@ async function setup(server: FakeServer, user = "alice", ringer: CallRinger | nu
   const media = new NoMediaEngine();
   const wrap = (node: ReactNode) => (
     <StrictMode>
-      <ImKitProvider engine={engine} host={host} locale="zh">
+      <TalkwireProvider engine={engine} host={host} locale="zh">
         <CallProvider media={media} ringer={ringer} {...(opts.tabChannel ? {} : { channel: null })} {...(opts.log ? { log: opts.log } : {})}>
           {node}
         </CallProvider>
-      </ImKitProvider>
+      </TalkwireProvider>
     </StrictMode>
   );
   return { wrap, media };
@@ -101,7 +101,7 @@ describe("call components", () => {
     server.live[0]!.push({ type: "call_upgrade_request", callSessionId: "cs-2", toType: "video" });
     await until("asked", () => !!ui.queryByText("对方请求切换到视频通话"));
     fireEvent.click(ui.getByRole("button", { name: "开启视频" }));
-    await until("video", () => !!ui.container.querySelector(".imkit-call-videos"));
+    await until("video", () => !!ui.container.querySelector(".talkwire-call-videos"));
     expect(media.log).toContain("video true");
 
     server.live[0]!.push({ type: "call_ended", callSessionId: "cs-2", reason: "max_duration_reached" });
@@ -153,7 +153,7 @@ describe("call components", () => {
     fireEvent.click(ui.getByRole("button", { name: "视频通话" }));
     await until("refused", () => refused.length === 1);
     expect(refused).toEqual(["对方不在线"]);
-    expect(ui.container.querySelector(".imkit-call")).toBeNull();
+    expect(ui.container.querySelector(".talkwire-call")).toBeNull();
 
     server.live[0]!.push({ type: "call_ring", callSessionId: "cs-3", callType: "voice", ringTimeoutSeconds: 45 });
     await until("ringing", () => !!ui.queryByText("邀请你语音通话"));

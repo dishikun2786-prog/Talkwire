@@ -16,7 +16,7 @@ import {
   type AdminRole,
   type CallRecord,
   type Person,
-} from "@imkit/admin";
+} from "@talkwire/admin";
 import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";

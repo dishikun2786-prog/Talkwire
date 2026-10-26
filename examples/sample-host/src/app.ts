@@ -1,17 +1,17 @@
-// A development host for the ImKit sample apps. Everything a real host does
+// A development host for the Talkwire sample apps. Everything a real host does
 // with its own accounts is replaced by one route, POST /dev/login, that signs
 // anyone in by name: never expose this on a network.
 //
 //   /dev/login                    a name in, an IM access token out; signing in
 //                                 befriends every user who signed in before
-//   /api/v1/internal/im/*         the endpoints the IM server calls (imkitHostPlugin)
-//   /api/v1/chat/*                profiles and contacts (imkitAppRoutes)
-//   /api/v1/chat/upload, /media   media (imkitMediaRoutes)
+//   /api/v1/internal/im/*         the endpoints the IM server calls (talkwireHostPlugin)
+//   /api/v1/chat/*                profiles and contacts (talkwireAppRoutes)
+//   /api/v1/chat/upload, /media   media (talkwireMediaRoutes)
 //   /api/v1/red-packets           the red packet example
 //   calls                         demo credentials, signaling only (demo-calls.ts),
 //                                 each call recorded for the administrators
 //   /dev/admin-login              a name and a role in, an administrator token out
-//   /api/v1/admin/im/*            chat and call records (imkitAdminRoutes)
+//   /api/v1/admin/im/*            chat and call records (talkwireAdminRoutes)
 //
 // Stores are in memory: restart the host and every user signs in again.
 
@@ -28,14 +28,14 @@ import {
   bearerToken,
   defaultHandle,
   imUid,
-  imkitAdminRoutes,
-  imkitAppRoutes,
-  imkitHostPlugin,
-  imkitMediaRoutes,
+  talkwireAdminRoutes,
+  talkwireAppRoutes,
+  talkwireHostPlugin,
+  talkwireMediaRoutes,
   mediaDeleter,
   recordingCalls,
   type AdminIdentity,
-} from "@imkit/host-node";
+} from "@talkwire/host-node";
 import { redPacketRoutes } from "../../red-packet/src/red-packets.ts";
 import { demoCalls } from "./demo-calls.ts";
 
@@ -106,8 +106,8 @@ export async function buildSampleHost(options: SampleHostOptions): Promise<Fasti
     callRecords,
     { onError: (err, step, id) => app.log.error({ err, step, callSessionId: id }, "could not record a call step") },
   );
-  await app.register(imkitHostPlugin, { secret: options.secret, contacts, profiles, deleteMedia: mediaDeleter(blobs), calls });
-  await app.register(imkitAppRoutes, {
+  await app.register(talkwireHostPlugin, { secret: options.secret, contacts, profiles, deleteMedia: mediaDeleter(blobs), calls });
+  await app.register(talkwireAppRoutes, {
     authenticate,
     profiles,
     contacts,
@@ -115,9 +115,9 @@ export async function buildSampleHost(options: SampleHostOptions): Promise<Fasti
     addTokenSecret: options.addTokenSecret ?? options.secret + ":add",
     initialProfile: async (userId) => ({ displayName: userId.replace(/^dev-/, "") }),
   });
-  await app.register(imkitMediaRoutes, { authenticate, store: blobs, im });
+  await app.register(talkwireMediaRoutes, { authenticate, store: blobs, im });
   await app.register(redPacketRoutes, { im, authenticate });
-  await app.register(imkitAdminRoutes, {
+  await app.register(talkwireAdminRoutes, {
     authenticate: async (request) => verifyAdminToken(options.secret, bearerToken(request.headers.authorization)),
     im,
     audit: new MemoryAuditStore(),

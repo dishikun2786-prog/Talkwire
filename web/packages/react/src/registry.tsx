@@ -7,7 +7,7 @@
  * for clients that do not know the type (C7).
  */
 
-import { isRecalled, messageKind, type ChatMessage } from "@imkit/client";
+import { isRecalled, messageKind, type ChatMessage } from "@talkwire/client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useProfile } from "./context.js";
 import { format, type ImStrings } from "./strings.js";
@@ -136,7 +136,7 @@ const baseActions = (m: ChatMessage, extra: MessageAction[] = []): MessageAction
 export const TextType: MessageType = {
   name: "text",
   matches: (m) => messageKind(m.contentType, m.fileUrl) === "text",
-  render: (m) => <span className="imkit-text">{m.content}</span>,
+  render: (m) => <span className="talkwire-text">{m.content}</span>,
   preview: (m) => m.content,
   actions: (m) => baseActions(m, ["copy"]),
 };
@@ -149,9 +149,9 @@ export const ImageType: MessageType = {
     const url = scope.resolveUrl(m.fileUrl);
     const box = mediaBox(extraNumber(m, "imageWidth"), extraNumber(m, "imageHeight"));
     return url ? (
-      <img className="imkit-media" src={url} alt="" style={box} loading="lazy" onClick={() => scope.openImage(url)} />
+      <img className="talkwire-media" src={url} alt="" style={box} loading="lazy" onClick={() => scope.openImage(url)} />
     ) : (
-      <span className="imkit-media imkit-media-missing" style={box} />
+      <span className="talkwire-media talkwire-media-missing" style={box} />
     );
   },
   preview: (_m, s) => s.previewImage,
@@ -172,11 +172,11 @@ function VideoContent({ message, scope }: { message: ChatMessage; scope: Message
   const url = scope.resolveUrl(message.fileUrl);
   const thumb = scope.resolveUrl(extraString(message, "thumbUrl"));
   const box = mediaBox(extraNumber(message, "thumbWidth"), extraNumber(message, "thumbHeight"));
-  if (playing && url) return <video className="imkit-media" src={url} style={box} controls autoPlay />;
+  if (playing && url) return <video className="talkwire-media" src={url} style={box} controls autoPlay />;
   return (
-    <button type="button" className="imkit-media imkit-video-poster" style={{ ...box, backgroundImage: thumb ? `url("${thumb}")` : undefined }} onClick={() => setPlaying(true)}>
-      <span className="imkit-play">▶</span>
-      {durationSeconds(message) > 0 && <span className="imkit-video-duration">{clock(durationSeconds(message))}</span>}
+    <button type="button" className="talkwire-media talkwire-video-poster" style={{ ...box, backgroundImage: thumb ? `url("${thumb}")` : undefined }} onClick={() => setPlaying(true)}>
+      <span className="talkwire-play">▶</span>
+      {durationSeconds(message) > 0 && <span className="talkwire-video-duration">{clock(durationSeconds(message))}</span>}
     </button>
   );
 }
@@ -208,9 +208,9 @@ function VoiceContent({ message, scope }: { message: ChatMessage; scope: Message
     else void audio.current.play().then(() => setPlaying(true), () => setPlaying(false));
   };
   return (
-    <button type="button" className={"imkit-voice" + (playing ? " imkit-voice-playing" : "")} style={{ width: voiceBubbleWidth(seconds) }} onClick={toggle} data-seconds={seconds}>
-      <span className="imkit-voice-icon">{playing ? "❚❚" : "▶"}</span>
-      <span className="imkit-voice-length">{format(scope.strings.voiceSeconds, seconds)}</span>
+    <button type="button" className={"talkwire-voice" + (playing ? " talkwire-voice-playing" : "")} style={{ width: voiceBubbleWidth(seconds) }} onClick={toggle} data-seconds={seconds}>
+      <span className="talkwire-voice-icon">{playing ? "❚❚" : "▶"}</span>
+      <span className="talkwire-voice-length">{format(scope.strings.voiceSeconds, seconds)}</span>
     </button>
   );
 }
@@ -219,9 +219,9 @@ export const FileType: MessageType = {
   name: "file",
   matches: (m) => messageKind(m.contentType, m.fileUrl) === "file",
   render: (m, scope) => (
-    <a className="imkit-file" href={scope.resolveUrl(m.fileUrl)} target="_blank" rel="noreferrer" download={m.fileName}>
-      <span className="imkit-file-icon">📄</span>
-      <span className="imkit-file-name">{m.fileName || m.content}</span>
+    <a className="talkwire-file" href={scope.resolveUrl(m.fileUrl)} target="_blank" rel="noreferrer" download={m.fileName}>
+      <span className="talkwire-file-icon">📄</span>
+      <span className="talkwire-file-name">{m.fileName || m.content}</span>
     </a>
   ),
   preview: (m, s) => format(s.previewFile, m.fileName ?? ""),
@@ -240,14 +240,14 @@ export const RecalledType: MessageType = {
 
 function RecalledNote({ message, scope }: { message: ChatMessage; scope: MessageScope }) {
   const who = useProfile(scope.isMine ? undefined : message.from);
-  return <span className="imkit-system">{scope.isMine ? scope.strings.recalledByYou : format(scope.strings.recalledBy, who?.name ?? "")}</span>;
+  return <span className="talkwire-system">{scope.isMine ? scope.strings.recalledByYou : format(scope.strings.recalledBy, who?.name ?? "")}</span>;
 }
 
 export const SystemType: MessageType = {
   name: "system",
   matches: (m) => messageKind(m.contentType, m.fileUrl) === "system",
   framed: false,
-  render: (m) => <span className="imkit-system">{m.content}</span>,
+  render: (m) => <span className="talkwire-system">{m.content}</span>,
   preview: (m) => m.content,
   actions: () => [],
 };
@@ -256,7 +256,7 @@ export const SystemType: MessageType = {
 export const UnknownType: MessageType = {
   name: "unknown",
   matches: () => true,
-  render: (m, scope) => <span className="imkit-text imkit-unknown">{m.content || scope.strings.unsupportedMessage}</span>,
+  render: (m, scope) => <span className="talkwire-text talkwire-unknown">{m.content || scope.strings.unsupportedMessage}</span>,
   preview: (m, s) => m.content || s.previewUnsupported,
   actions: (m) => baseActions(m, m.content ? ["copy"] : []),
 };

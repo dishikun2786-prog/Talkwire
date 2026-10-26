@@ -45,7 +45,7 @@ interface Person {
 
 const topicParam = z.object({ topic: z.string().min(1).max(128) });
 
-export async function imkitAdminRoutes(app: FastifyInstance, options: AdminRoutesOptions): Promise<void> {
+export async function talkwireAdminRoutes(app: FastifyInstance, options: AdminRoutesOptions): Promise<void> {
   const base = (options.basePath ?? "/api/v1/admin/im").replace(/\/$/, "");
   const { im, audit, profiles } = options;
   app.addHook("onRoute", (route) => {
@@ -86,7 +86,7 @@ export async function imkitAdminRoutes(app: FastifyInstance, options: AdminRoute
       }
       return reply.status(err.status).send({ error });
     }
-    reply.log.error({ err }, "imkit: IM server call failed");
+    reply.log.error({ err }, "talkwire: IM server call failed");
     return reply.status(502).send({ error: "the IM server did not answer" });
   };
 

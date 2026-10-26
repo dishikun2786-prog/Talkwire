@@ -1,37 +1,37 @@
 html, body, #root { height: 100%; margin: 0; }
 .sample-root { height: 100%; display: flex; flex-direction: column; }
-.sample-bar { display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: var(--imkit-surface); border-bottom: 1px solid var(--imkit-border); }
-.sample-bar button, .sample-bar select, .sample-side-actions button, .sample-login button, .sample-dialog button:not([class*="imkit-"]) {
-  font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; cursor: pointer; }
-.sample-me { font-size: 14px; color: var(--imkit-text-muted); }
+.sample-bar { display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: var(--talkwire-surface); border-bottom: 1px solid var(--talkwire-border); }
+.sample-bar button, .sample-bar select, .sample-side-actions button, .sample-login button, .sample-dialog button:not([class*="talkwire-"]) {
+  font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; cursor: pointer; }
+.sample-me { font-size: 14px; color: var(--talkwire-text-muted); }
 .sample-main { flex: 1; display: flex; min-height: 0; position: relative; }
-.sample-side { width: 320px; display: flex; flex-direction: column; border-right: 1px solid var(--imkit-border); background: var(--imkit-surface); min-height: 0; }
-.sample-side .imkit-list { flex: 1; height: auto; }
-.sample-side-actions { padding: 8px 10px; display: flex; gap: 8px; border-bottom: 1px solid var(--imkit-border); }
-.sample-contacts { border-top: 1px solid var(--imkit-border); max-height: 40%; overflow-y: auto; overflow-x: hidden; }
+.sample-side { width: 320px; display: flex; flex-direction: column; border-right: 1px solid var(--talkwire-border); background: var(--talkwire-surface); min-height: 0; }
+.sample-side .talkwire-list { flex: 1; height: auto; }
+.sample-side-actions { padding: 8px 10px; display: flex; gap: 8px; border-bottom: 1px solid var(--talkwire-border); }
+.sample-contacts { border-top: 1px solid var(--talkwire-border); max-height: 40%; overflow-y: auto; overflow-x: hidden; }
 .sample-contacts summary { padding: 8px 12px; cursor: pointer; font-weight: 600; }
-.sample-hint { padding: 0 12px; font-size: 13px; color: var(--imkit-text-muted); }
+.sample-hint { padding: 0 12px; font-size: 13px; color: var(--talkwire-text-muted); }
 .sample-chat { flex: 1; min-width: 0; }
-.sample-empty { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--imkit-text-muted); }
+.sample-empty { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--talkwire-text-muted); }
 .sample-login { margin: 80px auto; display: flex; flex-direction: column; gap: 12px; width: 280px; }
 .sample-login label { display: flex; flex-direction: column; gap: 6px; }
-.sample-login input, .sample-dialog input[aria-label] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; }
-.sample-error { color: var(--imkit-danger); }
+.sample-login input, .sample-dialog input[aria-label] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; }
+.sample-error { color: var(--talkwire-danger); }
 .sample-banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); border: 0; border-radius: 10px; padding: 10px 16px;
-  background: var(--imkit-surface); color: inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .2); cursor: pointer; font: inherit; }
+  background: var(--talkwire-surface); color: inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .2); cursor: pointer; font: inherit; }
 .sample-dialog { position: fixed; inset: 0; background: rgb(0 0 0 / .35); display: flex; align-items: center; justify-content: center; }
-.sample-dialog form { background: var(--imkit-surface); padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 300px; }
+.sample-dialog form { background: var(--talkwire-surface); padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 300px; }
 .sample-group-extras { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 @media (max-width: 720px) {
   .sample-side { width: 100%; }
-  .sample-main:has(.imkit-chat, .imkit-info, .sample-join) .sample-side { display: none; }
-  .sample-main:not(:has(.imkit-chat, .imkit-info, .sample-join)) .sample-chat { display: none; }
+  .sample-main:has(.talkwire-chat, .talkwire-info, .sample-join) .sample-side { display: none; }
+  .sample-main:not(:has(.talkwire-chat, .talkwire-info, .sample-join)) .sample-chat { display: none; }
 }
-.sample-link { font-size: 12px; color: var(--imkit-text-muted); border: 1px solid var(--imkit-border); border-radius: 10px; padding: 1px 8px; }
-.sample-panel { background: var(--imkit-bg); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; width: min(420px, 92vw); max-height: 90vh; overflow: auto; }
+.sample-link { font-size: 12px; color: var(--talkwire-text-muted); border: 1px solid var(--talkwire-border); border-radius: 10px; padding: 1px 8px; }
+.sample-panel { background: var(--talkwire-bg); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; width: min(420px, 92vw); max-height: 90vh; overflow: auto; }
 .sample-join { display: flex; flex-direction: column; gap: 10px; padding: 16px; max-width: 460px; }
-.sample-admin-nav { display: flex; gap: 14px; align-items: center; padding: 8px 14px; background: var(--imkit-surface); border-bottom: 1px solid var(--imkit-border); flex-wrap: wrap; }
+.sample-admin-nav { display: flex; gap: 14px; align-items: center; padding: 8px 14px; background: var(--talkwire-surface); border-bottom: 1px solid var(--talkwire-border); flex-wrap: wrap; }
 .sample-admin-nav a[aria-current="page"] { font-weight: 600; }
-.sample-admin-nav button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; cursor: pointer; }
-.sample-admin-main { flex: 1; overflow: auto; padding: 14px; background: var(--imkit-bg); }
-.sample-login select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--imkit-border); background: var(--imkit-surface); color: inherit; }
+.sample-admin-nav button { font: inherit; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; cursor: pointer; }
+.sample-admin-main { flex: 1; overflow: auto; padding: 14px; background: var(--talkwire-bg); }
+.sample-login select { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--talkwire-border); background: var(--talkwire-surface); color: inherit; }

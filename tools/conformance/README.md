@@ -22,7 +22,7 @@
 
 - Go 1.26.4 及以上
 - 本机 PostgreSQL 测试库（默认 `127.0.0.1:55432`，用户 `postgres`）。口令从 `PGPASSWORD` 或 pgpass 文件读取，不会打印
-- **每次运行都会删除并重建 `-db` 指定库的 `public` schema**，只能指向一次性测试库（默认 `imkit_oracle`）
+- **每次运行都会删除并重建 `-db` 指定库的 `public` schema**，只能指向一次性测试库（默认 `talkwire_oracle`）
 
 ## 用法
 
@@ -32,9 +32,9 @@ bash oracle/build-oracle.sh
 go build -o bin/conformance.exe ./cmd/conformance
 ./bin/conformance.exe record                     # 对原版服务录制全部场景
 ./bin/conformance.exe repeat -n 3                # G0：每个场景连跑 3 次，结果必须一致
-./bin/conformance.exe check -bin <新服务端> -db imkit_new   # 用黄金对话检查新服务端
+./bin/conformance.exe check -bin <新服务端> -db talkwire_new   # 用黄金对话检查新服务端
 ./bin/conformance.exe coverage                   # 协议里每个帧名是否都有黄金用例（不启动服务端）
-./bin/conformance.exe schema -bin <新服务端> -db imkit_new   # 新服务端建的表结构与原版比较
+./bin/conformance.exe schema -bin <新服务端> -db talkwire_new   # 新服务端建的表结构与原版比较
 ```
 
 常用参数：`-only <名称片段>` 只跑部分场景；`-port`、`-hostport` 改端口；`-logs` 改服务端日志目录；`-host <URL>` 用外部宿主代替假宿主（见下文“外部宿主”）。
@@ -43,22 +43,22 @@ go build -o bin/conformance.exe ./cmd/conformance
 
 | 参数 | 作用 |
 | --- | --- |
-| `-env KEY=VALUE` | 给被测服务端加环境变量，可重复，例如 `-env IMKIT_MODULES=none`、`-env IMKIT_PROTOCOL_PROFILE=strict` |
+| `-env KEY=VALUE` | 给被测服务端加环境变量，可重复，例如 `-env TALKWIRE_MODULES=none`、`-env TALKWIRE_PROTOCOL_PROFILE=strict` |
 | `-additions strict` | 比较前从服务端的帧里去掉 strict 档新增的字段（顶层的 `errCode`、`protocol`、`capabilities`、`vapidKey`、`readSeq`，以及成功 `login` 与 `pres` 快照应答里的 `id`），并按场景报出去掉了多少处。去掉之后仍须逐帧一致，证明 strict 档只是在原版之上加字段 |
 | `-overlay <目录>` | 目录里有同名黄金对话的场景改用它比较，其余照旧用 `-golden`。strict 档有意偏离原版的场景放在 `contract/protocol/transcripts-strict/`（六个，见协议规范第 19 节） |
-| `-standalone` | 不起宿主进程（`IMKIT_HOST_MODE=standalone`），好友、资料、运行配置由场景写成配置文件交给服务端；不比较对宿主的调用。依赖宿主的场景（通话、群 AI）在这种模式下必然失败 |
+| `-standalone` | 不起宿主进程（`TALKWIRE_HOST_MODE=standalone`），好友、资料、运行配置由场景写成配置文件交给服务端；不比较对宿主的调用。依赖宿主的场景（通话、群 AI）在这种模式下必然失败 |
 
-ImKit 服务端的三种检查：
+Talkwire 服务端的三种检查：
 
 ```bash
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new          # legacy：33/33（测试台给被测服务端设 IMKIT_PROTOCOL_PROFILE=legacy，-env 可改）
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict   # strict：33/33
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -standalone   # 30/33（通话两个、群 AI 一个需要宿主）
+./bin/conformance.exe check -bin ../../server/bin/talkwire-server.exe -db talkwire_new          # legacy：33/33（测试台给被测服务端设 TALKWIRE_PROTOCOL_PROFILE=legacy，-env 可改）
+./bin/conformance.exe check -bin ../../server/bin/talkwire-server.exe -db talkwire_new   -additions strict -overlay ../../contract/protocol/transcripts-strict -env TALKWIRE_PROTOCOL_PROFILE=strict   # strict：33/33
+./bin/conformance.exe check -bin ../../server/bin/talkwire-server.exe -db talkwire_new -standalone   # 30/33（通话两个、群 AI 一个需要宿主）
 ```
 
-`schema` 依次比较四种情形，任何一项不同即失败：空库上新服务端建的表结构与原版建的（去掉 ImKit 新增的表和列后逐项相同：列、索引、约束、序列）；重启后表结构不变、不再重复执行迁移；在原版建好的库上启动新服务端后，与原版相同（同样去掉新增），且与空库上建的完全相同。ImKit 新增的表：`imkit_schema_migrations`（迁移记录）、`im_devices`、`im_pending_acks`（多端在线）；新增的列：`im_fcm_tokens.provider`（推送服务商）、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`（多端在线）。新增项列在 `cmd/conformance/main.go` 的 `schemaAddedTables`、`schemaAddedColumns` 里，加表加列时要同步。`-oracle`、`-oracle-db` 指定原版服务和它用的一次性库（默认 `imkit_oracle`，必须与 `-db` 不同）。
+`schema` 依次比较四种情形，任何一项不同即失败：空库上新服务端建的表结构与原版建的（去掉 Talkwire 新增的表和列后逐项相同：列、索引、约束、序列）；重启后表结构不变、不再重复执行迁移；在原版建好的库上启动新服务端后，与原版相同（同样去掉新增），且与空库上建的完全相同。Talkwire 新增的表：`talkwire_schema_migrations`（迁移记录）、`im_devices`、`im_pending_acks`（多端在线）；新增的列：`im_fcm_tokens.provider`（推送服务商）、`im_fcm_tokens.device_id`、`im_e2e_identities.owner_device`（多端在线）。新增项列在 `cmd/conformance/main.go` 的 `schemaAddedTables`、`schemaAddedColumns` 里，加表加列时要同步。`-oracle`、`-oracle-db` 指定原版服务和它用的一次性库（默认 `talkwire_oracle`，必须与 `-db` 不同）。
 
-多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。同理，只有 ImKit 服务端才有的帧（宿主卡片更新 `custom_update`，strict 档的会话变更摘要 `sync_summary` 的请求与应答）登记在 `harness/additions.go` 的 `AddedFrames` 里，写明由哪个服务端测试覆盖；`coverage` 把它们列为 `TEST` 而不是缺失。
+多端同时在线是原版没有的能力，没有黄金对话；它由 `server/multidevice_test.go` 覆盖。同理，只有 Talkwire 服务端才有的帧（宿主卡片更新 `custom_update`，strict 档的会话变更摘要 `sync_summary` 的请求与应答）登记在 `harness/additions.go` 的 `AddedFrames` 里，写明由哪个服务端测试覆盖；`coverage` 把它们列为 `TEST` 而不是缺失。
 
 `coverage` 以 `contract/protocol/schema/` 定义的帧名为准（客户端 51 个 action、服务端 71 个帧名），逐个统计黄金对话里用到它的步骤和帧，列出出处；有帧名没有任何黄金用例、或黄金对话用了 Schema 里没有的帧名时退出码为 1。故意发非法请求的步骤（`../schema/negative-cases.json`）不计入。同样的检查以单元测试形式放在 `harness/coverage_test.go`，导出了原版源码时还会核对源码里的 69 个 `Action*` 和 9 个 `Type*` 常量都在 Schema 里。
 
@@ -82,9 +82,9 @@ ImKit 服务端的三种检查：
 
 ```bash
 cd host-sdk-node
-IMKIT_HOST_SECRET=imkit-conformance-secret-not-for-production-0123456789 node --import tsx conformance/host.ts --port 17101 --store prisma &
+TALKWIRE_HOST_SECRET=talkwire-conformance-secret-not-for-production-0123456789 node --import tsx conformance/host.ts --port 17101 --store prisma &
 cd ../tools/conformance
-./bin/conformance.exe check -bin ../../server/bin/imkit-server.exe -db imkit_new -host http://127.0.0.1:17101   # 33/33；内存版 --store memory 同样 33/33
+./bin/conformance.exe check -bin ../../server/bin/talkwire-server.exe -db talkwire_new -host http://127.0.0.1:17101   # 33/33；内存版 --store memory 同样 33/33
 ```
 
 ## 每个场景怎么跑

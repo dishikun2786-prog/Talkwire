@@ -1,4 +1,4 @@
-import type { CallMediaEngine, MediaJoin } from "@imkit/call";
+import type { CallMediaEngine, MediaJoin } from "@talkwire/call";
 import {
   DingRtcMediaEngine,
   type DingRtcClient,
@@ -8,7 +8,7 @@ import {
   type DingRtcRemoteTrack,
   type DingRtcSdk,
   type DingRtcUser,
-} from "@imkit/call-dingrtc";
+} from "@talkwire/call-dingrtc";
 import { describe, expect, it } from "vitest";
 
 type Listener = (user: DingRtcUser, type: DingRtcMediaType, aux?: boolean) => void;

@@ -461,7 +461,7 @@ class SwitchingTransport implements ImTransport {
 
 /** Chooses how this tab reaches the server: through a SharedWorker, an elected leader tab, or directly. */
 export function createTabTransport(options: TabTransportOptions = {}): TabTransport {
-  const name = "imkit:" + (options.name ?? "default");
+  const name = "talkwire:" + (options.name ?? "default");
   const role = new Signal<TabRole>("solo");
   const g = globalThis as Globals;
   if (options.sharedWorker && typeof g.SharedWorker === "function") return workerTransport(options.sharedWorker, name, role, options, g);
@@ -662,7 +662,7 @@ function electedTransport(name: string, role: Signal<TabRole>, options: TabTrans
 /**
  * Runs the relay hub in a SharedWorker. The app's worker file is just:
  *
- *     import { serveSharedWorker } from "@imkit/client";
+ *     import { serveSharedWorker } from "@talkwire/client";
  *     serveSharedWorker(self as unknown as SharedWorkerGlobalScope);
  */
 export function serveSharedWorker(scope: { onconnect: ((ev: MessageEvent) => void) | null }, transport?: ImTransport): RelayHub {

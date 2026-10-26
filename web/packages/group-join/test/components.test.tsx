@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
-import { GroupJoinProvider, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel } from "@imkit/group-join/react";
-import { ImKitProvider, type ImUiHost } from "@imkit/react";
+import { ChatEngine, ImClient, MemoryChatStore } from "@talkwire/client";
+import { GroupJoinProvider, GroupQrCard, JoinApprovalSetting, JoinGroupScreen, JoinRequestsPanel } from "@talkwire/group-join/react";
+import { TalkwireProvider, type ImUiHost } from "@talkwire/react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,9 +28,9 @@ async function setup(server: FakeServer) {
   client.start();
   await client.awaitConnected(5_000);
   const wrap = (node: ReactNode) => (
-    <ImKitProvider engine={engine} host={host} locale="zh">
+    <TalkwireProvider engine={engine} host={host} locale="zh">
       <GroupJoinProvider>{node}</GroupJoinProvider>
-    </ImKitProvider>
+    </TalkwireProvider>
   );
   return { engine, wrap };
 }
@@ -164,11 +164,11 @@ describe("scan-to-join components", () => {
     await until("listed", () => !!ui.queryByText("Eve"));
     expect(ui.getByText("我是同事")).toBeTruthy();
     const row = (id: number) => ui.container.querySelector(`[data-join-request="${id}"]`) as HTMLElement;
-    fireEvent.click(row(1).querySelector("button.imkit-send")!);
+    fireEvent.click(row(1).querySelector("button.talkwire-send")!);
     await until("approved", () => !ui.queryByText("Eve"));
     // The server tells only the applicant (F45): the panel tells this tab's engine, so the member list reloads.
     expect(changed).toEqual([group]);
-    fireEvent.click(row(2).querySelector("button.imkit-send")!);
+    fireEvent.click(row(2).querySelector("button.talkwire-send")!);
     await until("refused", () => !!ui.queryByText("群成员数量已达上限"));
     expect(ui.getByText("Fay"), "still pending on a strict server").toBeTruthy();
 

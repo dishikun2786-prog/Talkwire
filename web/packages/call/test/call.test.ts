@@ -1,6 +1,6 @@
-import { ImClient } from "@imkit/client";
-import { CallManager, type CallMediaEngine, type CallState, type CallTraceEntry, type MediaJoin, type TabChannel } from "@imkit/call";
-import { uidOf } from "@imkit/protocol";
+import { ImClient } from "@talkwire/client";
+import { CallManager, type CallMediaEngine, type CallState, type CallTraceEntry, type MediaJoin, type TabChannel } from "@talkwire/call";
+import { uidOf } from "@talkwire/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer, type Frame } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";

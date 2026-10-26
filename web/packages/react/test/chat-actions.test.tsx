@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { ChatEngine, ImClient, MemoryChatStore } from "@imkit/client";
-import { p2pTopic, uidOf } from "@imkit/protocol";
+import { ChatEngine, ImClient, MemoryChatStore } from "@talkwire/client";
+import { p2pTopic, uidOf } from "@talkwire/protocol";
 import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeServer } from "../../client/test/fake-server.js";
 import { until } from "../../client/test/until.js";
-import { ChatScreen, ConversationList, ImKitProvider, replyExtra, replyRefOf, type ImUiHost } from "../src/index.js";
+import { ChatScreen, ConversationList, TalkwireProvider, replyExtra, replyRefOf, type ImUiHost } from "../src/index.js";
 
 afterEach(cleanup);
 
@@ -59,16 +59,16 @@ async function setup(failTopics: string[] = []) {
   };
 }
 
-const bubble = (ui: ReturnType<typeof render>, text: string) => ui.getByText(text).closest(".imkit-bubble, .imkit-card")!;
+const bubble = (ui: ReturnType<typeof render>, text: string) => ui.getByText(text).closest(".talkwire-bubble, .talkwire-card")!;
 
 describe("reply", () => {
   it("quotes a message, sends the quote with the reply and shows it", async () => {
     const { server, engine, push, close } = await setup();
     await push({ seq: 1, content: "lunch at noon?" });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="en">
+      <TalkwireProvider engine={engine} host={host} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("shown", () => !!ui.queryByText("lunch at noon?"));
     fireEvent.contextMenu(bubble(ui, "lunch at noon?"));
@@ -94,9 +94,9 @@ describe("reply", () => {
     const { engine, push, close } = await setup();
     await push({ seq: 2, content: "agreed", extra: { replyTo: { seq: 1, from: alice, text: "let's ship" } } });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="zh">
+      <TalkwireProvider engine={engine} host={host} locale="zh">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("shown", () => !!ui.queryByText("agreed"));
     const b = bubble(ui, "agreed") as HTMLElement;
@@ -117,9 +117,9 @@ describe("forward", () => {
     const { server, engine, push, close } = await setup([p2pTopic(alice, carol)]);
     await push({ seq: 3, content: "pass it on" });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="en">
+      <TalkwireProvider engine={engine} host={host} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("shown", () => !!ui.queryByText("pass it on"));
     fireEvent.contextMenu(bubble(ui, "pass it on"));
@@ -145,9 +145,9 @@ describe("forward", () => {
     await push({ seq: 5, content: "second" });
     await push({ seq: 6, content: "third" });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="en">
+      <TalkwireProvider engine={engine} host={host} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("shown", () => !!ui.queryByText("third"));
     fireEvent.contextMenu(bubble(ui, "third"));
@@ -179,12 +179,12 @@ describe("menu", () => {
     const { engine, push, close } = await setup();
     await push({ seq: 7, content: "[Image]", contentType: "image/png", fileUrl: "https://media.example/p.png" });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="en">
+      <TalkwireProvider engine={engine} host={host} locale="en">
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
-    await until("image", () => !!ui.container.querySelector("img.imkit-media"));
-    fireEvent.contextMenu(ui.container.querySelector("[data-seq='7'] .imkit-card")!);
+    await until("image", () => !!ui.container.querySelector("img.talkwire-media"));
+    fireEvent.contextMenu(ui.container.querySelector("[data-seq='7'] .talkwire-card")!);
     expect(ui.getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Save", "Reply", "Forward", "Select"]);
     fireEvent.keyDown(window, { key: "Escape" });
 
@@ -211,10 +211,10 @@ describe("recall", () => {
     })(server.onFrame);
     await push({ seq: 1, content: "oops, wrong chat" });
     const ui = render(
-      <ImKitProvider engine={engine} host={host} locale="en">
+      <TalkwireProvider engine={engine} host={host} locale="en">
         <ConversationList onOpen={() => {}} />
         <ChatScreen conversation={bob} />
-      </ImKitProvider>,
+      </TalkwireProvider>,
     );
     await until("shown", () => ui.queryAllByText("oops, wrong chat").length > 0);
     await act(async () => {
@@ -230,7 +230,7 @@ describe("recall", () => {
     fireEvent.change(input, { target: { value: "never mind" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await until("stored", () => engine.messages(bob).value.some((m) => m.content === "never mind" && m.seq !== null));
-    fireEvent.contextMenu(within(ui.container.querySelector(".imkit-messages") as HTMLElement).getByText("never mind").closest(".imkit-bubble")!);
+    fireEvent.contextMenu(within(ui.container.querySelector(".talkwire-messages") as HTMLElement).getByText("never mind").closest(".talkwire-bubble")!);
     fireEvent.click(ui.getByRole("menuitem", { name: "Unsend" }));
     await until("own note", () => !!ui.queryByText("You unsent a message"));
     expect(server.sent("del").length).toBe(1);

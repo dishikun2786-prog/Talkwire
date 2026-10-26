@@ -5,7 +5,7 @@
  * device would see them, and when the leader goes another tab takes over.
  */
 
-import { uidOf } from "@imkit/protocol";
+import { uidOf } from "@talkwire/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ChatEngine,

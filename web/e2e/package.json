@@ -1,8 +1,8 @@
 {
-  "name": "@imkit/web-e2e",
+  "name": "@talkwire/web-e2e",
   "version": "0.1.0",
   "private": true,
-  "description": "End-to-end tests of the web sample against a real ImKit server",
+  "description": "End-to-end tests of the web sample against a real Talkwire server",
   "license": "Apache-2.0",
   "type": "module"
 }

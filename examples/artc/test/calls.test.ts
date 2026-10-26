@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MemoryContactStore, imUid } from "@imkit/host-node";
+import { MemoryContactStore, imUid } from "@talkwire/host-node";
 import { buildAppToken, readAppToken } from "../src/app-token.js";
 import { artcCalls, friendsOnly, type ArtcCall } from "../src/calls.js";
 
@@ -20,7 +20,7 @@ test("one channel per call; each side's own token, for its IM uid", async () => 
   const a = await calls.answer({ callSessionId: "s1", effectiveType: "voice" });
   const b = await calls.answer({ callSessionId: "s2", effectiveType: "voice" });
   assert.equal(a.ok, true);
-  assert.match(a.channelId!, /^imkit-[0-9a-f]{24}$/);
+  assert.match(a.channelId!, /^talkwire-[0-9a-f]{24}$/);
   assert.notEqual(a.channelId, b.channelId);
   assert.equal(a.appId, "app-1");
   assert.equal(a.videoQuality, "sd");

@@ -5,7 +5,7 @@
  * back to the peer before anything is stored.
  */
 
-import { isGroupTopic, isUserAddress } from "@imkit/protocol";
+import { isGroupTopic, isUserAddress } from "@talkwire/protocol";
 
 /** A group topic, or the peer's uid for a single chat. */
 export type ConversationId = string;
@@ -39,7 +39,7 @@ export type MessageKind = "text" | "image" | "video" | "voice" | "file" | "syste
  * message stays in the store under it so the chat can say who unsent a
  * message. Its kind is "system", so it never counts as unread.
  */
-export const RECALLED_CONTENT_TYPE = "application/vnd.imkit.recalled";
+export const RECALLED_CONTENT_TYPE = "application/vnd.talkwire.recalled";
 
 export function messageKind(contentType: string, fileUrl?: string | null): MessageKind {
   const t = contentType.toLowerCase();

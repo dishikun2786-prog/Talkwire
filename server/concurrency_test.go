@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/imkit/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
 )
 
 // Concurrency red lines (task 1.11). Each runs 100 rounds or more and is

@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/call-dingrtc",
+  "name": "@talkwire/call-dingrtc",
   "version": "0.1.0",
-  "description": "An RTC adapter for @imkit/call over Alibaba Cloud's DingRTC Web SDK (ARTC 3.0); the app installs dingrtc and passes it in",
+  "description": "An RTC adapter for @talkwire/call over Alibaba Cloud's DingRTC Web SDK (ARTC 3.0); the app installs dingrtc and passes it in",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
   ],
   "sideEffects": false,
   "dependencies": {
-    "@imkit/call": "0.1.0"
+    "@talkwire/call": "0.1.0"
   },
   "peerDependencies": {
     "dingrtc": "^3.9.37"

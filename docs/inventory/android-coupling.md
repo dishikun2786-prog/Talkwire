@@ -1,4 +1,4 @@
-# Android 聊天代码耦合清单（io.imkit 拆分前置调研）
+# Android 聊天代码耦合清单（io.talkwire 拆分前置调研）
 
 - 源仓库：`D:\Program Files\roubao`，模块 `app`，包 `com.xiaotaozi.autopilot`
 - 基线：分支 `feat/openclaw-runtime`，HEAD `33e23250`。会话开始时的 `git status` 快照里，本清单涉及的聊天文件**无未提交改动**（脏文件只有 `ScrcpyBridge.kt`/`ScrcpyCoordinator.kt`/admin-ui/video-relay 等非聊天文件）。

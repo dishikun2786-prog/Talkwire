@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ADD_TOKEN_TTL_MS, checkAddToken, issueAddToken } from "../src/add-token.js";
-import { imkitAppRoutes, type AppRoutesOptions } from "../src/app-routes.js";
+import { talkwireAppRoutes, type AppRoutesOptions } from "../src/app-routes.js";
 import { MemoryContactStore, MemoryProfileStore } from "../src/memory.js";
 import { imUid } from "../src/uid.js";
 import { settle, stubIm } from "./helpers.js";
@@ -16,7 +16,7 @@ async function setup(extra: Partial<AppRoutesOptions> = {}) {
   const contacts = new MemoryContactStore();
   const { im, seen } = stubIm(() => ({ status: 200, body: { ok: true, topic: "p2p_x", uidA: "uid_aaaaaaaaaaa", uidB: "uid_bbbbbbbbbbb" } }));
   const app = Fastify();
-  await app.register(imkitAppRoutes, {
+  await app.register(talkwireAppRoutes, {
     authenticate: async (req) => (req.headers["x-user"] as string | undefined) ?? null,
     profiles,
     contacts,

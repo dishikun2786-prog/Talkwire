@@ -1,15 +1,15 @@
-import { isGroupConversation, isRecalled, type ChatMessage, type ConversationId, type ConversationSummary, type VoiceClip, VoiceRecorder } from "@imkit/client";
-import { p2pTopic } from "@imkit/protocol";
+import { isGroupConversation, isRecalled, type ChatMessage, type ConversationId, type ConversationSummary, type VoiceClip, VoiceRecorder } from "@talkwire/client";
+import { p2pTopic } from "@talkwire/protocol";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { shortUid, useConnectionState, useConversation, useConversations, useImKit, useMessages, usePresence, useProfile, useProfilesVersion, useSignal, useTyping } from "./context.js";
+import { shortUid, useConnectionState, useConversation, useConversations, useTalkwire, useMessages, usePresence, useProfile, useProfilesVersion, useSignal, useTyping } from "./context.js";
 import { MESSAGE_ACTION_ORDER, replyExtra, replyRefOf, type MessageAction, type MessageScope, type ReplyRef } from "./registry.js";
 import { ConfirmDialog, Dialog, PopupMenu } from "./dialogs.js";
 import { format, type ImStrings } from "./strings.js";
-import { imkitCss } from "./theme.js";
+import { talkwireCss } from "./theme.js";
 
 /** Puts the kit's stylesheet in the page once. */
-export function ImKitStyles() {
-  return <style data-imkit="">{imkitCss}</style>;
+export function TalkwireStyles() {
+  return <style data-talkwire="">{talkwireCss}</style>;
 }
 
 // ------------------------------------------------------------------ small parts
@@ -18,9 +18,9 @@ export function Avatar({ uid, name, url, size = 40, online }: { uid: string; nam
   const label = (name || shortUid(uid)).trim();
   const style: CSSProperties = { width: size, height: size, fontSize: size * 0.42, background: url ? undefined : colorFor(uid) };
   return (
-    <span className="imkit-avatar" style={style} aria-hidden="true">
+    <span className="talkwire-avatar" style={style} aria-hidden="true">
       {url ? <img src={url} alt="" /> : Array.from(label)[0]?.toUpperCase()}
-      {online && <span className="imkit-dot" />}
+      {online && <span className="talkwire-dot" />}
     </span>
   );
 }
@@ -62,10 +62,10 @@ function lastSeen(lastSeenAt: number, s: ImStrings, now = Date.now()): string {
 
 /** "No connection" while the client is not logged in. */
 export function ConnectionBanner() {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const state = useConnectionState();
   if (state.kind === "connected" || state.kind === "idle") return null;
-  return <div className="imkit-banner" role="status">{state.kind === "connecting" ? strings.connecting : strings.offlineBanner}</div>;
+  return <div className="talkwire-banner" role="status">{state.kind === "connecting" ? strings.connecting : strings.offlineBanner}</div>;
 }
 
 // ------------------------------------------------------------------ conversation list
@@ -76,7 +76,7 @@ function ConversationTitle({ c }: { c: ConversationSummary }) {
 }
 
 function ConversationRow({ c, active, onOpen, onMenu }: { c: ConversationSummary; active: boolean; onOpen(id: ConversationId): void; onMenu(x: number, y: number): void }) {
-  const { strings, types } = useImKit();
+  const { strings, types } = useTalkwire();
   const profile = useProfile(c.isGroup ? undefined : c.id);
   const sender = useProfile(c.isGroup && c.lastMessage && c.lastMessage.status === "received" ? c.lastMessage.from : undefined);
   const presence = usePresence(c.isGroup ? undefined : c.id);
@@ -86,7 +86,7 @@ function ConversationRow({ c, active, onOpen, onMenu }: { c: ConversationSummary
   return (
     <button
       type="button"
-      className={"imkit-list-item" + (c.pinned ? " imkit-list-item-pinned" : "")}
+      className={"talkwire-list-item" + (c.pinned ? " talkwire-list-item-pinned" : "")}
       aria-current={active}
       onClick={() => onOpen(c.id)}
       onContextMenu={(e) => {
@@ -97,18 +97,18 @@ function ConversationRow({ c, active, onOpen, onMenu }: { c: ConversationSummary
       data-conversation={c.id}
     >
       <Avatar uid={c.id} name={c.isGroup ? c.title : profile?.name} url={profile?.avatarUrl} online={presence === "online"} />
-      <span className="imkit-list-main">
-        <span className="imkit-list-row">
-          <span className="imkit-list-title"><ConversationTitle c={c} /></span>
-          {c.muted && <span className="imkit-list-muted" role="img" aria-label={strings.mute}>🔕</span>}
+      <span className="talkwire-list-main">
+        <span className="talkwire-list-row">
+          <span className="talkwire-list-title"><ConversationTitle c={c} /></span>
+          {c.muted && <span className="talkwire-list-muted" role="img" aria-label={strings.mute}>🔕</span>}
           <span style={{ flex: 1 }} />
-          <span className="imkit-list-time">{listTime(c.lastMessage?.ts ?? c.updatedAt, strings)}</span>
+          <span className="talkwire-list-time">{listTime(c.lastMessage?.ts ?? c.updatedAt, strings)}</span>
         </span>
-        <span className="imkit-list-row">
-          <span className="imkit-list-preview">
-            {c.draft ? <><span className="imkit-list-draft">{strings.draft}</span> {c.draft}</> : c.left ? strings.removedFromGroup : preview}
+        <span className="talkwire-list-row">
+          <span className="talkwire-list-preview">
+            {c.draft ? <><span className="talkwire-list-draft">{strings.draft}</span> {c.draft}</> : c.left ? strings.removedFromGroup : preview}
           </span>
-          {c.unread > 0 && <span className={"imkit-badge" + (c.muted ? " imkit-badge-muted" : "")}>{c.unread > 99 ? "99+" : c.unread}</span>}
+          {c.unread > 0 && <span className={"talkwire-badge" + (c.muted ? " talkwire-badge-muted" : "")}>{c.unread > 99 ? "99+" : c.unread}</span>}
         </span>
       </span>
     </button>
@@ -126,7 +126,7 @@ export function snippet(text: string, query: string, lead = 16): { before: strin
 
 /** A message found by search: the chat it is in, the text around the match. Opens the chat. */
 function SearchHitRow({ m, query, onOpen }: { m: ChatMessage; query: string; onOpen(id: ConversationId): void }) {
-  const { engine, strings } = useImKit();
+  const { engine, strings } = useTalkwire();
   const c = useConversation(m.conversation);
   const isGroup = isGroupConversation(m.conversation);
   const peer = useProfile(isGroup ? undefined : m.conversation);
@@ -134,16 +134,16 @@ function SearchHitRow({ m, query, onOpen }: { m: ChatMessage; query: string; onO
   const title = isGroup ? (c?.title ?? shortUid(m.conversation)) : (peer?.name ?? c?.title ?? shortUid(m.conversation));
   const s = snippet(m.content, query);
   return (
-    <button type="button" role="listitem" className="imkit-list-item imkit-search-hit" data-hit={`${m.conversation}:${m.seq ?? m.localId}`} onClick={() => onOpen(m.conversation)}>
+    <button type="button" role="listitem" className="talkwire-list-item talkwire-search-hit" data-hit={`${m.conversation}:${m.seq ?? m.localId}`} onClick={() => onOpen(m.conversation)}>
       <Avatar uid={m.conversation} name={title} url={peer?.avatarUrl} />
-      <span className="imkit-list-main">
-        <span className="imkit-list-row">
-          <span className="imkit-list-title">{title}</span>
+      <span className="talkwire-list-main">
+        <span className="talkwire-list-row">
+          <span className="talkwire-list-title">{title}</span>
           <span style={{ flex: 1 }} />
-          <span className="imkit-list-time">{listTime(m.ts, strings)}</span>
+          <span className="talkwire-list-time">{listTime(m.ts, strings)}</span>
         </span>
-        <span className="imkit-list-row">
-          <span className="imkit-list-preview">
+        <span className="talkwire-list-row">
+          <span className="talkwire-list-preview">
             {sender && <>{sender.name}: </>}
             {s.before}
             <mark>{s.match}</mark>
@@ -166,7 +166,7 @@ export interface ConversationListProps {
 }
 
 export function ConversationList({ onOpen, activeConversation, filter, searchable = true }: ConversationListProps) {
-  const { engine, strings, profiles } = useImKit();
+  const { engine, strings, profiles } = useTalkwire();
   const all = useConversations();
   const shown = all.filter(filter ?? ((c) => !(c.isGroup && c.left && !c.lastMessage) && (c.isGroup || !!c.lastMessage || !!c.draft)));
   // Right click or long press: pin, mute, delete (this device only).
@@ -195,24 +195,24 @@ export function ConversationList({ onOpen, activeConversation, filter, searchabl
   }, [engine, q]);
   const messageHits = hits && hits.q === q ? hits.messages : null;
   return (
-    <div className="imkit-list">
+    <div className="talkwire-list">
       {searchable && (
-        <div className="imkit-list-searchbar">
-          <input className="imkit-field" type="search" aria-label={strings.searchChats} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="talkwire-list-searchbar">
+          <input className="talkwire-field" type="search" aria-label={strings.searchChats} placeholder={strings.search} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       )}
       {q ? (
         <div role="list" aria-label={strings.search}>
-          {chatHits.length > 0 && <div className="imkit-list-header">{strings.chats}</div>}
+          {chatHits.length > 0 && <div className="talkwire-list-header">{strings.chats}</div>}
           {chatHits.map((c) => <ConversationRow key={c.id} c={c} active={c.id === activeConversation} onOpen={onOpen} onMenu={(x, y) => setMenu({ c, x, y })} />)}
-          {messageHits && messageHits.length > 0 && <div className="imkit-list-header">{strings.searchMessages}</div>}
+          {messageHits && messageHits.length > 0 && <div className="talkwire-list-header">{strings.searchMessages}</div>}
           {messageHits?.map((m) => <SearchHitRow key={`${m.conversation}:${m.seq ?? m.localId}`} m={m} query={q} onOpen={onOpen} />)}
-          {messageHits && messageHits.length === 0 && chatHits.length === 0 && <div className="imkit-list-empty">{strings.noResults}</div>}
+          {messageHits && messageHits.length === 0 && chatHits.length === 0 && <div className="talkwire-list-empty">{strings.noResults}</div>}
         </div>
       ) : (
         <div role="list" aria-label={strings.chats}>
           {shown.length === 0 ? (
-            <div className="imkit-list-empty">{strings.noConversations}</div>
+            <div className="talkwire-list-empty">{strings.noConversations}</div>
           ) : (
             shown.map((c) => <ConversationRow key={c.id} c={c} active={c.id === activeConversation} onOpen={onOpen} onMenu={(x, y) => setMenu({ c, x, y })} />)
           )}
@@ -226,7 +226,7 @@ export function ConversationList({ onOpen, activeConversation, filter, searchabl
           <button type="button" role="menuitem" onClick={() => { setMenu(null); void engine.setMuted(menu.c.id, !menu.c.muted); }}>
             {menu.c.muted ? strings.unmute : strings.mute}
           </button>
-          <button type="button" role="menuitem" className="imkit-danger-text" onClick={() => { setMenu(null); setDeleting(menu.c); }}>
+          <button type="button" role="menuitem" className="talkwire-danger-text" onClick={() => { setMenu(null); setDeleting(menu.c); }}>
             {strings.deleteChat}
           </button>
         </PopupMenu>
@@ -248,7 +248,7 @@ export interface ChatScreenProps {
 }
 
 export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: ChatScreenProps) {
-  const { engine, strings } = useImKit();
+  const { engine, strings } = useTalkwire();
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   // Seqs of the picked messages while selecting several; null when not selecting.
   const [selection, setSelection] = useState<ReadonlySet<number> | null>(null);
@@ -314,16 +314,16 @@ export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: 
     });
 
   return (
-    <section className="imkit-chat" aria-label={title} style={{ position: "relative" }}>
+    <section className="talkwire-chat" aria-label={title} style={{ position: "relative" }}>
       {selection ? (
-        <header className="imkit-chat-header imkit-select-bar">
-          <button type="button" className="imkit-icon-button" onClick={() => setSelection(null)} aria-label={strings.cancel}>
+        <header className="talkwire-chat-header talkwire-select-bar">
+          <button type="button" className="talkwire-icon-button" onClick={() => setSelection(null)} aria-label={strings.cancel}>
             ✕
           </button>
-          <div className="imkit-chat-title" style={{ flex: 1 }}>{format(strings.selectedCount, selection.size)}</div>
+          <div className="talkwire-chat-title" style={{ flex: 1 }}>{format(strings.selectedCount, selection.size)}</div>
           <button
             type="button"
-            className="imkit-text-button"
+            className="talkwire-text-button"
             disabled={selection.size === 0}
             onClick={() => {
               const seqs = [...selection].sort((a, b) => a - b);
@@ -335,20 +335,20 @@ export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: 
           </button>
         </header>
       ) : (
-      <header className="imkit-chat-header">
+      <header className="talkwire-chat-header">
         {onBack && (
-          <button type="button" className="imkit-icon-button" onClick={onBack} aria-label={strings.back}>
+          <button type="button" className="talkwire-icon-button" onClick={onBack} aria-label={strings.back}>
             ←
           </button>
         )}
         <Avatar uid={conversation} name={title} url={profile?.avatarUrl} size={36} online={presence === "online"} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="imkit-chat-title">{title}</div>
-          <div className="imkit-chat-subtitle" aria-live="polite">{subtitle}</div>
+          <div className="talkwire-chat-title">{title}</div>
+          <div className="talkwire-chat-subtitle" aria-live="polite">{subtitle}</div>
         </div>
         {headerActions}
         {onOpenInfo && (
-          <button type="button" className="imkit-icon-button" onClick={onOpenInfo} aria-label={isGroup ? strings.groupInfo : strings.chatInfo}>
+          <button type="button" className="talkwire-icon-button" onClick={onOpenInfo} aria-label={isGroup ? strings.groupInfo : strings.chatInfo}>
             ⋯
           </button>
         )}
@@ -365,12 +365,12 @@ export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: 
         onSelect={(seq) => setSelection(new Set([seq]))}
       />
       {summary?.left ? (
-        <div className="imkit-banner">{strings.removedFromGroup}</div>
+        <div className="talkwire-banner">{strings.removedFromGroup}</div>
       ) : selection ? null : (
         <Composer conversation={conversation} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
       )}
       {forwarding && <ForwardDialog multiple={forwarding.seqs.length === 1} exclude={conversation} onConfirm={(targets) => void forward(targets)} onClose={() => setForwarding(null)} />}
-      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
+      {toast && <div className="talkwire-toast" role="alert">{toast}</div>}
     </section>
   );
 }
@@ -381,7 +381,7 @@ export function ChatScreen({ conversation, onBack, headerActions, onOpenInfo }: 
  * (several messages bundled into one chat).
  */
 function ForwardDialog({ multiple, exclude, onConfirm, onClose }: { multiple: boolean; exclude?: ConversationId; onConfirm(targets: ConversationId[]): void; onClose(): void }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const targets = useConversations().filter((c) => !c.left && c.id !== exclude);
   const [picked, setPicked] = useState<ReadonlySet<ConversationId>>(new Set());
   useEffect(() => {
@@ -390,16 +390,16 @@ function ForwardDialog({ multiple, exclude, onConfirm, onClose }: { multiple: bo
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="imkit-dialog" role="dialog" aria-modal="true" aria-label={strings.forwardTo} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="imkit-dialog-card">
-        <h3 className="imkit-dialog-title">{strings.forwardTo}</h3>
-        <div className="imkit-pick-list" role="list">
+    <div className="talkwire-dialog" role="dialog" aria-modal="true" aria-label={strings.forwardTo} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="talkwire-dialog-card">
+        <h3 className="talkwire-dialog-title">{strings.forwardTo}</h3>
+        <div className="talkwire-pick-list" role="list">
           {targets.length === 0 ? (
-            <div className="imkit-list-empty">{strings.noChats}</div>
+            <div className="talkwire-list-empty">{strings.noChats}</div>
           ) : (
             targets.map((c) =>
               multiple ? (
-                <label key={c.id} className="imkit-info-row" role="listitem" data-target={c.id}>
+                <label key={c.id} className="talkwire-info-row" role="listitem" data-target={c.id}>
                   <input
                     type="checkbox"
                     checked={picked.has(c.id)}
@@ -413,17 +413,17 @@ function ForwardDialog({ multiple, exclude, onConfirm, onClose }: { multiple: bo
                   <TargetRow c={c} />
                 </label>
               ) : (
-                <button key={c.id} type="button" className="imkit-info-row" role="listitem" data-target={c.id} onClick={() => onConfirm([c.id])}>
+                <button key={c.id} type="button" className="talkwire-info-row" role="listitem" data-target={c.id} onClick={() => onConfirm([c.id])}>
                   <TargetRow c={c} />
                 </button>
               ),
             )
           )}
         </div>
-        <div className="imkit-dialog-actions">
-          <button type="button" className="imkit-text-button" onClick={onClose}>{strings.cancel}</button>
+        <div className="talkwire-dialog-actions">
+          <button type="button" className="talkwire-text-button" onClick={onClose}>{strings.cancel}</button>
           {multiple && (
-            <button type="button" className="imkit-send" disabled={picked.size === 0} onClick={() => onConfirm(targets.filter((c) => picked.has(c.id)).map((c) => c.id))}>
+            <button type="button" className="talkwire-send" disabled={picked.size === 0} onClick={() => onConfirm(targets.filter((c) => picked.has(c.id)).map((c) => c.id))}>
               {format(strings.sendCount, picked.size)}
             </button>
           )}
@@ -434,13 +434,13 @@ function ForwardDialog({ multiple, exclude, onConfirm, onClose }: { multiple: bo
 }
 
 function TargetRow({ c }: { c: ConversationSummary }) {
-  const { host } = useImKit();
+  const { host } = useTalkwire();
   const profile = useProfile(c.isGroup ? undefined : c.id);
   const url = c.isGroup ? undefined : host.resolveMediaUrl ? host.resolveMediaUrl(profile?.avatarUrl) : profile?.avatarUrl;
   return (
     <>
       <Avatar uid={c.id} name={c.isGroup ? c.title : profile?.name} url={url} size={36} />
-      <span className="imkit-info-name"><ConversationTitle c={c} /></span>
+      <span className="talkwire-info-name"><ConversationTitle c={c} /></span>
     </>
   );
 }
@@ -456,7 +456,7 @@ interface MessageListProps {
 }
 
 function MessageList({ conversation, summary, selection, onToggle, onReply, onForward, onSelect }: MessageListProps) {
-  const { engine, strings, host, types } = useImKit();
+  const { engine, strings, host, types } = useTalkwire();
   const messages = useMessages(conversation);
   const isGroup = isGroupConversation(conversation);
   const box = useRef<HTMLDivElement | null>(null);
@@ -561,22 +561,22 @@ function MessageList({ conversation, summary, selection, onToggle, onReply, onFo
     const d = startOfDay(m.ts);
     if (d !== day) {
       day = d;
-      rows.push(<div key={"d" + d} className="imkit-divider">{dayLabel(m.ts, strings)}</div>);
+      rows.push(<div key={"d" + d} className="talkwire-divider">{dayLabel(m.ts, strings)}</div>);
     }
-    if (m.seq !== null && m.seq === firstUnread) rows.push(<div key="new" className="imkit-divider imkit-divider-new">{strings.newMessages}</div>);
+    if (m.seq !== null && m.seq === firstUnread) rows.push(<div key="new" className="talkwire-divider talkwire-divider-new">{strings.newMessages}</div>);
     let status: ReactNode = null;
     if (m.from === engine.me) {
-      if (m.status === "sending") status = <span className="imkit-status">{strings.sending}</span>;
+      if (m.status === "sending") status = <span className="talkwire-status">{strings.sending}</span>;
       else if (m.status === "failed")
         status = (
-          <button type="button" className="imkit-status imkit-status-failed" onClick={() => void engine.retry(m)}>
+          <button type="button" className="talkwire-status talkwire-status-failed" onClick={() => void engine.retry(m)}>
             {strings.sendFailedRetry}
           </button>
         );
       else if (isGroup && m.seq !== null) {
         const readers = readersOf(m, cursors, members);
         if (readers.length > 0) status = <ReadReceipts readers={readers} groupSize={members.length} />;
-      } else if (m.seq === lastOwnSeq && (summary?.peerReadSeq ?? 0) >= m.seq!) status = <span className="imkit-status">{strings.read}</span>;
+      } else if (m.seq === lastOwnSeq && (summary?.peerReadSeq ?? 0) >= m.seq!) status = <span className="talkwire-status">{strings.read}</span>;
     }
     rows.push(
       <MessageRow
@@ -596,16 +596,16 @@ function MessageList({ conversation, summary, selection, onToggle, onReply, onFo
 
   return (
     <>
-      <div className="imkit-messages" ref={box} onScroll={() => void onScroll()} role="log" aria-live="polite">
+      <div className="talkwire-messages" ref={box} onScroll={() => void onScroll()} role="log" aria-live="polite">
         {rows}
       </div>
       {menu && <MessageMenu message={menu.message} x={menu.x} y={menu.y} onAction={run} onClose={() => setMenu(null)} />}
       {viewer && (
-        <div className="imkit-viewer" onClick={() => setViewer(null)} role="dialog">
+        <div className="talkwire-viewer" onClick={() => setViewer(null)} role="dialog">
           <img src={viewer} alt="" />
         </div>
       )}
-      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
+      {toast && <div className="talkwire-toast" role="alert">{toast}</div>}
     </>
   );
 }
@@ -624,18 +624,18 @@ interface MessageRowProps {
 }
 
 function MessageRow({ message, mine, showSender, scope, status, selecting = false, selected = false, onToggle, onMenu }: MessageRowProps) {
-  const { types, host } = useImKit();
+  const { types, host } = useTalkwire();
   const sender = useProfile(showSender && !mine ? message.from : undefined);
   const press = useLongPress(onMenu);
   const type = types.typeOf(message);
   const content = type.render(message, { ...scope, isMine: mine });
   const quote = replyRefOf(message);
   // System notes and recall tombstones span the row: no avatar, bubble or status.
-  if (type.name === "system" || isRecalled(message)) return <div className="imkit-system-row" data-seq={message.seq ?? undefined}>{content}</div>;
+  if (type.name === "system" || isRecalled(message)) return <div className="talkwire-system-row" data-seq={message.seq ?? undefined}>{content}</div>;
   const selectable = selecting && message.seq !== null;
   return (
     <div
-      className={"imkit-row" + (mine ? " imkit-row-mine" : "") + (selectable ? " imkit-row-selectable" : "") + (selected ? " imkit-row-selected" : "")}
+      className={"talkwire-row" + (mine ? " talkwire-row-mine" : "") + (selectable ? " talkwire-row-selectable" : "") + (selected ? " talkwire-row-selected" : "")}
       data-seq={message.seq ?? undefined}
       data-type={type.name}
       onClickCapture={
@@ -648,23 +648,23 @@ function MessageRow({ message, mine, showSender, scope, status, selecting = fals
           : undefined
       }
     >
-      {selectable && <input type="checkbox" className="imkit-row-check" checked={selected} readOnly aria-label={scope.strings.actionSelect} />}
+      {selectable && <input type="checkbox" className="talkwire-row-check" checked={selected} readOnly aria-label={scope.strings.actionSelect} />}
       {!mine && showSender ? (
         <span onClick={() => host.onOpenProfile?.(message.from)}>
           <Avatar uid={message.from} name={sender?.name} url={sender?.avatarUrl} size={32} />
         </span>
       ) : null}
-      <div className="imkit-row-body">
-        {!mine && showSender && <span className="imkit-sender">{sender?.name ?? shortUid(message.from)}</span>}
+      <div className="talkwire-row-body">
+        {!mine && showSender && <span className="talkwire-sender">{sender?.name ?? shortUid(message.from)}</span>}
         <div
-          className={type.framed === false ? "imkit-card" : "imkit-bubble" + (message.status === "failed" ? " imkit-bubble-failed" : "")}
+          className={type.framed === false ? "talkwire-card" : "talkwire-bubble" + (message.status === "failed" ? " talkwire-bubble-failed" : "")}
           onContextMenu={(e) => {
             e.preventDefault();
             onMenu(e.clientX, e.clientY);
           }}
           {...press}
         >
-          {message.forwardFromMsgId ? <span className="imkit-forwarded">{scope.strings.forwarded}</span> : null}
+          {message.forwardFromMsgId ? <span className="talkwire-forwarded">{scope.strings.forwarded}</span> : null}
           {quote && type.framed !== false ? <ReplyQuote quote={quote} /> : null}
           {content}
         </div>
@@ -686,15 +686,15 @@ export function readersOf(message: ChatMessage, cursors: ReadonlyMap<string, num
 
 /** Up to three small avatars and "Read by N"; a click opens the full list. */
 function ReadReceipts({ readers, groupSize }: { readers: string[]; groupSize: number }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const [open, setOpen] = useState(false);
   const shown = readers.slice(0, 3);
   return (
     <>
-      <button type="button" className="imkit-status imkit-readers" onClick={() => setOpen(true)}>
-        <span className="imkit-readers-faces" aria-hidden="true">
+      <button type="button" className="talkwire-status talkwire-readers" onClick={() => setOpen(true)}>
+        <span className="talkwire-readers-faces" aria-hidden="true">
           {shown.map((uid) => <Reader key={uid} uid={uid} size={16} />)}
-          {readers.length > shown.length && <span className="imkit-readers-more">+{readers.length - shown.length}</span>}
+          {readers.length > shown.length && <span className="talkwire-readers-more">+{readers.length - shown.length}</span>}
         </span>
         {format(strings.readByCount, readers.length)}
       </button>
@@ -704,7 +704,7 @@ function ReadReceipts({ readers, groupSize }: { readers: string[]; groupSize: nu
 }
 
 function Reader({ uid, size }: { uid: string; size: number }) {
-  const { host } = useImKit();
+  const { host } = useTalkwire();
   const p = useProfile(uid);
   return <Avatar uid={uid} name={p?.name} url={host.resolveMediaUrl ? host.resolveMediaUrl(p?.avatarUrl) : p?.avatarUrl} size={size} />;
 }
@@ -712,44 +712,44 @@ function Reader({ uid, size }: { uid: string; size: number }) {
 function ReaderRow({ uid }: { uid: string }) {
   const p = useProfile(uid);
   return (
-    <div className="imkit-info-row" role="listitem">
+    <div className="talkwire-info-row" role="listitem">
       <Reader uid={uid} size={36} />
-      <span className="imkit-info-name">{p?.name ?? shortUid(uid)}</span>
+      <span className="talkwire-info-name">{p?.name ?? shortUid(uid)}</span>
     </div>
   );
 }
 
 /** The full list. Rows open nothing: group members cannot open each other's profiles. */
 function ReadByList({ readers, totalEligible, onClose }: { readers: string[]; totalEligible: number; onClose(): void }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const unread = Math.max(0, totalEligible - readers.length);
   const title = format(strings.readByCount, readers.length);
   return (
     <Dialog label={title} onClose={onClose}>
-      <h3 className="imkit-dialog-title">{title}</h3>
-      <div className="imkit-pick-list" role="list">
+      <h3 className="talkwire-dialog-title">{title}</h3>
+      <div className="talkwire-pick-list" role="list">
         {readers.map((uid) => <ReaderRow key={uid} uid={uid} />)}
       </div>
       {totalEligible > 0 && (
-        <p className="imkit-info-hint" style={{ padding: "8px 0 0" }}>
+        <p className="talkwire-info-hint" style={{ padding: "8px 0 0" }}>
           {unread > 0 ? format(strings.readByFooterPartial, totalEligible, unread) : format(strings.readByFooterAll, totalEligible)}
         </p>
       )}
-      <div className="imkit-dialog-actions">
-        <button type="button" className="imkit-text-button" onClick={onClose}>{strings.ok}</button>
+      <div className="talkwire-dialog-actions">
+        <button type="button" className="talkwire-text-button" onClick={onClose}>{strings.ok}</button>
       </div>
     </Dialog>
   );
 }
 
 function ReplyQuote({ quote }: { quote: ReplyRef }) {
-  const { engine, strings } = useImKit();
+  const { engine, strings } = useTalkwire();
   const who = useProfile(quote.from && quote.from !== engine.me ? quote.from : undefined);
   const name = quote.from === engine.me ? strings.you : (who?.name ?? "");
   return (
-    <span className="imkit-quote">
-      <span className="imkit-quote-name">{name}</span>
-      <span className="imkit-quote-text">{quote.text}</span>
+    <span className="talkwire-quote">
+      <span className="talkwire-quote-name">{name}</span>
+      <span className="talkwire-quote-text">{quote.text}</span>
     </span>
   );
 }
@@ -759,7 +759,7 @@ function saveMedia(url: string | undefined, m: ChatMessage): void {
   if (!url) return;
   const a = document.createElement("a");
   a.href = url;
-  a.download = m.fileName || "imkit-" + (m.seq ?? "file");
+  a.download = m.fileName || "talkwire-" + (m.seq ?? "file");
   a.rel = "noreferrer";
   a.target = "_blank";
   document.body.appendChild(a);
@@ -788,7 +788,7 @@ function useLongPress(onMenu: (x: number, y: number) => void) {
 }
 
 function MessageMenu({ message, x, y, onAction, onClose }: { message: ChatMessage; x: number; y: number; onAction(a: MessageAction, m: ChatMessage): void; onClose(): void }) {
-  const { types, strings, engine } = useImKit();
+  const { types, strings, engine } = useTalkwire();
   const mine = message.from === engine.me;
   const ownOnly: MessageAction[] = ["recall", "retry", "discard"];
   const actions = (types.typeOf(message).actions?.(message) ?? [])
@@ -816,7 +816,7 @@ function MessageMenu({ message, x, y, onAction, onClose }: { message: ChatMessag
     discard: strings.actionDiscard,
   };
   return (
-    <div className="imkit-menu" style={{ left: Math.min(x, window.innerWidth - 160), top: Math.max(0, Math.min(y, window.innerHeight - 40 * actions.length - 16)) }} role="menu">
+    <div className="talkwire-menu" style={{ left: Math.min(x, window.innerWidth - 160), top: Math.max(0, Math.min(y, window.innerHeight - 40 * actions.length - 16)) }} role="menu">
       {actions.map((a) => (
         <button key={a} type="button" role="menuitem" onClick={() => onAction(a, message)}>
           {label[a]}
@@ -832,7 +832,7 @@ const TYPING_EVERY_MS = 4_000;
 const CANCEL_LIFT_PX = 60;
 
 function Composer({ conversation, replyTo, onCancelReply }: { conversation: ConversationId; replyTo: ReplyRef | null; onCancelReply(): void }) {
-  const { engine, strings, host } = useImKit();
+  const { engine, strings, host } = useTalkwire();
   const replyWho = useProfile(replyTo && replyTo.from !== engine.me ? replyTo.from : undefined);
   const replyName = replyTo?.from === engine.me ? strings.you : (replyWho?.name ?? "");
   const summary = useConversation(conversation);
@@ -887,21 +887,21 @@ function Composer({ conversation, replyTo, onCancelReply }: { conversation: Conv
   };
 
   return (
-    <div className="imkit-composer-wrap">
+    <div className="talkwire-composer-wrap">
       {replyTo && (
-        <div className="imkit-reply-bar">
+        <div className="talkwire-reply-bar">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="imkit-reply-name">{format(strings.replyingTo, replyName)}</div>
-            <div className="imkit-reply-text">{replyTo.text}</div>
+            <div className="talkwire-reply-name">{format(strings.replyingTo, replyName)}</div>
+            <div className="talkwire-reply-text">{replyTo.text}</div>
           </div>
-          <button type="button" className="imkit-icon-button" onClick={onCancelReply} aria-label={strings.cancel}>
+          <button type="button" className="talkwire-icon-button" onClick={onCancelReply} aria-label={strings.cancel}>
             ✕
           </button>
         </div>
       )}
-    <div className="imkit-composer">
+    <div className="talkwire-composer">
       {host.media && (
-        <button type="button" className="imkit-icon-button" onClick={() => setMode(mode === "text" ? "voice" : "text")} aria-label={mode === "text" ? strings.voiceInput : strings.keyboard}>
+        <button type="button" className="talkwire-icon-button" onClick={() => setMode(mode === "text" ? "voice" : "text")} aria-label={mode === "text" ? strings.voiceInput : strings.keyboard}>
           {mode === "text" ? "🎤" : "⌨"}
         </button>
       )}
@@ -910,7 +910,7 @@ function Composer({ conversation, replyTo, onCancelReply }: { conversation: Conv
       ) : (
         <textarea
           ref={input}
-          className="imkit-input"
+          className="talkwire-input"
           rows={1}
           value={text}
           placeholder={strings.typeMessage}
@@ -925,27 +925,27 @@ function Composer({ conversation, replyTo, onCancelReply }: { conversation: Conv
         />
       )}
       {mode === "text" && (
-        <button type="button" className="imkit-icon-button" onClick={() => setEmoji(!emoji)} aria-label={strings.emoji} aria-pressed={emoji}>
+        <button type="button" className="talkwire-icon-button" onClick={() => setEmoji(!emoji)} aria-label={strings.emoji} aria-pressed={emoji}>
           😊
         </button>
       )}
       {host.media && (
         <>
-          <button type="button" className="imkit-icon-button" onClick={() => file.current?.click()} aria-label={strings.attach}>
+          <button type="button" className="talkwire-icon-button" onClick={() => file.current?.click()} aria-label={strings.attach}>
             ＋
           </button>
           <input ref={file} type="file" hidden onChange={(e) => void onFile(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
         </>
       )}
       {mode === "text" && (
-        <button type="button" className="imkit-send" onClick={send} disabled={!text.trim()}>
+        <button type="button" className="talkwire-send" onClick={send} disabled={!text.trim()}>
           {strings.send}
         </button>
       )}
-      {toast && <div className="imkit-toast" role="alert">{toast}</div>}
+      {toast && <div className="talkwire-toast" role="alert">{toast}</div>}
     </div>
       {emoji && mode === "text" && (
-        <div className="imkit-emoji-panel" role="listbox" aria-label={strings.emoji}>
+        <div className="talkwire-emoji-panel" role="listbox" aria-label={strings.emoji}>
           {EMOJI.map((e) => (
             <button
               key={e}
@@ -992,7 +992,7 @@ export const EMOJI: readonly string[] = [
  * not end it early).
  */
 export function HoldToTalk({ onClip, onTooShort, onDenied, recorder: given }: { onClip(clip: VoiceClip): void; onTooShort?(): void; onDenied?(): void; recorder?: VoiceRecorder }) {
-  const { strings } = useImKit();
+  const { strings } = useTalkwire();
   const recorder = useMemo(() => given ?? new VoiceRecorder(), [given]);
   const state = useSignal(recorder.state);
   const [cancelling, setCancelling] = useState(false);
@@ -1011,7 +1011,7 @@ export function HoldToTalk({ onClip, onTooShort, onDenied, recorder: given }: { 
     <>
       <button
         type="button"
-        className={"imkit-talk" + (recording ? (cancelling ? " imkit-talk-cancel" : " imkit-talk-active") : "")}
+        className={"talkwire-talk" + (recording ? (cancelling ? " talkwire-talk-cancel" : " talkwire-talk-active") : "")}
         onPointerDown={async (e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           pressed.current = true;
@@ -1047,8 +1047,8 @@ export function HoldToTalk({ onClip, onTooShort, onDenied, recorder: given }: { 
         {recording ? (cancelling ? strings.releaseToCancel : strings.releaseToSend) : strings.holdToTalk}
       </button>
       {recording && (
-        <div className="imkit-overlay">
-          <div className={"imkit-overlay-card" + (cancelling ? " imkit-overlay-cancel" : "")}>
+        <div className="talkwire-overlay">
+          <div className={"talkwire-overlay-card" + (cancelling ? " talkwire-overlay-cancel" : "")}>
             <div style={{ fontSize: 22 }}>{format(strings.voiceSeconds, seconds)}</div>
             <div style={{ fontSize: 13, marginTop: 6 }}>{cancelling ? strings.releaseToCancel : strings.swipeUpCancel}</div>
           </div>
@@ -1060,7 +1060,7 @@ export function HoldToTalk({ onClip, onTooShort, onDenied, recorder: given }: { 
 
 /** A message bubble on its own, for previews and tests. */
 export function MessageBubble({ message, mine = false }: { message: ChatMessage; mine?: boolean }) {
-  const { strings, host } = useImKit();
+  const { strings, host } = useTalkwire();
   const scope: MessageScope = { isMine: mine, strings, resolveUrl: (u) => (host.resolveMediaUrl ? host.resolveMediaUrl(u) : u || undefined), openImage: () => {} };
   return <MessageRow message={message} mine={mine} showSender={false} scope={scope} status={null} onMenu={() => {}} />;
 }

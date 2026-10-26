@@ -8,17 +8,17 @@ export default defineConfig({
   resolve: {
     // Tests run against the sources, not a stale dist/.
     alias: {
-      "@imkit/protocol": src("protocol"),
-      "@imkit/client": src("client"),
-      "@imkit/storage-idb": src("storage-idb"),
-      "@imkit/react": src("react"),
-      // A subpath first: "@imkit/group-join" would also match it as a prefix.
-      "@imkit/group-join/react": src("group-join", "react.tsx"),
-      "@imkit/group-join": src("group-join"),
-      "@imkit/call/react": src("call", "react.tsx"),
-      "@imkit/call": src("call"),
-      "@imkit/admin": src("admin"),
-      "@imkit/call-dingrtc": src("call-dingrtc"),
+      "@talkwire/protocol": src("protocol"),
+      "@talkwire/client": src("client"),
+      "@talkwire/storage-idb": src("storage-idb"),
+      "@talkwire/react": src("react"),
+      // A subpath first: "@talkwire/group-join" would also match it as a prefix.
+      "@talkwire/group-join/react": src("group-join", "react.tsx"),
+      "@talkwire/group-join": src("group-join"),
+      "@talkwire/call/react": src("call", "react.tsx"),
+      "@talkwire/call": src("call"),
+      "@talkwire/admin": src("admin"),
+      "@talkwire/call-dingrtc": src("call-dingrtc"),
     },
   },
   test: {

@@ -1,6 +1,6 @@
-# ImKit 客户端协议 v1（草稿）
+# Talkwire 客户端协议 v1（草稿）
 
-状态：草稿，2026-10-24；2026-10-25 补入 ImKit 服务端 Phase 1 的结果：strict 档新增的字段与错误码（第 0.3、3.3、4、6.1 节）、模块未安装时的 501（第 4.1 节）、推送服务商（第 17 节）、多端同时在线（第 6.2 节及各节的“多端”段）、D9（第 18 节）；同日补入 strict 档 `get` 应答的 `readSeq`（第 8、9.3、12.3 节）。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
+状态：草稿，2026-10-24；2026-10-25 补入 Talkwire 服务端 Phase 1 的结果：strict 档新增的字段与错误码（第 0.3、3.3、4、6.1 节）、模块未安装时的 501（第 4.1 节）、推送服务商（第 17 节）、多端同时在线（第 6.2 节及各节的“多端”段）、D9（第 18 节）；同日补入 strict 档 `get` 应答的 `readSeq`（第 8、9.3、12.3 节）。依据参考服务（原版 `server/im-go`，提交 `33e23250`）的源码和 `contract/protocol/transcripts/` 中录制的黄金对话写成。协议事实的逐条出处见 `docs/protocol-findings.md`（下文以 F 编号引用）。
 
 本文的目标读者是要独立实现客户端或服务端的团队。只读本文、JSON Schema（`contract/protocol/schema/`）和黄金对话，就应能写出与参考服务逐帧兼容的实现。
 
@@ -20,7 +20,7 @@
 | --- | --- |
 | 【录】 | 黄金对话里有实测帧，并核对过源码 |
 | 【码】 | 只读源码得到，还没有录制 |
-| 【测】 | ImKit 服务端新增、参考服务没有的行为：没有黄金对话，由 `server/` 的自动化测试验证 |
+| 【测】 | Talkwire 服务端新增、参考服务没有的行为：没有黄金对话，由 `server/` 的自动化测试验证 |
 
 模块组（第 13–16 节）已录制，只有第 16.4 节末尾注明的两种情况尚未录制。
 
@@ -28,14 +28,14 @@
 
 参考服务有若干已知缺陷（第 18 节）。服务端实现声明自己属于哪一档：
 
-- **legacy**：对所有黄金对话逐帧一致，包括缺陷行为。ImKit 迁移原版项目时用这一档。
+- **legacy**：对所有黄金对话逐帧一致，包括缺陷行为。Talkwire 迁移原版项目时用这一档。
 - **strict**：修正第 18 节列出的缺陷，其余与 legacy 一致。新项目默认用这一档。
 
-ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做三类改动：
+Talkwire 服务端用环境变量 `TALKWIRE_PROTOCOL_PROFILE=legacy|strict` 选择档位，默认 strict；迁移原版项目、要与原版客户端逐帧兼容时设 legacy。strict 档相对 legacy 只做三类改动：
 
 - **新增字段**，旧客户端忽略即可：成功的 `login` 和 `pres` 快照应答带 `id`（第 3.3 节）；`login` 应答带 `protocol`、`capabilities`、`vapidKey`（第 6.1 节）；错误帧带 `errCode`（第 4.3 节）；`get` 应答带本人的已读位置 `readSeq`（第 9.3 节）。
 - **新增动作**，在 `capabilities` 里宣告，旧客户端不会发出：`sync_summary`（第 8.1 节）。legacy 档对它们像参考服务一样回 400 `unknown action`。
-- **修正第 18 节的缺陷**。ImKit 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。
+- **修正第 18 节的缺陷**。Talkwire 服务端修正了 D6 以外的全部各项；D6 两档相同，留给协议 v2。
 
 多端同时在线（第 6.2 节）不分档位：客户端在 `login` 里带 `device` 才启用，不带时两档都与参考服务一致。
 
@@ -45,9 +45,9 @@ ImKit 服务端用环境变量 `IMKIT_PROTOCOL_PROFILE=legacy|strict` 选择档�
 
 | 术语 | 含义 |
 | --- | --- |
-| 宿主 | 接入 ImKit 的业务系统，负责账号、好友关系、资料、推送通道、媒体存储 |
-| `appUserId` | 宿主侧的用户 id，任意字符串，ImKit 不解释 |
-| uid | ImKit 侧的用户 id，由 `appUserId` 推导（第 5.1 节） |
+| 宿主 | 接入 Talkwire 的业务系统，负责账号、好友关系、资料、推送通道、媒体存储 |
+| `appUserId` | 宿主侧的用户 id，任意字符串，Talkwire 不解释 |
+| uid | Talkwire 侧的用户 id，由 `appUserId` 推导（第 5.1 节） |
 | topic | 会话。三种：单聊、群、保留 topic（第 5 节） |
 | 规范 topic | 服务端存储会话用的名字：单聊是 `p2p_…`，群是 `grp_…` |
 | seq | 消息在 topic 内的序号，从 1 开始，严格递增，不复用 |
@@ -129,7 +129,7 @@ action 帧族的错误应答形如：
 | 404 | 对象不存在 |
 | 409 | 状态冲突（如群主不能直接退群、群已加密） |
 | 429 | 超过频率限制 |
-| 501 | 动作属于服务端没有安装的模块，`reason` 为 `module not enabled: <模块名>`（ImKit 服务端；参考服务没有模块开关） |
+| 501 | 动作属于服务端没有安装的模块，`reason` 为 `module not enabled: <模块名>`（Talkwire 服务端；参考服务没有模块开关） |
 | 500 | 服务端内部错误，可以重试 |
 
 `reason` 是给人看的说明，**不透明**：有中文也有英文，措辞随版本变化（F28）。客户端**必须**只根据 `code`（以及第 9 节里明确列出的少数 `reason` 值）做逻辑判断，不得解析其他 `reason` 文本。strict 档的错误帧另带 `errCode`（第 4.3 节），客户端**应当**优先按它判断。
@@ -272,7 +272,7 @@ topic  = "p2p_" + base64url_nopad( SHA-256( a + ":" + b )[0:8] )
 
 `token` 是宿主签发的 HS256 JWT，与服务端共享密钥。服务端只要求 `sub`（即 `appUserId`）存在且签名、有效期合法。
 
-`device`（可选，ImKit 服务端【测】）：本连接所在设备的名字，见第 6.2 节。
+`device`（可选，Talkwire 服务端【测】）：本连接所在设备的名字，见第 6.2 节。
 
 | 结果 | 应答 |
 | --- | --- |
@@ -300,7 +300,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 
 客户端在连接被意外关闭时**不应**自动无限重连抢回会话；收到上述 401 时**应当**停止自动重连并提示用户。
 
-**带 `device` 的登录**【测】（ImKit 服务端，计划任务 1.12）：`device` 是客户端为本机选定并持久保存的名字，1–64 个字符，只含字母、数字和 `. _ : -`。同一台设备每次登录都**必须**用同一个名字，不同设备**必须**用不同的名字。只有同名设备的新登录才顶替旧连接，不同设备的连接同时在线。不带 `device` 等于设备 `""`，所以不带它的客户端仍像参考服务那样互相顶替。一个账号最多同时在 `IMKIT_MAX_DEVICES_PER_USER` 台（默认 10）设备上在线，超出时新设备的登录得到 409 `too many devices`；这个上限在登录时检查，几台新设备同时登录时可能略微超出。
+**带 `device` 的登录**【测】（Talkwire 服务端，计划任务 1.12）：`device` 是客户端为本机选定并持久保存的名字，1–64 个字符，只含字母、数字和 `. _ : -`。同一台设备每次登录都**必须**用同一个名字，不同设备**必须**用不同的名字。只有同名设备的新登录才顶替旧连接，不同设备的连接同时在线。不带 `device` 等于设备 `""`，所以不带它的客户端仍像参考服务那样互相顶替。一个账号最多同时在 `TALKWIRE_MAX_DEVICES_PER_USER` 台（默认 10）设备上在线，超出时新设备的登录得到 409 `too many devices`；这个上限在登录时检查，几台新设备同时登录时可能略微超出。
 
 多台设备同时在线时：
 
@@ -364,7 +364,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 
 ### 8.1 `sync_summary` 会话变更摘要【测】
 
-只在 strict 档、登录应答的 `capabilities` 含 `sync-summary` 时可用（ImKit 服务端）。它让重连的客户端用一次往返知道哪些会话有变化，不必对每个会话各发一次 `get`。
+只在 strict 档、登录应答的 `capabilities` 含 `sync-summary` 时可用（Talkwire 服务端）。它让重连的客户端用一次往返知道哪些会话有变化，不必对每个会话各发一次 `get`。
 
 请求：`{"id":"s1","action":"sync_summary"}`，无参数。
 
@@ -506,7 +506,7 @@ strict 档的成功应答另带 `id`、`protocol`（协议版本，整数 `1`）
 
 单聊时这里的 `topic` 是撤回者请求里写的值（第 5.5 节）。多端【测】：撤回者自己的其他设备也收到 `recalled`，`from` 是自己。
 
-撤回清空这条消息的正文和文件引用（`fileUrl`、`fileName`、`extra`），seq 仍占用。被撤回消息的文件如果不再被任何消息引用，服务端请求宿主删除（`POST /api/v1/internal/im/delete-media`）；仍被其他消息引用则保留（F53）。参考服务撤回视频时只回收主文件，缩略图的引用随 `extra` 一起清掉却不请求删除，成为再也回收不到的文件（读代码所得）。ImKit 服务端在两档下都一并回收缩略图（计划任务 1.9）。
+撤回清空这条消息的正文和文件引用（`fileUrl`、`fileName`、`extra`），seq 仍占用。被撤回消息的文件如果不再被任何消息引用，服务端请求宿主删除（`POST /api/v1/internal/im/delete-media`）；仍被其他消息引用则保留（F53）。参考服务撤回视频时只回收主文件，缩略图的引用随 `extra` 一起清掉却不请求删除，成为再也回收不到的文件（读代码所得）。Talkwire 服务端在两档下都一并回收缩略图（计划任务 1.9）。
 
 | 错误 | 条件 |
 | --- | --- |
@@ -755,7 +755,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 再次发布会覆盖之前的身份密钥。每个账号只有一套密钥，`e2e_bundle` 里的 `deviceId` 恒为 1（F42）。
 
-多端【测】：发布身份密钥的那台设备是本账号的加密设备。`e2e_deliver`、它的补投、`e2e_terminated`、`e2e_cleared` 和加密消息的推送通知都只给这台设备，其他设备（例如没有密钥的网页端）收不到；另一台设备重新发布即接管。v1 不支持多设备加密。从不带 `device` 的登录发布的身份（包括 ImKit 1.12 之前发布的）属于设备 `""`：客户端开始带 `device` 登录后**必须**重新发布一次密钥包，否则加密消息一直等着设备 `""`。
+多端【测】：发布身份密钥的那台设备是本账号的加密设备。`e2e_deliver`、它的补投、`e2e_terminated`、`e2e_cleared` 和加密消息的推送通知都只给这台设备，其他设备（例如没有密钥的网页端）收不到；另一台设备重新发布即接管。v1 不支持多设备加密。从不带 `device` 的登录发布的身份（包括 Talkwire 1.12 之前发布的）属于设备 `""`：客户端开始带 `device` 登录后**必须**重新发布一次密钥包，否则加密消息一直等着设备 `""`。
 
 `e2e_fetch_bundle` 只在满足以下任一条件时返回密钥：
 
@@ -895,7 +895,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 ### 15.2 触发与回复
 
-群消息正文里任意位置出现 `@小桃子`、且后面紧跟空白、中英文标点、`@` 或正文结尾时触发（`@小桃子的粉丝群` 不会触发）。这个触发词是参考服务写死的，ImKit 会把它做成宿主配置。
+群消息正文里任意位置出现 `@小桃子`、且后面紧跟空白、中英文标点、`@` 或正文结尾时触发（`@小桃子的粉丝群` 不会触发）。这个触发词是参考服务写死的，Talkwire 会把它做成宿主配置。
 
 触发后：
 
@@ -980,7 +980,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 注意 `token` 字段在这里放的是推送令牌，不是登录令牌（F27）。两者都**无应答**，缺 `token` 时静默丢弃。客户端**应当**在每次登录后注册，退出登录前注销。
 
-`provider`（可选，ImKit 服务端）：推送服务商，`fcm`（缺省，参考服务只有它）、`apns` 或 `webpush`。Web Push 的令牌是浏览器 `PushSubscription` 的 JSON 字符串，服务端规范化后保存。不合法的令牌被静默拒绝：没有应答，服务端只记日志，不记令牌本身。各服务商的推送载荷见 `server/push/push.go` 的包文档。
+`provider`（可选，Talkwire 服务端）：推送服务商，`fcm`（缺省，参考服务只有它）、`apns` 或 `webpush`。Web Push 的令牌是浏览器 `PushSubscription` 的 JSON 字符串，服务端规范化后保存。不合法的令牌被静默拒绝：没有应答，服务端只记日志，不记令牌本身。各服务商的推送载荷见 `server/push/push.go` 的包文档。
 
 推送对象【测】：只推给没有连接的设备注册的令牌。一台设备都没连上时就是该用户的全部令牌，与参考服务相同。不带 `device` 登录时注册的令牌属于设备 `""`。带 `device` 登录的设备每个服务商只保留一个令牌，注册新的即删掉旧的。每次登录后重新注册，令牌就总挂在当前设备上。
 
@@ -988,7 +988,7 @@ legacy 档的缺陷：可以查询任意 uid，包括陌生人（D3，红线 R22
 
 参考服务的下列行为是缺陷。legacy 档保留它们，strict 档按“修正后”列实现。客户端按“客户端应对”列处理，就能在两档下都正常工作。
 
-ImKit 服务端的 strict 档修正了 D6 以外的全部各项：D3、D4 在任务 1.8，D9 在任务 1.10，D1、D2、D5、D7、D8 在任务 1.13。D6 两档相同。
+Talkwire 服务端的 strict 档修正了 D6 以外的全部各项：D3、D4 在任务 1.8，D9 在任务 1.10，D1、D2、D5、D7、D8 在任务 1.13。D6 两档相同。
 
 | 编号 | 缺陷 | strict 档修正后 | 客户端应对 | 出处 |
 | --- | --- | --- | --- | --- |
@@ -1022,7 +1022,7 @@ conformance check -bin <服务端可执行文件>
 strict 档用同一套黄金对话检验：
 
 ```
-conformance check -additions strict -overlay contract/protocol/transcripts-strict -env IMKIT_PROTOCOL_PROFILE=strict
+conformance check -additions strict -overlay contract/protocol/transcripts-strict -env TALKWIRE_PROTOCOL_PROFILE=strict
 ```
 
 `-additions strict` 在比较前去掉 strict 档新增的字段（`id`、`protocol`、`capabilities`、`vapidKey`、`errCode`、`readSeq`）；有意偏离 legacy 的六个场景改用 `transcripts-strict/` 里另录的版本：`core/login-tokens`（D4）、`core/presence`（D3）、`core/leave-grp`（D1、D2）、`core/group-offline-events`（D5）、`module/qr-join`（D7）、`module/qr-join-review`（D8）。Schema 校验同时覆盖 `transcripts-strict/`，那里的帧保留了 strict 档的新增字段。

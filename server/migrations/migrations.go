@@ -6,7 +6,7 @@ package migrations
 import (
 	"embed"
 
-	"example.com/imkit/server/migrate"
+	"github.com/dishikun2786-prog/Talkwire/server/migrate"
 )
 
 //go:embed core groupjoin e2ee

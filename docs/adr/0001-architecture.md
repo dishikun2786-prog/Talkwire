@@ -1,8 +1,8 @@
-# ADR-0001：ImKit 的总体架构与 v1 范围
+# ADR-0001：Talkwire 的总体架构与 v1 范围
 
 - 状态：已采纳
 - 日期：2026-10-24
-- 依据：《ImKit 详细开发计划》（https://claude.ai/artifact/Eh89avD5BQyVK1Urfz7Lss）
+- 依据：《Talkwire 详细开发计划》（https://claude.ai/artifact/Eh89avD5BQyVK1Urfz7Lss）
 
 ## 背景
 

@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"example.com/imkit/server/host"
-	"example.com/imkit/server/host/hmacjwt"
-	"example.com/imkit/server/host/httpadapter"
-	"example.com/imkit/server/host/jwks"
-	"example.com/imkit/server/host/standalone"
-	"example.com/imkit/server/push"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host/hmacjwt"
+	"github.com/dishikun2786-prog/Talkwire/server/host/httpadapter"
+	"github.com/dishikun2786-prog/Talkwire/server/host/jwks"
+	"github.com/dishikun2786-prog/Talkwire/server/host/standalone"
+	"github.com/dishikun2786-prog/Talkwire/server/push"
 )
 
 // runtimeConfigRefreshInterval is how often the group-chat limits are
@@ -182,12 +182,12 @@ func newHost(cfg *Config) (hostWithConfig, error) {
 
 // / newIdentity builds the verifier of user and internal tokens. Internal
 // tokens are always signed with the secret shared with the host; user tokens
-// too, unless the host publishes a key set (IMKIT_JWKS_URL).
+// too, unless the host publishes a key set (TALKWIRE_JWKS_URL).
 func newIdentity(cfg *Config) (host.Identity, error) {
 	policy := hmacjwt.Policy{UserRoles: cfg.TokenUserRoles}
 	if cfg.Profile == ProfileStrict {
 		if cfg.AcceptLegacyTokens {
-			log.Println("WARNING: IMKIT_ACCEPT_LEGACY_TOKENS=1: refresh, administrator and other non-access tokens can log in (red line R18); use it only while migrating clients")
+			log.Println("WARNING: TALKWIRE_ACCEPT_LEGACY_TOKENS=1: refresh, administrator and other non-access tokens can log in (red line R18); use it only while migrating clients")
 		} else {
 			policy.AccessOnly = true
 		}
@@ -229,14 +229,14 @@ func newPusher(cfg *Config) (*push.Dispatcher, string) {
 		senders[push.FCM] = s
 	}
 	if cfg.APNs.KeyPath == "" {
-		log.Println("Push: APNs not configured (set IMKIT_APNS_KEY_PATH)")
+		log.Println("Push: APNs not configured (set TALKWIRE_APNS_KEY_PATH)")
 	} else if s, err := push.NewAPNs(cfg.APNs); err != nil {
 		logf("Push: APNs disabled: %v", err)
 	} else {
 		senders[push.APNs] = s
 	}
 	if cfg.WebPush.KeyPath == "" {
-		log.Println("Push: Web Push not configured (set IMKIT_VAPID_KEY_PATH)")
+		log.Println("Push: Web Push not configured (set TALKWIRE_VAPID_KEY_PATH)")
 	} else if s, err := push.NewWebPush(cfg.WebPush); err != nil {
 		logf("Push: Web Push disabled: %v", err)
 	} else {

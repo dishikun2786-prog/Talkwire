@@ -1,11 +1,11 @@
 /**
  * The stack the end-to-end tests run against: the sample host, a real
- * `imkit-server` in host mode on a throwaway PostgreSQL database, and the web
+ * `talkwire-server` in host mode on a throwaway PostgreSQL database, and the web
  * sample's Vite dev server in front of both. It uses its own ports, so a dev
  * stack already running on 5173/6001/6062 is left alone.
  *
- * Needs IMKIT_TEST_DSN (libpq key=value, the variable the server's database
- * tests use) and a built `server/bin/imkit-server(.exe)`. The DSN's password
+ * Needs TALKWIRE_TEST_DSN (libpq key=value, the variable the server's database
+ * tests use) and a built `server/bin/talkwire-server(.exe)`. The DSN's password
  * goes to the server through its environment and is never logged.
  */
 
@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const web = fileURLToPath(new URL("../", import.meta.url));
 const root = join(web, "..");
 const serverDir = join(root, "server");
-const binary = join(serverDir, process.platform === "win32" ? "bin/imkit-server.exe" : "bin/imkit-server");
+const binary = join(serverDir, process.platform === "win32" ? "bin/talkwire-server.exe" : "bin/talkwire-server");
 const hostDir = join(root, "examples", "sample-host");
 export const logDir = join(web, "e2e", ".stack-logs");
 
@@ -41,7 +41,7 @@ function parseDsn(dsn: string): Record<string, string> {
 /** The environment without the DSN, so no child (or its logs) sees it whole. */
 function baseEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  delete env.IMKIT_TEST_DSN;
+  delete env.TALKWIRE_TEST_DSN;
   return env;
 }
 
@@ -97,8 +97,8 @@ export interface Stack {
 }
 
 export async function startStack(): Promise<Stack> {
-  const dsn = process.env.IMKIT_TEST_DSN;
-  if (!dsn) throw new Error("IMKIT_TEST_DSN is not set: the end-to-end tests need a throwaway PostgreSQL database (see web/README.md).");
+  const dsn = process.env.TALKWIRE_TEST_DSN;
+  if (!dsn) throw new Error("TALKWIRE_TEST_DSN is not set: the end-to-end tests need a throwaway PostgreSQL database (see web/README.md).");
   if (!existsSync(binary)) throw new Error(`${binary} is missing: build it with \`cd server && go build -o bin/ .\`.`);
   for (const [what, port] of Object.entries(ports)) {
     if (!(await portFree(port))) throw new Error(`port ${port} (${what}) is in use; set E2E_${what.toUpperCase()}_PORT to another one`);
@@ -127,7 +127,7 @@ export async function startStack(): Promise<Stack> {
       MEDIA_DIR: media,
     });
     children.push(host);
-    const im = start("imkit-server", binary, [], serverDir, {
+    const im = start("talkwire-server", binary, [], serverDir, {
       ...baseEnv(),
       IM_PORT: String(ports.im),
       DB_HOST: db.host ?? "127.0.0.1",
@@ -138,8 +138,8 @@ export async function startStack(): Promise<Stack> {
       DB_SSLMODE: db.sslmode ?? "disable",
       JWT_SECRET: secret,
       MAIN_API_BASE_URL: `http://127.0.0.1:${ports.host}`,
-      IMKIT_HOST_MODE: "http",
-      IMKIT_PROTOCOL_PROFILE: "strict",
+      TALKWIRE_HOST_MODE: "http",
+      TALKWIRE_PROTOCOL_PROFILE: "strict",
     });
     children.push(im);
     const vite = start("vite", process.execPath, [join(web, "node_modules", "vite", "bin", "vite.js"), "sample", "--config", "sample/vite.config.ts"], web, {

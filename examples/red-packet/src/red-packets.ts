@@ -1,5 +1,5 @@
 // A host-owned message type: the red packet. The host owns everything about
-// it (who may claim, how much each gets, the money); ImKit only carries the
+// it (who may claim, how much each gets, the money); Talkwire only carries the
 // message that shows the card and the live updates to it.
 //
 //   1. The sender creates a packet here and gets its id.
@@ -18,7 +18,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { ImClient } from "@imkit/host-node";
+import type { ImClient } from "@talkwire/host-node";
 
 export interface RedPacketState {
   id: string;

@@ -33,7 +33,7 @@ test("reads back what it was built from", () => {
     const { appKey: _, ...rest } = g.input;
     assert.deepEqual(readAppToken(g.token), rest);
   }
-  const token = buildAppToken({ appId: "app", appKey: "k", channelId: "imkit-x", userId: "uid_K9gGyX8OAK8", expiresAt: 2_000_000_000 });
+  const token = buildAppToken({ appId: "app", appKey: "k", channelId: "talkwire-x", userId: "uid_K9gGyX8OAK8", expiresAt: 2_000_000_000 });
   const read = readAppToken(token);
   assert.equal(read.userId, "uid_K9gGyX8OAK8");
   assert.ok(Math.abs(read.issuedAt - Date.now() / 1000) < 5);

@@ -1,4 +1,4 @@
-import { AI_ASSISTANT_UID, type ChatEngine, type ConnectionState, type ConversationId, type ConversationSummary, type MediaSender, type PresenceState, type ReadonlySignal } from "@imkit/client";
+import { AI_ASSISTANT_UID, type ChatEngine, type ConnectionState, type ConversationId, type ConversationSummary, type MediaSender, type PresenceState, type ReadonlySignal } from "@talkwire/client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MessageTypeRegistry } from "./registry.js";
 import { en, stringsFor, type ImStrings } from "./strings.js";
@@ -29,7 +29,7 @@ export interface ImUiHost {
   onOpenProfile?(uid: string): void;
 }
 
-interface ImKitValue {
+interface TalkwireValue {
   engine: ChatEngine;
   host: ImUiHost;
   strings: ImStrings;
@@ -39,9 +39,9 @@ interface ImKitValue {
   profiles: ProfileCache;
 }
 
-const ImKitContext = createContext<ImKitValue | null>(null);
+const TalkwireContext = createContext<TalkwireValue | null>(null);
 
-export interface ImKitProviderProps {
+export interface TalkwireProviderProps {
   engine: ChatEngine;
   host: ImUiHost;
   /** A BCP 47 tag picking a built-in table (en, zh, vi), and/or single texts to replace. */
@@ -51,21 +51,21 @@ export interface ImKitProviderProps {
   children: ReactNode;
 }
 
-export function ImKitProvider({ engine, host, locale, strings, types, children }: ImKitProviderProps) {
+export function TalkwireProvider({ engine, host, locale, strings, types, children }: TalkwireProviderProps) {
   const resolved = useMemo(() => ({ ...(locale ? stringsFor(locale) : en), ...strings }), [locale, strings]);
   // Until the host names someone, the group assistant goes by strings.assistant.
   const assistant = useLatest(resolved.assistant);
   const profiles = useMemo(() => new ProfileCache(host, (uid) => (uid === AI_ASSISTANT_UID ? assistant.current : shortUid(uid))), [host, assistant]);
-  const value = useMemo<ImKitValue>(
+  const value = useMemo<TalkwireValue>(
     () => ({ engine, host, profiles, types: types ?? MessageTypeRegistry.Default, strings: resolved, locale: locale ?? "en" }),
     [engine, host, profiles, types, resolved, locale],
   );
-  return <ImKitContext.Provider value={value}>{children}</ImKitContext.Provider>;
+  return <TalkwireContext.Provider value={value}>{children}</TalkwireContext.Provider>;
 }
 
-export function useImKit(): ImKitValue {
-  const v = useContext(ImKitContext);
-  if (!v) throw new Error("ImKit components need an <ImKitProvider>");
+export function useTalkwire(): TalkwireValue {
+  const v = useContext(TalkwireContext);
+  if (!v) throw new Error("Talkwire components need an <TalkwireProvider>");
   return v;
 }
 
@@ -79,11 +79,11 @@ export function useSignal<T>(signal: ReadonlySignal<T>): T {
 }
 
 export function useConnectionState(): ConnectionState {
-  return useSignal(useImKit().engine.client.state);
+  return useSignal(useTalkwire().engine.client.state);
 }
 
 export function useConversations(): ConversationSummary[] {
-  return useSignal(useImKit().engine.conversations);
+  return useSignal(useTalkwire().engine.conversations);
 }
 
 export function useConversation(id: ConversationId): ConversationSummary | undefined {
@@ -91,19 +91,19 @@ export function useConversation(id: ConversationId): ConversationSummary | undef
 }
 
 export function useMessages(conversation: ConversationId) {
-  const { engine } = useImKit();
+  const { engine } = useTalkwire();
   return useSignal(useMemo(() => engine.messages(conversation), [engine, conversation]));
 }
 
 /** Presence of a user, from the engine's one tracker (C5). */
 export function usePresence(uid: string | undefined): PresenceState {
-  const { engine } = useImKit();
+  const { engine } = useTalkwire();
   useSignal(engine.presence.version);
   return uid ? engine.presence.state(uid) : "unknown";
 }
 
 export function useTyping(conversation: ConversationId): string[] {
-  const { engine } = useImKit();
+  const { engine } = useTalkwire();
   useSignal(engine.typing);
   return engine.typingIn(conversation);
 }
@@ -114,7 +114,7 @@ export function useTyping(conversation: ConversationId): string[] {
  * subscription is not missed.
  */
 export function useProfile(uid: string | undefined): ImProfile | undefined {
-  const { profiles } = useImKit();
+  const { profiles } = useTalkwire();
   const known = useSyncExternalStore(
     useCallback((cb: () => void) => (uid ? profiles.watch(uid, cb) : () => {}), [profiles, uid]),
     () => (uid ? profiles.peek(uid) : undefined),
@@ -127,7 +127,7 @@ export function useProfile(uid: string | undefined): ImProfile | undefined {
  * (a member list); read the names with `profiles.get`.
  */
 export function useProfilesVersion(): number {
-  const { profiles } = useImKit();
+  const { profiles } = useTalkwire();
   return useSyncExternalStore(
     useCallback((cb: () => void) => profiles.watchAll(cb), [profiles]),
     () => profiles.version,

@@ -24,7 +24,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"example.com/imkit/tools/conformance/harness"
+	"github.com/dishikun2786-prog/Talkwire/tools/conformance/harness"
 )
 
 // Fault is one injected misbehaviour.

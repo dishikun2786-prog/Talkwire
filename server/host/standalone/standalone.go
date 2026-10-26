@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"os"
 
-	"example.com/imkit/server/host"
+	"github.com/dishikun2786-prog/Talkwire/server/host"
 )
 
 // Relation policies.

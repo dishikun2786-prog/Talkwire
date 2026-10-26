@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import Fastify from "fastify";
-import { clearConfirmation, imkitAdminRoutes } from "../src/admin-routes.js";
+import { clearConfirmation, talkwireAdminRoutes } from "../src/admin-routes.js";
 import { MemoryAuditStore, MemoryCallRecordStore, MemoryProfileStore } from "../src/memory.js";
 import type { CallRecordStore } from "../src/types.js";
 import { imUid } from "../src/uid.js";
@@ -35,7 +35,7 @@ async function setup(respond?: Responder, calls?: CallRecordStore) {
       }),
   );
   const app = Fastify();
-  await app.register(imkitAdminRoutes, {
+  await app.register(talkwireAdminRoutes, {
     im,
     audit,
     profiles,

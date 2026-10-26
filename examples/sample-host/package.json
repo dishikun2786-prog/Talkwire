@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/sample-host",
+  "name": "@talkwire/sample-host",
   "private": true,
-  "description": "A development host for the ImKit sample apps: dev sign-in, contacts, media and the red packet example, using @imkit/host-node",
+  "description": "A development host for the Talkwire sample apps: dev sign-in, contacts, media and the red packet example, using @talkwire/host-node",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@imkit/host-node": "file:../../host-sdk-node",
+    "@talkwire/host-node": "file:../../host-sdk-node",
     "fastify": "4.29.1",
     "jsonwebtoken": "9.0.3"
   },

@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/protocol",
+  "name": "@talkwire/protocol",
   "version": "0.1.0",
-  "description": "Wire frame types generated from the ImKit protocol schema, plus uid and topic helpers",
+  "description": "Wire frame types generated from the Talkwire protocol schema, plus uid and topic helpers",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

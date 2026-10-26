@@ -4,7 +4,7 @@
  */
 
 import "fake-indexeddb/auto";
-import type { ChatMessage, ChatStore } from "@imkit/client";
+import type { ChatMessage, ChatStore } from "@talkwire/client";
 import { describe, expect, it } from "vitest";
 import { IdbChatStore, MemoryChatStore } from "../src/index.js";
 

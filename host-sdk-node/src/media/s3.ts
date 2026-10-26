@@ -1,5 +1,5 @@
 // A BlobStore on any S3-compatible storage, through the minio client
-// (an optional peer dependency: import from "@imkit/host-node/s3").
+// (an optional peer dependency: import from "@talkwire/host-node/s3").
 //
 // Keep the bucket private. Media is served through the host's own route
 // (media.ts), never from a public bucket or a CDN: chat files are private,
@@ -17,7 +17,7 @@ export class S3BlobStore implements BlobStore {
   constructor(
     private readonly client: Client,
     private readonly bucket: string,
-    /** Prepended to every object name, e.g. "imkit/". */
+    /** Prepended to every object name, e.g. "talkwire/". */
     private readonly prefix = "",
   ) {}
 

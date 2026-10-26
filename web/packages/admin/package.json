@@ -1,7 +1,7 @@
 {
-  "name": "@imkit/admin",
+  "name": "@talkwire/admin",
   "version": "0.1.0",
-  "description": "Administrator pages for ImKit, to embed in a host's admin console: chat records with clearing, and call records (the endpoints of imkitAdminRoutes in @imkit/host-node)",
+  "description": "Administrator pages for Talkwire, to embed in a host's admin console: chat records with clearing, and call records (the endpoints of talkwireAdminRoutes in @talkwire/host-node)",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
