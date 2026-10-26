@@ -1,7 +1,7 @@
 // Probe the oracle im-go in "no host" mode. Verifies a handful of behaviours
-// the framework plan depends on. Usage: node probe.js <port> <jwtSecret>
+// the framework plan depends on. Usage: node probe.js <port> <jwtSecret> (needs the ws package)
 const crypto = require('crypto');
-const WebSocket = require('D:/Program Files/roubao/server/node_modules/ws');
+const WebSocket = require('ws'); // npm install ws
 
 const [port, secret] = process.argv.slice(2);
 const b64u = (b) => Buffer.from(b).toString('base64url');

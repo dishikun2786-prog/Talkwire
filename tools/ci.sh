@@ -21,6 +21,8 @@
 #   android      Android unit tests, Lint, no libsignal or RTC SDK in the
 #                resolved graphs of the core and the optional modules, and
 #                libsignal at its pinned version in the E2EE module's
+#   site         the website and developer manual (VitePress): it builds, and
+#                a dead link or a link to a missing heading fails the build
 #
 # What the tests need from the environment:
 #   TALKWIRE_TEST_DSN  libpq key=value of a throwaway PostgreSQL database (tests
@@ -43,7 +45,7 @@ set -uo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root" || exit 2
 
-ALL_JOBS=(deps go conformance node web e2e android)
+ALL_JOBS=(deps go conformance node web e2e android site)
 
 case "$(uname -s)" in
 MINGW* | MSYS* | CYGWIN*) exe=.exe ;;
@@ -338,6 +340,11 @@ android_e2ee_pin() {
 		return 1
 	fi
 	echo ":talkwire-e2ee: $(printf '%s\n' "$lines" | sed 's/^[^a-z]*//; s/ (\*)$//' | sort -u | tr '\n' ' ')"
+}
+
+job_site() {
+	step "site: install" npm_deps site
+	step "site: build (dead links and anchors fail it)" in_dir site $npm run build
 }
 
 # ------------------------------------------------------------------ main

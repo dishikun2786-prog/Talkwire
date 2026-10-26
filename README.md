@@ -2,6 +2,8 @@
 
 Talkwire 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 Go 实时服务端、一个宿主（业务后端）接入 SDK，以及 Android、iOS、Web 三端客户端 SDK。业务项目只需实现少量宿主接口（身份、好友关系、资料、推送、媒体），就能得到单聊、群聊、媒体消息、已读、撤回、在线状态与离线推送。
 
+网站与开发手册：<https://talkwire.openedskill.com>，源文件在 `site/`。
+
 > 项目原名 ImKit，2026-10-26 改名为 Talkwire：Go 模块 `github.com/dishikun2786-prog/Talkwire/...`、Android 包名 `io.talkwire`、iOS 模块名 `Talkwire`、npm 包名 `@talkwire/*`。改名对已有部署的影响见 `CHANGELOG.md`。
 
 ## 当前状态
@@ -12,9 +14,9 @@ Talkwire 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 
 - **Android**（Phase 3、4）：核心 SDK、Room 存储、通知与 FCM、Compose 界面套件、示例 App 完成，M1、M2 达成（真机一台）。
 - **Web**（Phase 5）：协议类型、客户端与同步引擎、IndexedDB 存储、React 套件、示例与端到端用例完成，M3 达成（Web 与 Android 真机互发、同一账号多端在线）。
 - **iOS**（Phase 6）：未开始，需要 macOS。
-- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@talkwire/call-dingrtc`、`examples/artc`）。Android 端的扫码入群、通话、ARTC 适配器、群助手“正在输入”、视频压缩与 E2EE 客户端模块（`talkwire-e2ee`，AGPLv3）完成，都没有真机验证；iOS 端未做。
+- **模块与业务**（Phase 7）：通话服务端计时器、机器人钩子（群 AI 改成宿主回答）完成；Web 端的通话与扫码入群完成；ARTC 适配示例的 Web 端与宿主一侧完成（`@talkwire/call-dingrtc`、`examples/artc`）。Android 端的扫码入群、通话、ARTC 适配器、群助手“正在输入”、视频压缩与 E2EE 客户端模块（`talkwire-e2ee`，AGPLv3）完成；扫码入群与通话信令已在一台真机上与网页示例互通（`android/DEVICE_CHECKS.md`），视频压缩、E2EE 与 ARTC 适配器没有真机验证；iOS 端未做。
 - **后台**（Phase 8）：通话记录存储与后台接口（宿主 SDK）、可嵌入的后台页面 `@talkwire/admin` 完成。
-- **文档、CI、压测**（Phase 9）：接入与迁移文档、ADR 完成；全量检查脚本 `tools/ci.sh` 与 GitHub Actions 配置写好（仓库还没有远程，没在 GitHub 上跑过）；压测工具 `tools/loadtest` 在本机试跑过，正式压测待在 Linux 上做。未发布。
+- **文档、CI、压测**（Phase 9）：接入与迁移文档、ADR 完成；网站与开发手册（`site/`，VitePress）写好，部署到 talkwire.openedskill.com 的配置在 `deploy/site/`；全量检查脚本 `tools/ci.sh` 与 GitHub Actions 配置写好（还没在 GitHub 上跑过）；压测工具 `tools/loadtest` 在本机试跑过，正式压测待在 Linux 上做。未发布。
 
 各部分的结果见各目录的 README，完整计划与进度见 `docs/plan.md`。
 
@@ -33,12 +35,14 @@ Talkwire 是从小桃子自研即时聊天系统提炼出的 IM 框架：一个 
 | `android/` | Android SDK：核心、Room 存储、通知与媒体、FCM、Compose 界面套件、示例 App；可选模块 `talkwire-group-join`、`talkwire-call`、`talkwire-video-compress`、`talkwire-e2ee`（AGPLv3）；通话的 ARTC 适配器 `talkwire-call-dingrtc`。快速接入：`android/QUICKSTART.md` | Phase 3 完成（M1）；Phase 4 完成（M2，真机一台）；Phase 7 的 Android 部分完成（未上真机） |
 | `web/` | Web SDK：协议类型、客户端、IndexedDB 存储、React 套件；可选模块 `@talkwire/call`、`@talkwire/group-join`；通话的 ARTC 适配器 `@talkwire/call-dingrtc`；后台页面 `@talkwire/admin`；示例与端到端用例。快速接入：`web/QUICKSTART.md` | Phase 5 完成（M3）；Phase 7、8 的 Web 部分完成 |
 | `ios/` | iOS SDK | Phase 6，未开始 |
+| `site/` | 网站与开发手册（VitePress）：首页、接入、服务端、宿主、客户端、协议、可选模块、贡献；`tools/ci.sh site` 构建并检查死链 | 已有，未部署 |
+| `deploy/site/` | 网站的 Caddy 配置与服务器准备步骤；部署由 `.github/workflows/site.yml` 完成 | 已有 |
 | `examples/` | 业务示例：红包卡（宿主自定义消息类型，含 Android 卡片）；`sample-host`（示例 App 用的 Node 开发宿主：开发登录、演示通话、通话记录与后台）；`artc`（用阿里云 ARTC 3.0 打通话：宿主签频道令牌，各端适配器） | 已有 |
 
 ## 开发工具
 
 - Go 1.26.4 及以上（本机验证用的是 1.27.0）。
-- Node.js 22 及以上（`host-sdk-node/`、`examples/`、`tools/schema/check.mjs`；本机验证用的是 24.19.0）。依赖版本钉死，lockfile 已提交。
+- Node.js 22 及以上（`host-sdk-node/`、`examples/`、`site/`、`tools/schema/check.mjs`；本机验证用的是 24.19.0）。依赖版本钉死，lockfile 已提交。
 - JDK 17 与 Android SDK（platform 34），用于 `android/`；Gradle 8.7 由 wrapper 下载。见 `android/README.md`。
 - 文本文件一律 LF（见 `.gitattributes`）。Git for Windows 默认 `core.autocrlf=true`，不加这条，Go 源码检出后是 CRLF，哈希对不上冻结的源码，gofmt 也会报整份文件。
 - 全量检查：`bash tools/ci.sh`（或指定作业，如 `bash tools/ci.sh go web`；`--list` 列出全部步骤）。CI 跑的就是它，数据库用例需要的环境变量见脚本开头。

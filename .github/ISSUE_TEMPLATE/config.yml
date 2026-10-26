@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 开发手册
+    url: https://talkwire.openedskill.com/guide/
+    about: 接入、配置与协议的说明，提问前可以先搜一下
+  - name: 报告安全漏洞
+    url: https://github.com/dishikun2786-prog/Talkwire/security/advisories/new
+    about: 私下报告，只有维护者能看到

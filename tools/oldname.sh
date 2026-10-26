@@ -2,12 +2,13 @@
 # The project was called ImKit until 2026-10-26. The old name stays only where
 # something written before the rename is still read: old environment variable
 # names, the old migration table, the host tables' rename script, and the notes
-# that explain them (CHANGELOG.md). This check keeps it from creeping back
-# anywhere else; a new place that really needs it goes on the list below.
+# that explain them (CHANGELOG.md, and the manual pages about upgrading). This
+# check keeps it from creeping back anywhere else; a new place that really needs
+# it goes on the list below.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-allowed='^(CHANGELOG\.md|README\.md|docs/plan\.md|host-sdk-node/README\.md|host-sdk-node/prisma/rename-from-imkit\.sql|server/config\.go|server/config_env_test\.go|server/migrate/migrate\.go|server/migrate/migrate_test\.go|tools/oldname\.sh)$'
+allowed='^(CHANGELOG\.md|README\.md|docs/plan\.md|host-sdk-node/README\.md|host-sdk-node/prisma/rename-from-imkit\.sql|server/config\.go|server/config_env_test\.go|server/migrate/migrate\.go|server/migrate/migrate_test\.go|tools/oldname\.sh|site/client/storage\.md|site/guide/index\.md|site/host/node-sdk\.md|site/server/database\.md|site/server/env\.md|site/server/operations\.md)$'
 
 status=0
 files=$(git grep -il 'imkit' -- . | grep -Ev "$allowed" || true)

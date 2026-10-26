@@ -241,3 +241,21 @@ jobs:
           name: ci-logs-android
           path: ci-logs
           if-no-files-found: ignore
+
+  site:
+    name: website and developer manual
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the manual shows each page's last change from git
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash tools/ci.sh site
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-site
+          path: ci-logs
+          if-no-files-found: ignore

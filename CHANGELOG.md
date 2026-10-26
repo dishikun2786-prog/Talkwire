@@ -2,6 +2,13 @@
 
 ## 未发布
 
+### 网站与开发手册（2026-10-26）
+
+- 新增 `site/`：网站首页与开发手册（VitePress），覆盖接入、服务端、宿主、客户端、协议、可选模块与贡献，规范全文直接引用 `contract/protocol/spec/protocol-v1.md`。`tools/ci.sh site` 构建它，站内死链或指向不存在标题的锚点都让构建失败。
+- 新增部署配置：`.github/workflows/site.yml` 在 `main` 上构建并经 SSH 部署到 talkwire.openedskill.com，服务器的准备步骤与 Caddy 配置在 `deploy/site/`。
+- 新增 `CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md` 与 Issue、合并请求模板。
+- 协议规范第 4.3 节的 `errCode` 表补上表头，原来渲染不成表格；内容没有变。
+
 ### 改名：ImKit → Talkwire（2026-10-26）
 
 项目名、包名、模块名与配置名一并改为 Talkwire。线协议没有变化：协议帧里本来就不含项目名，legacy 档仍与原版客户端逐帧一致。

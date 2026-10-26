@@ -1,0 +1,58 @@
+name: 缺陷报告
+description: 某个行为与开发手册或协议规范不符
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        安全漏洞请不要在这里提交，按 SECURITY.md 私下报告。
+  - type: dropdown
+    id: part
+    attributes:
+      label: 组成部分
+      multiple: true
+      options:
+        - 服务端
+        - Node 宿主 SDK
+        - Android SDK / 界面套件
+        - Web SDK / React 套件
+        - 可选模块
+        - 协议规范
+        - 开发手册与网站
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      description: 提交号、标签，或你用的包版本
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: 协议档位
+      options:
+        - strict（默认）
+        - legacy
+        - 不清楚 / 不相关
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你看到的行为，以及你期望的行为。能引用手册或规范的章节更好。
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 最好是一段能直接跑的代码、一组帧，或基于示例（examples/sample-host、web/sample、android/sample-app）的操作步骤。
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志
+      description: 服务端日志、客户端日志或相关的帧。贴之前去掉令牌、密码与个人信息。
+      render: text

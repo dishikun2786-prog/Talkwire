@@ -27,3 +27,6 @@ build/
 .kotlin/
 local.properties
 ci-logs/
+
+# website build cache
+site/.vitepress/cache/

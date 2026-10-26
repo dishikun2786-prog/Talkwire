@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const WebSocket = require('D:/Program Files/roubao/server/node_modules/ws');
+const WebSocket = require('ws'); // npm install ws
 const [port, secret] = process.argv.slice(2);
 const b64u = (b) => Buffer.from(b).toString('base64url');
 const jwt = (c) => { const h = b64u(JSON.stringify({alg:'HS256',typ:'JWT'})); const p = b64u(JSON.stringify({iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+600,...c})); return `${h}.${p}.${crypto.createHmac('sha256',secret).update(h+'.'+p).digest('base64url')}`; };

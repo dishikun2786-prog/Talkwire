@@ -155,6 +155,8 @@ strict 档的 action 帧族错误帧多一个 `errCode`：小写下划线形式�
 
 服务端按以下顺序得出 `errCode`：`reason` 在下表对应的固定文案里时取表中的值；`reason` 以 `not friends: `、`unknown action: `、`invalid JSON: `、`module not enabled: ` 开头时分别取 `not_friends`、`unknown_action`、`invalid_json`、`module_not_enabled`；`reason` 本身已是小写下划线形式（E2EE 的原因、宿主给的通话原因）时原样使用；否则按 `code` 取通用值：400 `bad_request`、401 `unauthorized`、404 `not_found`、409 `conflict`、429 `rate_limited`、501 `module_not_enabled`，其余 `internal_error`。客户端**必须**容忍不认识的 `errCode`，退回按 `code` 处理。
 
+| `errCode` | 含义 |
+| --- | --- |
 | `not_authenticated` | 未登录 |
 | `token_required` | 登录缺令牌 |
 | `invalid_token` | 令牌无效、过期，或 strict 档下不是访问令牌 |

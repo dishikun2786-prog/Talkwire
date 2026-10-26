@@ -1,0 +1,61 @@
+# Builds the website and developer manual (site/, VitePress) and deploys it to
+# talkwire.openedskill.com. Server setup and the three secrets it needs are in
+# deploy/site/README.md; until they exist the deploy step is skipped, not failed.
+
+name: site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the manual shows each page's last change from git
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: site
+      - run: npm run build
+        working-directory: site
+      - name: deploy
+        env:
+          SSH_KEY: ${{ secrets.SITE_SSH_KEY }}
+          HOST: ${{ secrets.SITE_HOST }}
+          KNOWN_HOSTS: ${{ secrets.SITE_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$HOST" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "Deploy skipped: SITE_SSH_KEY, SITE_HOST and SITE_KNOWN_HOSTS are not all set (see deploy/site/README.md)." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The host key is pinned by SITE_KNOWN_HOSTS: an unknown key fails the job.
+          ssh_opts="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          release="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::12}"
+          rsync -a --delete -e "ssh $ssh_opts" site/.vitepress/dist/ "talkwire@$HOST:/var/www/talkwire/releases/$release/"
+          # Switch "current" with one rename, then keep the five newest releases.
+          ssh $ssh_opts "talkwire@$HOST" sh -s -- "$release" <<'REMOTE'
+          set -eu
+          cd /var/www/talkwire
+          ln -sfn "releases/$1" current.next
+          mv -Tf current.next current
+          ls -1t releases | tail -n +6 | while read -r old; do rm -rf "releases/$old"; done
+          REMOTE
+          echo "Deployed release $release" >> "$GITHUB_STEP_SUMMARY"

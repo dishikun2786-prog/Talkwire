@@ -1,7 +1,7 @@
 # Android 聊天代码耦合清单（io.talkwire 拆分前置调研）
 
-- 源仓库：`D:\Program Files\roubao`，模块 `app`，包 `com.xiaotaozi.autopilot`
-- 基线：分支 `feat/openclaw-runtime`，HEAD `33e23250`。会话开始时的 `git status` 快照里，本清单涉及的聊天文件**无未提交改动**（脏文件只有 `ScrcpyBridge.kt`/`ScrcpyCoordinator.kt`/admin-ui/video-relay 等非聊天文件）。
+- 源仓库：原版 App 的私有仓库，模块 `app`，包 `com.xiaotaozi.autopilot`
+- 基线：原版仓库的提交 `33e23250`；调研时本清单涉及的聊天文件没有未提交的改动。
 - 方法：只读。全部结论来自 `grep`/读源码核对；下文所有路径都相对 `app/src/main/java/com/xiaotaozi/autopilot/`，行号为当前 HEAD 实际行号。凡是推测都明确标注「推测」。
 - 规模：聊天相关 96 个文件、24,258 行（`chat/` 24 个 + `chat/e2e` 5 + `chat/call` 8 + `chat/crypto` 1 + `ui/components/chat` 23 + `ui/screens/messages` 24 + `ui/screens/contacts` 6 + `ui/screens/call` 4 + `ui/ChatSubApp.kt`）。
 
@@ -446,7 +446,7 @@ ChatSubApp 内部还直接承载业务页：`PaymentQrCodeScreen` 395、`Payment
 | senderKind / AI uid | `"user"` GroupAiModels.kt:14、`"ai_assistant"` 18、`"assistant_xiaotaozi"` 27 | MessageList.kt:114、ConversationScreen.kt:1003/1006 |
 | E2EE 推送原因/种类 | E2eeRepository.kt:128、130（`member_removed`/`member_left`/`owner_enabled`），220–221（`sender_key`/`msg`） | — |
 | 协议子类型 | ImWebSocketClient.kt:2520（`snapshot`）、2539（`on`）、2656（`read`）、2662（`kp`）；MainActivity.kt:635（`contact_sync` 的 `removed`） | — |
-| 域名与二维码前缀 | ImageResolver.kt:6 `https://taozi.openedskill.com`；ScanQrScreen.kt:45–48、PaymentQrCodeScreen.kt:41–42、MyQrCodeScreen.kt:65、GroupQrCodeScreen.kt:74（`/qr/c/`、`/qr/g/`、`/qr/p/`、`/qr/pr/`） | 宿主 App Link（AndroidManifest.xml:206 `pathPrefix="/qr/"`） |
+| 域名与二维码前缀 | ImageResolver.kt:6 原版主站域名（硬编码）；ScanQrScreen.kt:45–48、PaymentQrCodeScreen.kt:41–42、MyQrCodeScreen.kt:65、GroupQrCodeScreen.kt:74（`/qr/c/`、`/qr/g/`、`/qr/p/`、`/qr/pr/`） | 宿主 App Link（AndroidManifest.xml:206 `pathPrefix="/qr/"`） |
 | 宿主 SharedPreferences 键 | ImageResolver.kt:7–8（`autopilot_prefs`/`server_base_url`） | 读宿主的服务器地址设置 |
 | 设置键在两处重复 | ChatSettings.kt:18、39–42（`chat_settings`、`sound`/`vibrate`/`read_receipts`/`allow_stranger_msg`） | ChatSettingsScreen.kt:16、24–27、52–62 各自读写同名键；`allowStrangerMsg` 写了但无任何逻辑读取 |
 | 通知渠道 id | ChatNotifier.kt:35 `xiaotaozi_chat_v6`、184 `xiaotaozi_call_v1`；ImCallForegroundService.kt:185 `xiaotaozi_im_call_fgs` | — |

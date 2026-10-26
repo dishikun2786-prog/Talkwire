@@ -9,7 +9,7 @@ Phase 3 的核心 SDK（无 UI）与 Phase 4 的 Compose 界面套件、示例 A
 | 模块 | 类型 | 内容 | 主要依赖 |
 | --- | --- | --- | --- |
 | `talkwire-core` | 纯 Kotlin/JVM 库 | `ImClient`：连接、登录、多线路地址、重连与退避、请求关联。`ChatEngine`：发送队列与重试（C2）、接收排序与空洞检测（C3）、撤回墓碑、本地消息搜索（`searchMessages`）、已读游标、未读与草稿、群名册与本人角色（C9）、清空水位、缓存归属（C4）。另有 `ChatStore` 接口与内存实现、在线三态（C5）、通知决策（C6 的纯函数部分）、推送令牌注册、媒体上传接口、线协议常量与 JSON。 | kotlinx-coroutines 1.9.0、OkHttp 4.12.0。不依赖 Android、Room、Compose。 |
-| `talkwire-storage-room` | Android 库 | 用 Room 实现的 `ChatStore`：新库从 v1 开始，schema 导出在 `schemas/`。可选的加密粉碎：每个会话一把数据密钥，由宿主提供的 `KeyWrapper` 包裹；删会话、清空、换账号时连密钥一起销毁。另有源项目 v18 旧库的只读导入器 `LegacyChatImporter`。 | Room 2.6.1 |
+| `talkwire-storage-room` | Android 库 | 用 Room 实现的 `ChatStore`：新库从 v1 开始，schema 导出在 `schemas/`。可选的加密粉碎：每个会话一把数据密钥，由宿主提供的 `KeyWrapper` 包裹；删会话、换账号时连密钥一起销毁；清空只删水位以下的消息，密钥保留，因为水位以后的消息还要能读。另有源项目 v18 旧库的只读导入器 `LegacyChatImporter`。 | Room 2.6.1 |
 | `talkwire-android` | Android 库 | 通知渲染：静音渠道，提示音由 App 播放，来电走全屏通知。`NotificationController` 把引擎事件接到通知上。另有媒体缓存（默认 300 MB）、图片压缩，以及用 AndroidKeyStore 实现的 `KeyWrapper`。 | core-ktx 1.12.0、media3 1.4.1 |
 | `talkwire-push-fcm` | Android 库 | FCM：令牌来源 `FcmTokenSource`，消息服务基类 `TalkwireMessagingService`。是独立产物，不用 FCM 的 App 不必引入 Firebase。 | Firebase BOM 33.7.0 |
 | `talkwire-ui` | Android 库（Compose） | 整套聊天界面：会话列表（带搜索：会话名与本机存的文字消息）、单聊与群聊、通讯录与选人、群信息与成员管理、消息操作（复制、回复、转发、多选、撤回、保存、分享；撤回后留“某某撤回了一条消息”）、按住说话、表情与附件面板、已读名单、前台横幅。`ImTheme`（颜色、尺寸、语言；文案英文、简体中文、越南文）、`MessageTypeRegistry`（宿主注册自己的消息类型）、`ImUiHost`（宿主唯一要实现的接口；可选模块的界面经它的 `topBarExtras`、`groupInfoExtras` 两个槽位接入）、深链接 `talkwire://`。另有 `talkwire-android` 里的 `MediaSender`（图片压缩、视频首帧、文件与语音上传）。 | Compose BOM 2023.10.01、material3 1.1.2、activity-compose 1.8.1、coil 2.6.0 |

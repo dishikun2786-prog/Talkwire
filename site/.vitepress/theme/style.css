@@ -1,0 +1,116 @@
+/* Talkwire: ink, paper and one amber accent. The accent fills buttons and
+   marks; link text uses a darker amber so it reads on white (7:1). */
+:root {
+  --tw-ink: #0b1020;
+  --tw-ink-2: #121a30;
+  --tw-panel: #0e1527;
+  --tw-border-dark: #26304a;
+  --tw-on-dark: #e8ecf4;
+  --tw-on-dark-2: #c3cad8;
+  --tw-on-dark-3: #a3adbf;
+  --tw-paper: #f6f7f9;
+  --tw-line: #dce1ea;
+  --tw-text-2: #3d4757;
+  --tw-muted: #586274;
+  --tw-accent: #f2a516;
+  --tw-blue: #7c9cff;
+  --tw-green: #1f8f5f;
+
+  --vp-font-family-base: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+  --tw-font-display: "Bricolage Grotesque Variable", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+
+  --vp-c-brand-1: #7a4e00;
+  --vp-c-brand-2: #8a5a00;
+  --vp-c-brand-3: #f2a516;
+  --vp-c-brand-soft: rgba(242, 165, 22, 0.16);
+
+  --vp-button-brand-bg: var(--tw-accent);
+  --vp-button-brand-border: var(--tw-accent);
+  --vp-button-brand-text: var(--tw-ink);
+  --vp-button-brand-hover-bg: #e09608;
+  --vp-button-brand-hover-border: #e09608;
+  --vp-button-brand-hover-text: var(--tw-ink);
+  --vp-button-brand-active-bg: #c98606;
+  --vp-button-brand-active-text: var(--tw-ink);
+
+  --vp-home-hero-name-color: var(--tw-on-dark);
+  --vp-c-tip-1: #3b55b8;
+  --vp-c-tip-soft: rgba(124, 156, 255, 0.14);
+}
+
+.dark {
+  --vp-c-bg: #0b1020;
+  --vp-c-bg-alt: #0e1527;
+  --vp-c-bg-elv: #121a30;
+  --vp-c-bg-soft: #121a30;
+  --vp-c-divider: #26304a;
+  --vp-c-gutter: #1e2740;
+  --vp-c-border: #2a3550;
+  --vp-c-text-1: #e8ecf4;
+  --vp-c-text-2: #c3cad8;
+  --vp-c-text-3: #a3adbf;
+  --vp-c-brand-1: #f2c46b;
+  --vp-c-brand-2: #f5d08a;
+  --vp-c-brand-3: #f2a516;
+  --vp-c-tip-1: #a9bcff;
+}
+
+/* Headings in the manual use the display face for latin; CJK falls back. */
+.vp-doc h1,
+.vp-doc h2 {
+  font-family: var(--tw-font-display);
+  letter-spacing: -0.01em;
+}
+.vp-doc h1 {
+  font-weight: 800;
+}
+.vp-doc h2 {
+  font-weight: 700;
+  border-top-color: var(--vp-c-divider);
+}
+.vp-doc table {
+  display: block;
+  overflow-x: auto;
+}
+.VPNavBarTitle .title {
+  font-family: var(--tw-font-display);
+  font-weight: 800;
+  font-size: 18px;
+}
+
+/* The home page's top bar (and its mobile menu) sits on the dark hero in both
+   appearances: re-point the theme's variables inside the nav only. */
+.tw-home .VPNav {
+  --vp-nav-bg-color: var(--tw-ink);
+  --vp-nav-screen-bg-color: var(--tw-ink);
+  --vp-c-bg: var(--tw-ink);
+  --vp-c-bg-alt: var(--tw-ink-2);
+  --vp-c-bg-soft: var(--tw-ink-2);
+  --vp-c-bg-elv: var(--tw-ink-2);
+  --vp-c-text-1: var(--tw-on-dark);
+  --vp-c-text-2: var(--tw-on-dark-2);
+  --vp-c-text-3: var(--tw-on-dark-3);
+  --vp-c-divider: var(--tw-border-dark);
+  --vp-c-gutter: #1e2740;
+  --vp-c-border: #2a3550;
+  --vp-c-default-soft: #1b2440;
+  --vp-c-brand-1: #f2c46b;
+  --vp-c-brand-2: #f5d08a;
+}
+
+/* The home page has no outline; the theme's "back to top" bar would only cover the hero. */
+.tw-home .VPLocalNav {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
