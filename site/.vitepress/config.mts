@@ -133,6 +133,7 @@ export default defineConfig({
       { text: "开发手册", link: "/guide/", activeMatch: "^/(guide|server|host|client|migrate|contributing)/" },
       { text: "协议", link: "/protocol/", activeMatch: "^/protocol/" },
       { text: "可选模块", link: "/modules/call", activeMatch: "^/modules/" },
+      { text: "在线试用", link: "https://imtalk.openedskill.com" },
       { text: "更新日志", link: `${repo}/blob/main/CHANGELOG.md` },
     ],
     sidebar: {

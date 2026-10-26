@@ -4,6 +4,8 @@ import { withBase } from "vitepress";
 import { PLATFORMS, readPlatform, savePlatform, type Platform } from "../platform";
 
 const repo = "https://github.com/dishikun2786-prog/Talkwire";
+// The public test service (deploy/imtalk, site/guide/sandbox.md).
+const sandbox = "https://imtalk.openedskill.com";
 
 // ---- hero: a login and a reconnect sync, as frames on the wire -----------
 // Shapes follow the spec (sections 6.1, 8.1, 8.2); long values are elided.
@@ -180,6 +182,7 @@ const status = [
   { part: "Node 宿主 SDK", state: "可用", ok: true, check: "接入后黄金对话 33/33，契约测试双向通过" },
   { part: "Android SDK 与界面套件", state: "可用", ok: true, check: "单测与真实服务端用例；一台真机上验证了聊天、通话信令、扫码入群与网页互通；FCM、视频压缩、E2EE 未上真机" },
   { part: "Web SDK 与 React 套件", state: "可用", ok: true, check: "单测、端到端用例、与 Android 真机互发" },
+  { part: "云端测试服务", state: "已上线", ok: true, check: "imtalk.openedskill.com；每次发布后从公网跑端到端检查 17 步" },
   { part: "iOS SDK", state: "规划中", ok: false, check: "—" },
 ];
 </script>
@@ -198,6 +201,9 @@ const status = [
           <div class="actions">
             <a class="btn btn-accent" href="#start">开始接入
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 H19 M13 6 L19 12 L13 18" /></svg>
+            </a>
+            <a class="btn btn-ghost" :href="sandbox" target="_blank" rel="noopener">在线试用
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5 H19 V10 M19 5 L11 13 M17 14 V19 H5 V7 H10" /></svg>
             </a>
             <a class="btn btn-ghost" :href="withBase('/guide/')">阅读开发手册</a>
           </div>
@@ -392,6 +398,19 @@ const status = [
           <a class="btn btn-ink" :href="withBase('/guide/quickstart')">完整的接入步骤</a>
           <span class="muted">npm 包与 Maven 坐标还没有发布，现在从源码接入；包名在首个公开版本时确定，以手册为准。</span>
         </div>
+        <div id="try" class="card raised try" role="group" aria-labelledby="tw-try">
+          <div class="try-copy">
+            <h3 id="tw-try">先不想搭环境？用云端测试服务</h3>
+            <p>imtalk.openedskill.com 上跑着一整套 Talkwire。建一个空间、用两个名字登录，就能互发消息、建群、扫码入群、发图片、撤回、打演示通话；Android 示例和你自己的客户端也能直接连上去。按空间隔离，数据每天北京时间 04:00 清空。</p>
+            <p class="mono try-endpoint">wss://imtalk.openedskill.com/ws/im</p>
+          </div>
+          <div class="try-actions">
+            <a class="btn btn-ink" :href="sandbox" target="_blank" rel="noopener">打开在线示例
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5 H19 V10 M19 5 L11 13 M17 14 V19 H5 V7 H10" /></svg>
+            </a>
+            <p class="more"><a :href="withBase('/guide/sandbox')">测试服务说明</a></p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -450,6 +469,7 @@ const status = [
         </div>
         <div class="actions">
           <a class="btn btn-accent" href="#start">开始接入</a>
+          <a class="btn btn-ghost" :href="sandbox" target="_blank" rel="noopener">在线试用</a>
           <a class="btn btn-ghost" :href="`${repo}/blob/main/CONTRIBUTING.md`">贡献指南</a>
         </div>
       </div>
@@ -1111,6 +1131,33 @@ h2.display {
   align-items: center;
   gap: 12px;
   font-size: 15px;
+}
+
+/* The public test service, under the quick start */
+.card.try {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-left: 3px solid var(--tw-accent);
+}
+.try-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 520px;
+  max-width: 760px;
+}
+.card .try-endpoint {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.try-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 /* Status table */
