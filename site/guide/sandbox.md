@@ -124,7 +124,7 @@ node tools/sandbox-check/check.mjs                       # 默认检查 https://
 node tools/sandbox-check/check.mjs --base https://你的地址
 ```
 
-每一步都经过公网地址，所以全部通过说明 DNS、Cloudflare、Caddy、宿主和 IM 服务端整条路都通。它建的空间和用户留在自己的空间里，第二天清空。
+每一步都经过公网地址，所以全部通过说明 DNS、Caddy、宿主和 IM 服务端整条路都通。它用 Node 的 WebSocket，不会被 TLS 客户端证书请求挡住；浏览器里的 WebSocket 另用部署目录里的诊断页 `deploy/imtalk/ws-diag.html` 检查。它建的空间和用户留在自己的空间里，第二天清空。
 
 ## 自己部署一套
 

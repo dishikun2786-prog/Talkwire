@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebSocket 诊断</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --ok: #1f8f5f; --bad: #c62828; --line: #ddd; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; --line: #333; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; border: 1px solid var(--line); padding: 8px; }
+</style>
+</head>
+<body>
+<main>
+<h1>WebSocket 诊断</h1>
+<p class="muted">每一项都直接连一次，不登录、不发消息。测完把下面的整段文字复制发给我。</p>
+<table id="t"></table>
+<pre id="out">测试中…</pre>
+</main>
+<script>
+const WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/im";
+const ECHO = "wss://echo.websocket.org/";
+const rows = [];
+const lines = ["UA: " + navigator.userAgent, "onLine: " + navigator.onLine, "page: " + location.href, "time: " + new Date().toISOString()];
+function show() {
+  document.getElementById("t").innerHTML = rows.map(r => `<tr><td>${r.name}</td><td class="${r.ok ? "ok" : "bad"}">${r.ok ? "通" : "不通"}</td><td>${r.detail}</td></tr>`).join("");
+  document.getElementById("out").textContent = lines.concat(rows.map(r => `${r.name}: ${r.ok ? "OK" : "FAIL"} ${r.detail}`)).join("\n");
+}
+// Opens a socket and reports open / close with code and time; run in any global scope.
+const PROBE = `function probe(url) {
+  return new Promise((resolve) => {
+    const t0 = Date.now(); let opened = false; let err = false; let ws;
+    try { ws = new WebSocket(url); } catch (e) { resolve({ ok: false, detail: "构造失败 " + e }); return; }
+    const timer = setTimeout(() => { try { ws.close(); } catch {} ; resolve({ ok: false, detail: "10 秒内未打开 readyState=" + ws.readyState }); }, 10000);
+    ws.onopen = () => { opened = true; const ms = Date.now() - t0; clearTimeout(timer); ws.close(1000, "diag"); resolve({ ok: true, detail: "打开用时 " + ms + " ms" }); };
+    ws.onerror = () => { err = true; };
+    ws.onclose = (e) => { if (opened) return; clearTimeout(timer); resolve({ ok: false, detail: "未打开就关闭 code=" + e.code + " reason=" + (e.reason || "-") + " clean=" + e.wasClean + " error=" + err + " 用时 " + (Date.now() - t0) + " ms" }); };
+  });
+}`;
+const probe = new Function(PROBE + "; return probe;")();
+const workerSrc = PROBE + "; onmessage = async (e) => postMessage(await probe(e.data));";
+const sharedSrc = PROBE + "; onconnect = (c) => { const p = c.ports[0]; p.onmessage = async (e) => p.postMessage(await probe(e.data)); };";
+
+async function inWorker(url) {
+  return new Promise((resolve) => {
+    let w;
+    try { w = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" }))); } catch (e) { resolve({ ok: false, detail: "Worker 创建失败 " + e }); return; }
+    w.onmessage = (e) => { resolve(e.data); w.terminate(); };
+    w.onerror = (e) => resolve({ ok: false, detail: "Worker 出错 " + (e.message || e) });
+    w.postMessage(url);
+  });
+}
+async function inShared(url) {
+  return new Promise((resolve) => {
+    if (typeof SharedWorker !== "function") { resolve({ ok: false, detail: "没有 SharedWorker" }); return; }
+    let w;
+    try { w = new SharedWorker(URL.createObjectURL(new Blob([sharedSrc], { type: "text/javascript" })), { name: "diag-" + Date.now() }); } catch (e) { resolve({ ok: false, detail: "SharedWorker 创建失败 " + e }); return; }
+    const timer = setTimeout(() => resolve({ ok: false, detail: "SharedWorker 15 秒无回应" }), 15000);
+    w.port.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+    w.onerror = (e) => { clearTimeout(timer); resolve({ ok: false, detail: "SharedWorker 出错 " + (e.message || e) }); };
+    w.port.postMessage(url);
+  });
+}
+async function run(name, fn) {
+  const r = await fn();
+  rows.push({ name, ...r });
+  show();
+}
+(async () => {
+  show();
+  await run("HTTP 请求 /sandbox/info", async () => {
+    const t0 = Date.now();
+    try { const r = await fetch("/sandbox/info", { cache: "no-store" }); return { ok: r.ok, detail: "状态 " + r.status + "，用时 " + (Date.now() - t0) + " ms" }; }
+    catch (e) { return { ok: false, detail: String(e) }; }
+  });
+  await run("页面里直连 " + WS, () => probe(WS));
+  await run("Worker 里直连 " + WS, () => inWorker(WS));
+  await run("SharedWorker 里直连 " + WS, () => inShared(WS));
+  await run("对照：页面里连 " + ECHO, () => probe(ECHO));
+})();
+</script>
+</body>
+</html>

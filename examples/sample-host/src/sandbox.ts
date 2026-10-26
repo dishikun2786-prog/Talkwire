@@ -17,9 +17,10 @@
 // host and the IM server with an empty database and media directory, so
 // nothing here is kept (deploy/imtalk/).
 //
-// The client's address comes from CF-Connecting-IP: the sandbox runs behind
-// Cloudflare, and the proxy in front of the host refuses connections that do
-// not come from Cloudflare, so the header cannot be forged (deploy/imtalk/).
+// The client's address comes from CF-Connecting-IP. The proxy in front
+// (deploy/imtalk/imtalk.caddy) keeps Cloudflare's value for connections from
+// Cloudflare and overwrites it with the connection's own address for any
+// other, so it cannot be forged.
 
 import { randomInt } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";

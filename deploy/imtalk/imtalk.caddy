@@ -6,13 +6,25 @@
 #   /api/* /dev/* /sandbox/* /media/*
 #                           the sandbox host (talkwire-sandbox, 127.0.0.1:6001)
 #   everything else         the web sample, /var/www/imtalk/current
+#
+# Caddy terminates TLS itself with a Let's Encrypt certificate, so the site
+# works both with the DNS record set to "DNS only" (browsers connect here
+# directly) and proxied by Cloudflare. Use "DNS only" while the Cloudflare
+# zone requests client certificates (SSL/TLS > Client Certificates > Hosts):
+# Chrome's WebSocket gives up on such a request, see README.md, "Troubleshooting".
 
 (imtalk_site) {
-	# Only Cloudflare may connect. The sandbox host takes the client's address
-	# from CF-Connecting-IP for its rate limits; a direct connection to the
-	# origin could set that header to anything. These are Cloudflare's ranges
-	# (https://www.cloudflare.com/ips-v4 and ips-v6, 2026-10-26); refresh them
-	# when Cloudflare changes the list (README.md, "Cloudflare ranges").
+	log {
+		# Must be created by Caddy itself: `caddy validate` run as root creates
+		# it owned by root and the reload then fails (README.md).
+		output file /var/log/caddy/imtalk.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+	}
+
+	# Cloudflare's ranges (https://www.cloudflare.com/ips-v4 and ips-v6,
+	# 2026-10-26); refresh them when Cloudflare changes the list (README.md).
 	@not_cloudflare not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
 	# The IM server calls the host on 127.0.0.1; these paths never come from outside.
 	@internal path /api/v1/internal/*
@@ -20,6 +32,11 @@
 	@media path /media/*
 	@hashed path /assets/*
 	@unhashed not path /assets/*
+
+	# The sandbox host rate-limits by CF-Connecting-IP. Through Cloudflare the
+	# header is Cloudflare's; on a direct connection it is replaced with the
+	# connection's own address, whatever the client sent, so it cannot be forged.
+	request_header @not_cloudflare Cf-Connecting-Ip {remote_host}
 
 	encode zstd gzip
 	header {
@@ -33,10 +50,8 @@
 	header @media Content-Security-Policy "default-src 'none'; sandbox"
 
 	# In the order written. Without route, Caddy's own directive order would
-	# run reverse_proxy and file_server before abort and respond, and the two
-	# refusals would never see a request.
+	# run reverse_proxy and file_server before respond.
 	route {
-		abort @not_cloudflare
 		respond @internal 404
 		reverse_proxy /ws/im 127.0.0.1:6062
 		reverse_proxy @host 127.0.0.1:6001
@@ -51,10 +66,13 @@
 	}
 }
 
-# Proxied by Cloudflare, like talkwire.openedskill.com: both schemes serve the
-# site and the origin never redirects (deploy/site/Caddyfile explains why).
-# The certificate comes from Let's Encrypt over HTTP-01 through Cloudflare.
+# Plain HTTP: a browser connecting directly is sent to HTTPS. Requests from
+# Cloudflare are served as they are: in Cloudflare's Flexible mode the origin
+# is reached over HTTP, and redirecting those would loop. Caddy answers the
+# Let's Encrypt HTTP-01 challenge before any of this.
 http://imtalk.openedskill.com {
+	@direct not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	redir @direct https://{host}{uri} 308
 	import imtalk_site
 }
 

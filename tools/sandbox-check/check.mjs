@@ -2,8 +2,8 @@
 // End-to-end check of a running Talkwire sandbox from the public internet,
 // with the real web client (web/packages/client and web/packages/call, built
 // with `npm run build` in web/). Every step goes through the public address,
-// so a pass means the whole path works: DNS, Cloudflare, Caddy, the sandbox
-// host and the IM server.
+// so a pass means the whole path works: DNS, Cloudflare when the record is
+// proxied, Caddy, the sandbox host and the IM server.
 //
 //   node tools/sandbox-check/check.mjs [--base https://imtalk.openedskill.com]
 //
@@ -35,6 +35,8 @@ const UA = "talkwire-sandbox-check/1.0";
 const TIMEOUT = Number(arg("--timeout", "20000"));
 
 // Cloudflare refuses requests without a user agent; Node's WebSocket sends none by default.
+// Node ignores a TLS client certificate request, which Chrome's WebSocket does
+// not: use the diagnostic page (deploy/imtalk/ws-diag.html) for that case.
 class AgentWebSocket extends WebSocket {
   constructor(url) {
     super(url, { headers: { "user-agent": UA } });
@@ -147,10 +149,11 @@ async function main() {
   let space, otherSpace, ann, bo, cy;
   let annD, boD, boTablet, cyD, groupTopic;
 
-  await step("sandbox info through Cloudflare", async () => {
+  await step("sandbox info", async () => {
     const r = await http("GET", "/sandbox/info");
     assert(r.status === 200 && r.json?.sandbox === true, `GET /sandbox/info: ${r.status} ${r.text.slice(0, 120)}`);
-    return `cf-ray ${r.headers.get("cf-ray") ?? "none"}, reset ${r.json.resetTime ?? "?"}`;
+    const ray = r.headers.get("cf-ray");
+    return `${ray ? "through Cloudflare (" + ray + ")" : "direct, not through Cloudflare"}, reset ${r.json.resetTime ?? "?"}`;
   });
 
   await step("web page served", async () => {
@@ -197,7 +200,7 @@ async function main() {
     assert(c.length === 0, `Cy's contacts: ${JSON.stringify(c)}`);
   });
 
-  await step("login and first sync (WebSocket via Cloudflare)", async () => {
+  await step("login and first sync over WebSocket", async () => {
     annD = device(ann, "check-web");
     boD = device(bo, "check-web");
     devices.push(annD, boD);

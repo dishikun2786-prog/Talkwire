@@ -4,12 +4,13 @@
 
 ### 云端测试服务 imtalk.openedskill.com（2026-10-26）
 
-- 新增公开的测试服务，给第三方开发者不部署就能试用框架：IM 服务端（strict 协议档，装 groupjoin、e2ee、groupai、call 模块）、沙箱宿主与 Web 示例，经 Cloudflare 提供。使用说明在网站的“云端测试服务”一页（`site/guide/sandbox.md`）。
+- 新增公开的测试服务，给第三方开发者不部署就能试用框架：IM 服务端（strict 协议档，装 groupjoin、e2ee、groupai、call 模块）、沙箱宿主与 Web 示例。使用说明在网站的“云端测试服务”一页（`site/guide/sandbox.md`）。
 - 新增沙箱宿主 `examples/sample-host/src/sandbox.ts`（入口 `sandbox-main.ts`，`npm run sandbox`）：按空间隔离（`POST /sandbox/spaces` 建空间，`/dev/login` 要名字加空间码，同一空间的人自动互为联系人），没有管理员登录与管理接口，按网络地址限制建空间与登录的频率，每个空间最多 50 人，上传限单个大小、每人每小时次数与全站总量，`GET /sandbox/info` 给出清空时间与限额。7 个测试。
 - Web 示例在沙箱上多出空间码、“新建空间”、邀请链接与测试服务提示，并在启动时用保存的名字和空间码重新登录；连开发宿主时不变。Android 示例加了 `-PtalkwireSandbox=<地址>` 构建参数，连沙箱时登录页同样要空间码。
-- 新增 `deploy/imtalk/`：服务器一次性准备（`setup.sh`）、发布（`release.sh`，宿主用 esbuild 打成一个文件，服务器上不装 npm 依赖）、systemd 单元（只允许本机通信）、只接受 Cloudflare 连接的 Caddy 站点，以及每天北京时间 04:00 清空数据库与上传文件的定时器。
+- 新增 `deploy/imtalk/`：服务器一次性准备（`setup.sh`）、发布（`release.sh`，宿主用 esbuild 打成一个文件，服务器上不装 npm 依赖）、systemd 单元（只允许本机通信）、Caddy 站点，以及每天北京时间 04:00 清空数据库与上传文件的定时器。
 - 新增 `tools/sandbox-check/check.mjs`：用真实的 Web 客户端从公网把测试服务走一遍（17 步：服务信息与网页、没有管理接口、空间隔离、WebSocket 登录与同步、单聊、跨空间发不进来、图片上传与下载比对、群聊、跨空间扫码入群并审批、撤回、已读、同一用户两台设备、通话信令全过程、双方清空、离线补拉与在线状态）。2026-10-26 部署后两次运行均 17/17 通过。
 - `deploy/site/Caddyfile` 末尾导入 `/etc/caddy/sites/*.caddy`，同一台服务器上的其他站点各放一个文件。
+- 测试服务的 TLS 改由 Caddy 自己完成，DNS 可以设为“仅 DNS”让浏览器直连：Cloudflare 区域开着客户端证书（mTLS）时会在握手里请求客户端证书，Chrome 的 WebSocket 一遇到就放弃，页面一直显示“网络已断开”。直连时 Caddy 用连接本身的地址覆盖 `CF-Connecting-IP`，限频不能被伪造；http 跳到 https。排查方法与临时诊断页 `deploy/imtalk/ws-diag.html` 写进 `deploy/imtalk/README.md`。
 
 ### 网站与开发手册（2026-10-26）
 

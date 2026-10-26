@@ -19,7 +19,8 @@
 
 ## 安全设计
 
-- **只接受 Cloudflare 的连接**。宿主按 `CF-Connecting-IP` 限频；直连源站的请求可以随便填这个头，所以 Caddy 对不是来自 Cloudflare 地址段的连接直接断开（`abort`）。地址段写在 `imtalk.caddy` 里，见下面的“Cloudflare 地址段”。
+- **TLS 由 Caddy 自己完成**（Let's Encrypt 证书），所以 DNS 记录设为“仅 DNS”（浏览器直连）或经 Cloudflare 代理都能用。Cloudflare 那一侧的问题见“排查”里的 Chrome WebSocket 一条。
+- **来源地址不能伪造**。宿主按 `CF-Connecting-IP` 限频。经 Cloudflare 时这个头由 Cloudflare 填；直连时 Caddy 用连接本身的地址覆盖它，客户端填什么都没用（`request_header @not_cloudflare`）。地址段写在 `imtalk.caddy` 里，见下面的“Cloudflare 地址段”。直连时用 http 访问会被 308 跳到 https。
 - **两个服务只碰本机**。systemd 的 `IPAddressAllow=localhost` 与 `IPAddressDeny=any` 让它们只能和本机通信：IM 服务端虽然监听 `0.0.0.0:6062`，外部的包到不了它；数据库、宿主与 Caddy 都在本机。阿里云安全组也只开放 22、80、443。
 - **内部接口不对外**。IM 服务端回调宿主走 `127.0.0.1:6001/api/v1/internal/*`；经 Caddy 进来的这类路径一律 404。
 - **上传的文件不能当网页执行**。`/media/*` 加了 `Content-Security-Policy: default-src 'none'; sandbox`；宿主本来就只收白名单里的类型，并带 `nosniff`。
@@ -28,7 +29,7 @@
 
 ## 第一次部署
 
-1. DNS：`imtalk.openedskill.com` 的 A 记录指向服务器，经 Cloudflare 代理（橙色云）。SSL 模式与网站相同，见 `deploy/site/README.md`。
+1. DNS：`imtalk.openedskill.com` 的 A 记录指向服务器。目前用“仅 DNS”（灰色云），浏览器直连 Caddy；原因见“排查”里的 Chrome WebSocket 一条。若改回经 Cloudflare 代理，SSL 模式与网站相同，见 `deploy/site/README.md`。
 2. 把本目录除 `release.sh` 外的文件传到服务器的同一个目录，以 root 运行 `setup.sh`。它装 PostgreSQL 16、Node 24（官方构建，校验 SHA-256）、没有交换分区时建一个 1 GB 的交换文件、生成密钥、建库、装 systemd 单元与定时器、装 Caddy 站点并重新加载 Caddy。再运行一次不会改动已有的东西（密钥保留）。
 
    ```bash
@@ -38,7 +39,7 @@
 
    在 Windows 上取出的文件可能带 CRLF，所以先 `sed` 一遍。
 
-3. Caddy 重新加载后自己向 Let's Encrypt 申请证书（HTTP-01 经 Cloudflare），通常几秒钟。
+3. Caddy 重新加载后自己向 Let's Encrypt 申请证书（HTTP-01；经 Cloudflare 代理时同样能通过），通常几秒钟。
 4. 在一台装好了依赖（`web/`、`host-sdk-node/`、`examples/sample-host/` 下各 `npm ci` 过）的开发机上发布第一个版本：
 
    ```bash
@@ -81,15 +82,18 @@ cd web && npm run build && cd ..
 node tools/sandbox-check/check.mjs
 ```
 
-还应当确认绕过 Cloudflare 直连源站会被断开：
+直连源站时，证书应当能通过校验，握手里不应当有客户端证书请求，伪造的 `CF-Connecting-IP` 不起作用：
 
 ```bash
-curl --resolve imtalk.openedskill.com:443:43.103.5.167 -k https://imtalk.openedskill.com/sandbox/info   # 应当是 curl: (52) Empty reply
+curl -s -o /dev/null -w "%{http_code} verify=%{ssl_verify_result}\n" --resolve imtalk.openedskill.com:443:43.103.5.167 https://imtalk.openedskill.com/sandbox/info   # 200 verify=0
+echo | openssl s_client -connect imtalk.openedskill.com:443 -servername imtalk.openedskill.com 2>/dev/null | grep -c "Acceptable client certificate"   # 0
 ```
+
+浏览器里的 WebSocket 可以用临时诊断页测：把 `deploy/imtalk/ws-diag.html` 传到 `/var/www/imtalk/current/` 下打开，它在页面、Worker、SharedWorker 里各直连一次 `/ws/im`，再连一个第三方服务器作对照。下次发布会把它连同旧版本一起换掉。
 
 ## Cloudflare 地址段
 
-`imtalk.caddy` 里的地址段取自 <https://www.cloudflare.com/ips-v4> 与 <https://www.cloudflare.com/ips-v6>（文件里写了取的日期）。Cloudflare 很少改动它们；改了以后，新地址段的边缘节点来的请求会被断开，表现为部分用户偶尔连不上。更新：取最新列表替换 `@not_cloudflare` 那一行，然后
+`imtalk.caddy` 里的地址段取自 <https://www.cloudflare.com/ips-v4> 与 <https://www.cloudflare.com/ips-v6>（文件里写了取的日期），用来判断一个连接是不是 Cloudflare 转来的：是就信它填的 `CF-Connecting-IP`，不是就覆盖。Cloudflare 很少改动它们；改了以后（且 DNS 经 Cloudflare 代理时），新地址段的边缘节点会被当成直连，所有经它来的用户共用一个限频额度。更新：取最新列表替换 `@not_cloudflare` 与 `@direct` 两行，然后
 
 ```bash
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && systemctl reload caddy
@@ -103,6 +107,8 @@ caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && systemctl re
 | 登录返回 5xx | `journalctl -u talkwire-sandbox -n 50`；`curl http://127.0.0.1:6001/sandbox/info` |
 | 521、522 | Caddy 没在运行，或者 Cloudflare 的地址段过时了（见上一节） |
 | 525、526 | 证书：`journalctl -u caddy | grep imtalk` |
+| Chrome 里一直“网络已断开”，服务器上收不到 `/ws/im`，诊断页显示 1006 | Cloudflare 在 TLS 握手里请求客户端证书（区域开了 SSL/TLS → Client Certificates，主机列表含这个域名），Chrome 的 WebSocket 一遇到证书请求就放弃（`ERR_SSL_CLIENT_AUTH_CERT_NEEDED`）。Chrome 经 DNS HTTPS 记录用 HTTP/3 加载页面后，WebSocket 要新建一次 TLS 握手，于是必然撞上；走 HTTP/2 时复用页面的会话，常常侥幸不出问题，Node 写的客户端也不受影响，所以端到端检查发现不了。确认：`openssl s_client` 输出里有 `Acceptable client certificate`。解决：DNS 记录改“仅 DNS”，或在 Cloudflare 的客户端证书主机列表里去掉这个域名 |
+| 改了 `imtalk.caddy` 后重新加载失败，提示 `imtalk.log: permission denied` | 用 root 跑 `caddy validate` 时它先把日志文件建成了 root 的；删掉 `/var/log/caddy/imtalk.log` 再 `systemctl reload caddy`。重新加载失败期间 Caddy 继续用旧配置 |
 | 上传返回 507 | 上传总量到了 2 GB，等下一次清空，或手动清空 |
 | 内存紧张 | 两个服务各限 400 MB（`MemoryMax`）；`free -m`、`systemctl status talkwire-im` |
 
